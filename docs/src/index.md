@@ -1,14 +1,14 @@
 ```@meta
-CurrentModule = SymbolicNetworks
+CurrentModule = SymbolicNeuralNetworks
 ```
 
-# SymbolicNetworks
+# SymbolicNeuralNetworks
 
-Documentation for [SymbolicNetworks](https://github.com/JuliaGNI/SymbolicNetworks.jl).
+Documentation for [SymbolicNeuralNetworks](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl).
 
 ```@index
 ```
 
 ```@autodocs
-Modules = [SymbolicNetworks]
+Modules = [SymbolicNeuralNetworks]
 ```

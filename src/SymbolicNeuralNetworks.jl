@@ -1,4 +1,4 @@
-module SymbolicNetworks
+module SymbolicNeuralNetworks
 
 # Write your package code here.
 

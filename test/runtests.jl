@@ -1,6 +1,6 @@
-using SymbolicNetworks
+using SymbolicNeuralNetworks
 using Test
 
-@testset "SymbolicNetworks.jl" begin
+@testset "SymbolicNeuralNetworks.jl" begin
     # Write your tests here.
 end

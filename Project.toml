@@ -1,4 +1,4 @@
-name = "SymbolicNetworks"
+name = "SymbolicNeuralNetworks"
 uuid = "aed23131-dcd0-47ca-8090-d21e605652e3"
 authors = ["Michael Kraus"]
 version = "1.0.0-DEV"

@@ -1,16 +1,16 @@
-using SymbolicNetworks
+using SymbolicNeuralNetworks
 using Documenter
 
-DocMeta.setdocmeta!(SymbolicNetworks, :DocTestSetup, :(using SymbolicNetworks); recursive=true)
+DocMeta.setdocmeta!(SymbolicNeuralNetworks, :DocTestSetup, :(using SymbolicNeuralNetworks); recursive=true)
 
 makedocs(;
-    modules=[SymbolicNetworks],
+    modules=[SymbolicNeuralNetworks],
     authors="Michael Kraus",
-    repo="https://github.com/JuliaGNI/SymbolicNetworks.jl/blob/{commit}{path}#{line}",
-    sitename="SymbolicNetworks.jl",
+    repo="https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/blob/{commit}{path}#{line}",
+    sitename="SymbolicNeuralNetworks.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://JuliaGNI.github.io/SymbolicNetworks.jl",
+        canonical="https://JuliaGNI.github.io/SymbolicNeuralNetworks.jl",
         edit_link="main",
         assets=String[],
     ),
@@ -20,6 +20,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/JuliaGNI/SymbolicNetworks.jl",
+    repo="github.com/JuliaGNI/SymbolicNeuralNetworks.jl",
     devbranch="main",
 )
