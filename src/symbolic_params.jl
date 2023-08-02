@@ -1,39 +1,42 @@
-using GeometricMachineLearning
-using LinearAlgebra
-using Symbolics
-
-using AbstractNeuralNetworks
-import AbstractNeuralNetworks: NeuralNetwork
-
-include("utils.jl")
-
-
-function symbolicParams(M::AbstractArray, i::Int = 0)
-    sname = SymbolicName(Symbol(@Name M),i)
-    ((@variables $sname[Tuple([1:s for s in size(M)])...])[1],i+1)
+#=
+    This files contains recursive functions to create a preserving shape symbolic params which can be the form of any combinaition of Tuple, namedTuple, Array and Real. 
+=#
+function SymbolicName(arg, storage)
+    arg ∈ keys(storage) ? storage[arg] += 1 : storage[arg] = 1
+    nam = string(arg)*"_"*string(storage[arg])
+    Symbol(nam)
 end
 
-function symbolicParams(nt::NamedTuple, i::Int = 0)
+function symbolic_params(x::Real, var_name::Union{Missing, Symbol} = missing, storage = Dict())
+    sname = ismissing(var_name) ?  SymbolicName(:X, storage) : SymbolicName(var_name, storage)
+    ((@variables $sname)[1], storage)
+end
+
+function symbolic_params(M::AbstractArray, var_name::Union{Missing, Symbol} = missing, storage = Dict())
+    sname = ismissing(var_name) ?  SymbolicName(:M, storage) : SymbolicName(var_name, storage)
+    ((@variables $sname[Tuple([1:s for s in size(M)])...])[1], storage)
+end
+
+function symbolic_params(nt::NamedTuple, var_name::Union{Missing, Symbol} = missing, storage = Dict())
     if length(nt) == 1
-        symb, j = symbolicParams(values(nt)[1], i)
-        return NamedTuple{keys(nt)}((symb,)),j
+        symb, storage= symbolic_params(values(nt)[1], keys(nt)[1], storage)
+        return NamedTuple{keys(nt)}((symb,)), storage
     else
-        symb, j = symbolicParams(values(nt)[1], i)
-        symbs, k = symbolicParams(NamedTuple{keys(nt)[2:end]}(values(nt)[2:end]), j)
-        return  (NamedTuple{keys(nt)}(Tuple([symb, symbs...])), k)
+        symb, storage = symbolic_params(values(nt)[1], keys(nt)[1], storage)
+        symbs, storage = symbolic_params(NamedTuple{keys(nt)[2:end]}(values(nt)[2:end]), var_name, storage)
+        return  (NamedTuple{keys(nt)}(Tuple([symb, symbs...])), storage)
     end
 end
 
-function symbolicParams(t::Tuple, i::Int = 0)
+function symbolic_params(t::Tuple, var_name::Union{Missing, Symbol} = missing, storage = Dict())
     if length(t) == 1
-        symb, j = symbolicParams(t[1],i)
-        return (symb,),j
+        symb, storage = symbolic_params(t[1], var_name, storage)
+        return (symb,), storage
     else
-        symb, j = symbolicParams(t[1],i)
-        symbs, k = symbolicParams(t[2:end], j)
-        return (Tuple([symb, symbs...]),k)
+        symb, storage = symbolic_params(t[1], var_name, storage)
+        symbs, storage = symbolic_params(t[2:end], var_name, storage)
+        return (Tuple([symb, symbs...]), storage)
     end
 end
 
-
-symbolicParams(nn::NeuralNetwork) = symbolicParams(nn.params,1)[1]
+symbolic_params(nn::NeuralNetwork) = symbolic_params(nn.params, missing, Dict())[1]

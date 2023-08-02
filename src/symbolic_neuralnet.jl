@@ -1,39 +1,34 @@
-include("abstract_symbolic_neuralnet.jl")
 
-struct SymbolicNeuralNetwork{AT, ET, EF} <: AbstractSymbolicNeuralNetwork{AT, ET}
+
+struct SymbolicNeuralNetwork{AT, ET} <: AbstractSymbolicNeuralNetwork{AT}
     nn::NeuralNetwork{AT}
     est::ET
-    vectorfield::EF
 
-    function SymbolicNeuralNetwork(nn::NeuralNetwork)
-        est = buildsymbolic(nn)
+    function SymbolicNeuralNetwork(nn::NeuralNetwork, dim::Int)
+        est = buildsymbolic(nn, dim)
         eval_est = eval(est)
-        eval_field = is_hamitonian(nn.architecture) ? eval(field) : missing      
-        new{typeof(nn.architecture), typeof(eval_est), typeof(eval_est)}(nn, eval_est, eval_field)
+        new{typeof(nn.architecture), typeof(eval_est)}(nn, eval_est)
     end
 
 end
 
 neuralnet(snn::SymbolicNeuralNetwork) = snn.nn
-architecture(snn::SymbolicNeuralNetwork) = snn.nn.architecture
-model(snn::SymbolicNeuralNetwork) = snn.nn.model
-params(snn::SymbolicNeuralNetwork) = snn.nn.params
+AbstractNeuralNetworks.architecture(snn::SymbolicNeuralNetwork) = snn.nn.architecture
+AbstractNeuralNetworks.model(snn::SymbolicNeuralNetwork) = snn.nn.model
+AbstractNeuralNetworks.params(snn::SymbolicNeuralNetwork) = snn.nn.params
 
-(snn::SymbolicNeuralNetwork)(x, params = params(shnn)) = snn.est(x, develop(params)...)
+AbstractNeuralNetworks.dim(snn::SymbolicNeuralNetwork) = dim(snn.nn)
+
+(snn::SymbolicNeuralNetwork)(x, params = AbstractNeuralNetworks.params(snn)) = snn.est(x, develop(params)...)
 apply(snn::SymbolicNeuralNetwork, x, args...) = snn(x, args...)
 
-vectorfield(shnn::SymbolicHNN, x, params = params(shnn)) = shnn.vectorfield(x, develop(params)...)
+Symbolize(nn::NeuralNetwork, dim::Int) = SymbolicNeuralNetwork(nn, dim)
 
-is_hamitonian(::Architecture) = false
+function buildsymbolic(nn::NeuralNetwork, dim::Int)
 
-Symbolize(nn::NeuralNetwork) = SymbolicNeuralNetwork(nn)
-
-
-function buildsymbolic(nn::NeuralNetwork)
-
-    @variables sinput[1:dim(nn.architecture)]
+    @variables sinput[1:dim]
     
-    sparams = symbolicParams(nn)
+    sparams = symbolic_params(nn)
 
     est = nn(sinput, sparams)
 

@@ -1,5 +1,5 @@
 #=
-     This files contains general functions to create symbolics functions
+     This files contains general functions to create symbolics functions.
 =#
 
 function build_eval(f::Base.Callable, args...; params = params::Union{Tuple, NamedTuple, AbstractArray})
@@ -35,6 +35,21 @@ function build_hamiltonien(H::Base.Callable, dim::Int, params::Union{Tuple, Name
         fun_est = build_function(est, st, sq, sp, develop(sparams)...)[2]
         fun_field = build_function(field,  st, sq, sp, develop(sparams)...)[1]
     
-        return (fun_est, fun_field)s
+        return (fun_est, fun_field)
 end
 
+#=
+function build_gradloss(loss::Base.Callable, params::Union{Tuple, NamedTuple, AbstractArray})
+
+    # creates variables 
+    sparams = symbolicParams(params)     # for the parameters
+
+    # create the estimation of the hamiltonian
+    sloss = loss(sparams)
+
+    # compute the vectorfield from the hamiltonian
+    gradloss= Symbolics.gradient(sloss , sparams)
+
+    build_function(gradloss, st, sq, sp, develop(sparams)...)[2]
+end
+=#
