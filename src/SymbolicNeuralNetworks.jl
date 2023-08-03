@@ -8,6 +8,8 @@ module SymbolicNeuralNetworks
 
     include("utils.jl")
 
+    include("get_track.jl")
+
     export symbolic_params
     include("symbolic_params.jl")
 
@@ -19,6 +21,8 @@ module SymbolicNeuralNetworks
     export Symbolize
     
     include("symbolic_neuralnet.jl")
+
+    
 
     
 

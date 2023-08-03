@@ -1,6 +1,7 @@
 #=
     This files contains recursive functions to create a preserving shape symbolic params which can be the form of any combinaition of Tuple, namedTuple, Array and Real. 
 =#
+
 function SymbolicName(arg, storage)
     arg ∈ keys(storage) ? storage[arg] += 1 : storage[arg] = 1
     nam = string(arg)*"_"*string(storage[arg])

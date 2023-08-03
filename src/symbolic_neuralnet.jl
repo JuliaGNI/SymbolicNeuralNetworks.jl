@@ -1,13 +1,13 @@
 
 
-struct SymbolicNeuralNetwork{AT, ET} <: AbstractSymbolicNeuralNetwork{AT}
+struct SymbolicNeuralNetwork{AT, ET, EF} <: AbstractSymbolicNeuralNetwork{AT}
     nn::NeuralNetwork{AT}
     est::ET
+    fun::EF
 
     function SymbolicNeuralNetwork(nn::NeuralNetwork, dim::Int)
-        est = buildsymbolic(nn, dim)
-        eval_est = eval(est)
-        new{typeof(nn.architecture), typeof(eval_est)}(nn, eval_est)
+        fun, est = buildsymbolic(nn, dim)
+        new{typeof(nn.architecture), typeof(est), typeof(fun)}(nn, est, fun)
     end
 
 end
@@ -19,7 +19,7 @@ AbstractNeuralNetworks.params(snn::SymbolicNeuralNetwork) = snn.nn.params
 
 AbstractNeuralNetworks.dim(snn::SymbolicNeuralNetwork) = dim(snn.nn)
 
-(snn::SymbolicNeuralNetwork)(x, params = AbstractNeuralNetworks.params(snn)) = snn.est(x, develop(params)...)
+(snn::SymbolicNeuralNetwork)(x, params = AbstractNeuralNetworks.params(snn)) = snn.est(x, params)
 apply(snn::SymbolicNeuralNetwork, x, args...) = snn(x, args...)
 
 Symbolize(nn::NeuralNetwork, dim::Int) = SymbolicNeuralNetwork(nn, dim)
@@ -32,6 +32,8 @@ function buildsymbolic(nn::NeuralNetwork, dim::Int)
 
     est = nn(sinput, sparams)
 
-    build_function(est, sinput, develop(sparams)...)[2]
+    fun = build_function(est, sinput, develop(sparams)...)[2]
+
+    rewrite(fun, sparams), eval(rewrite(fun, sparams))
 
 end

@@ -5,8 +5,8 @@
 function build_eval(f::Base.Callable, args...; params = params::Union{Tuple, NamedTuple, AbstractArray})
 
     # creates variables 
-    sargs = symbolicParams(args)             # for the argument
-    sparams = symbolicParams(params)    # for the parameters
+    sargs = symbolic_params(args)             # for the argument
+    sparams = symbolic_params(params)    # for the parameters
 
     # create the estimation of the hamiltonian
     est = f(sargs..., sparams)
@@ -24,7 +24,7 @@ function build_hamiltonien(H::Base.Callable, dim::Int, params::Union{Tuple, Name
         @variables sq[1:dim÷2]               # for the position
         @variables sp[1:dim÷2]               # for the momentum
         @variables st                        # for the time
-        sparams = symbolicParams(params)     # for the parameters
+        sparams = symbolic_params(params)     # for the parameters
 
         # create the estimation of the hamiltonian
         est = H(st, sq, sp, sparams)

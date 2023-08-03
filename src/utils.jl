@@ -5,7 +5,10 @@ end
 develop(x) = [x]
 develop(t::Tuple{Any}) = [develop(t[1])...]
 develop(t::Tuple) = [develop(t[1])..., develop(t[2:end])...]
-develop(t::NamedTuple) = vcat([[develop(e)...] for e in t]...)
+function develop(t::NamedTuple) 
+   X = [[develop(e)...] for e in t] 
+   vcat(X...)
+end
 
 
 function transposymplecticMatrix(n::Int) 
