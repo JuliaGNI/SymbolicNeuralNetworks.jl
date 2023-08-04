@@ -1,4 +1,8 @@
 
+#=
+    SymbolicNeuralNetwork is a type of neural network made from another one which changes the evaluation function with a symbolic one.
+=#
+
 
 struct SymbolicNeuralNetwork{AT, ET, EF} <: AbstractSymbolicNeuralNetwork{AT}
     nn::NeuralNetwork{AT}

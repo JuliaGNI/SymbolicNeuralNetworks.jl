@@ -11,7 +11,7 @@ module SymbolicNeuralNetworks
     include("get_track.jl")
 
     export symbolic_params
-    include("symbolic_params.jl")
+    include("params.jl")
 
     export AbstractSymbolicNeuralNetwork
     include("abstract_symbolic_neuralnet.jl")

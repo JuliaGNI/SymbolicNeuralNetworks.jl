@@ -23,20 +23,3 @@ function symplecticMatrix(n::Int)
     [Z I; -I Z]
 end
 
-#=
-using Zygote
-
-(::Zygote.ProjectTo{Float64})(x::Tuple{Float64}) = only(x)
-
-(::Zygote.ProjectTo{AbstractArray})(x::Tuple{Vararg{Float64}}) = [x...]
-
-dev(x) = Zygote.gradient(x->sum(develop(x)), x)[1]
-
-dev(4)
-dev((4,4))
-dev((1,(1,(1,1))))
-
-Base.size(nt::NamedTuple) = (length(nt),)
-
-dev((1,(W=2, b=5)))
-=#

@@ -38,18 +38,3 @@ function build_hamiltonien(H::Base.Callable, dim::Int, params::Union{Tuple, Name
         return (fun_est, fun_field)
 end
 
-#=
-function build_gradloss(loss::Base.Callable, params::Union{Tuple, NamedTuple, AbstractArray})
-
-    # creates variables 
-    sparams = symbolicParams(params)     # for the parameters
-
-    # create the estimation of the hamiltonian
-    sloss = loss(sparams)
-
-    # compute the vectorfield from the hamiltonian
-    gradloss= Symbolics.gradient(sloss , sparams)
-
-    build_function(gradloss, st, sq, sp, develop(sparams)...)[2]
-end
-=#
