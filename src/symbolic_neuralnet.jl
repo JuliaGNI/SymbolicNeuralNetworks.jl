@@ -3,15 +3,15 @@
     SymbolicNeuralNetwork is a type of neural network made from another one which changes the evaluation function with a symbolic one.
 =#
 
+abstract type AbstractSymbolicNeuralNetwork{AT} <: AbstractNeuralNetwork{AT} end
 
-struct SymbolicNeuralNetwork{AT, ET, EF} <: AbstractSymbolicNeuralNetwork{AT}
+struct SymbolicNeuralNetwork{AT, ET} <: AbstractSymbolicNeuralNetwork{AT}
     nn::NeuralNetwork{AT}
     est::ET
-    fun::EF
 
     function SymbolicNeuralNetwork(nn::NeuralNetwork, dim::Int)
-        fun, est = buildsymbolic(nn, dim)
-        new{typeof(nn.architecture), typeof(est), typeof(fun)}(nn, est, fun)
+        est = buildsymbolic(nn, dim)
+        new{typeof(nn.architecture), typeof(est)}(nn, est)
     end
 
 end
@@ -36,8 +36,11 @@ function buildsymbolic(nn::NeuralNetwork, dim::Int)
 
     est = nn(sinput, sparams)
 
-    fun = build_function(est, sinput, develop(sparams)...)[2]
+    code = build_function(est, sinput, develop(sparams)...)[2]
 
-    rewrite(fun, sparams), eval(rewrite(fun, sparams))
+    rewrite_code = rewrite_code(code, sinput, sparams)
 
+    fun = @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(rewrite_code))
+
+    fun
 end

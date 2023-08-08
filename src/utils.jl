@@ -3,13 +3,10 @@ function get_string(expr)
 end
 
 develop(x) = [x]
+develop(::Nothing) = []
 develop(t::Tuple{Any}) = [develop(t[1])...]
 develop(t::Tuple) = [develop(t[1])..., develop(t[2:end])...]
-function develop(t::NamedTuple) 
-   X = [[develop(e)...] for e in t] 
-   vcat(X...)
-end
-
+develop(t::NamedTuple) = vcat([[develop(e)...] for e in t]...)
 
 function transposymplecticMatrix(n::Int) 
     I = Diagonal(ones(n÷2))

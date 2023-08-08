@@ -17,8 +17,4 @@ x = [0.5, 0.8]
 @time shnn(x)
 @time hnn(x)
 
-#=
-@time sf = field(shnn, x)
-@time f = vectorfield(hnn, x)
-@test norm(reshape(sf,2,1)-f) < 10e-15
-=#
+
