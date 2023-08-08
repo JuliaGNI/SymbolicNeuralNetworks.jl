@@ -30,6 +30,8 @@ Symbolize(nn::NeuralNetwork, dim::Int) = SymbolicNeuralNetwork(nn, dim)
 
 function buildsymbolic(nn::NeuralNetwork, dim::Int)
 
+    RuntimeGeneratedFunctions.init(@__MODULE__)
+
     @variables sinput[1:dim]
     
     sparams = symbolic_params(nn)
@@ -38,9 +40,9 @@ function buildsymbolic(nn::NeuralNetwork, dim::Int)
 
     code = build_function(est, sinput, develop(sparams)...)[2]
 
-    rewrite_code = rewrite_code(code, sinput, sparams)
+    @show rewrite_codes = rewrite_code(code, (sinput,), sparams)
 
-    fun = @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(rewrite_code))
+    fun = @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(rewrite_codes))
 
     fun
 end

@@ -1,6 +1,5 @@
 using SymbolicNeuralNetworks
 using GeometricMachineLearning
-import GeometricMachineLearning: vectorfield
 
 using Test
 
