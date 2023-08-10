@@ -20,6 +20,7 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/JuliaGNI/SymbolicNeuralNetworks.jl",
-    devbranch="main",
+    repo   = "github.com/JuliaGNI/SymbolicNeuralNetworks.jl",
+    devurl = "latest",
+    devbranch = "main",
 )
