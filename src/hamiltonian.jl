@@ -9,13 +9,11 @@
 function symbolic_hamiltonian(H::Base.Callable, dim::Int, params::Union{Tuple, NamedTuple, AbstractArray})
 
     RuntimeGeneratedFunctions.init(@__MODULE__)
-    
-    @assert iseven(dim) "Dimension must be even!"
 
     # creates variables 
-    @variables st                              # for the time
-    @variables q(st)[1:dim÷2]               # for the position
-    @variables p(st)[1:dim÷2]               # for the momentum
+    @variables st                         # for the time
+    @variables q(st)[1:dim]               # for the position
+    @variables p(st)[1:dim]               # for the momentum
     
     sparams = symbolic_params(params; redundancy = false)[1]        # for the parameters
 

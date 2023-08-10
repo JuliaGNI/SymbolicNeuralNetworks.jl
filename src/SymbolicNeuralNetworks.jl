@@ -7,9 +7,11 @@ module SymbolicNeuralNetworks
 
     import AbstractNeuralNetworks: NeuralNetwork, dim
 
-    export develop
     include("utils.jl")
-    
+
+    export develop, envelop
+    include("de_envelop.jl")
+
     export get_track
     include("get_track.jl")
 

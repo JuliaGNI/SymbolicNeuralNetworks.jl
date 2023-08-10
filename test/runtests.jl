@@ -5,6 +5,7 @@ using Test
 @testset "SymbolicNeuralNetworks.jl" begin
    
     #@safetestset "Symbolic Params                                                                        " begin include("test_params.jl") end
+    @safetestset "Develop/Envelop                                                                        " begin include("test_de_envelop.jl") end
     @safetestset "Get Track                                                                              " begin include("test_get_track.jl") end
     @safetestset "Rewrite code                                                                           " begin include("test_rewrite.jl") end
     @safetestset "Hamiltonian                                                                            " begin include("test_hamiltonian.jl") end

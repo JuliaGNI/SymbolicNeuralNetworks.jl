@@ -41,3 +41,9 @@ function rewrite_lagrangian(expr, args, sparams = nothing, fun_name = "slagrangi
     expr = Meta.parse(string_expr)
 end
 
+function rewrite_neuralnetwork(expr, args, sparams)
+    expr = rewrite_code(expr, args, sparams)
+    string_expr = replace(string(expr), "args[1]" => "x")
+    string_expr = replace(string(string_expr), "args" => "x")
+    expr = Meta.parse(string_expr)
+end

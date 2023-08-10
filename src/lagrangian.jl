@@ -10,12 +10,10 @@ function symbolic_lagrangian(L::Base.Callable, dim::Int, params::Union{Tuple, Na
 
     RuntimeGeneratedFunctions.init(@__MODULE__)
     
-    @assert iseven(dim) "Dimension must be even!"
-
     # creates variables 
     @variables st                           # for the time
-    @variables x(st)[1:dim÷2]               # for the position
-    @variables v(st)[1:dim÷2]               # for the velocity
+    @variables x(st)[1:dim]               # for the position
+    @variables v(st)[1:dim]               # for the velocity
     
     sparams = symbolic_params(params; redundancy = false)[1]       # for the parameters
 
@@ -27,9 +25,6 @@ function symbolic_lagrangian(L::Base.Callable, dim::Int, params::Union{Tuple, Na
 
     # rewrite the code to take directly paramters
     rewrite_code_L = rewrite_lagrangian(code_L, (x, v, st), sparams)
-
-    # substitute symbols 
-
 
     # create the related function
     gL = @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(rewrite_code_L))

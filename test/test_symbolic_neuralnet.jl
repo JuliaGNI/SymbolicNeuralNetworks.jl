@@ -12,8 +12,7 @@ shnn = Symbolize(hnn, 2)
 @test model(shnn) == hnn.model
 
 x = [0.5, 0.8]
-@test shnn(x) == hnn(x)
 @time shnn(x)
 @time hnn(x)
-
+@test shnn(x) == hnn(x)
 
