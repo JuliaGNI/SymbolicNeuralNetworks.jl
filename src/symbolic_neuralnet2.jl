@@ -39,13 +39,13 @@ function SymbolicNeuralNetwork(arch::Architecture, model::Model; eqs::NamedTuple
     equations = NamedTuple(:eval ∪ keys(new_eqs))(eval ∪ Tuple(expand_derivatives(SymbolicUtils.substitute(eq, [snn => eval]))))
 
     # générer les codes 
-    code = NamedTuple(keys(equations))(Tuple(build_function(eq, sinput, sparams...)[2] for eq in equations))
+    code = Tuple(build_function(eq, sinput, sparams...)[2] for eq in equations)
 
     # rewrite  les codes
+    rewrite_codes = NamedTuple(keys(equations))(Tuple(rewrite_neuralnetwork(c, (sinput,), sparams) for c in code))
 
     # générer les funcitons
-    functions = NamedTuple{keys(code)}(Tuple(@RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(f)) for f in funcitons))
-
+    functions = NamedTuple{keys(code)}(Tuple(@RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(c)) for c in rewrite_codes))
 
     SymbolicNeuralNetwork(arch, model, sparams, eval, equations, functions)
 end
@@ -69,14 +69,19 @@ end
 
 ##############
 
-
-function SymbolicNeuralNetwork(nn::NeuralNetwork, dim::Int)
-    est = buildsymbolic(nn, dim)
-    new{typeof(nn.architecture), typeof(est)}(nn, est)
+function NeuralNetwork(snn::SymbolicNeuralNetwork, backend::Backend, ::Type{T}; kwargs...) where T
+    NeuralNetwork(architecture(snn), functions(snn).eval, backend, T; kwargs...)
 end
 
-Symbolize(nn::NeuralNetwork, dim::Int) = SymbolicNeuralNetwork(nn, dim)
+function NeuralNetwork(snn::SymbolicNeuralNetwork, ::Type{T}; kwargs...) where T
+    NeuralNetwork(architecture(snn), functions(snn).eval, T; kwargs...)
+end
 
+
+
+function Symbolize(nn::NeuralNetwork, dim::Int)
+
+end
 
 
 
