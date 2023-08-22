@@ -25,25 +25,25 @@ end
 
 function rewrite_hamiltonian(expr, args, sparams = nothing, fun_name = "shamiltonian")
     expr = rewrite_code(expr, args, sparams, fun_name)
-    string_expr = replace(string(string_expr), "args[1]" => "q")
-    string_expr = replace(string(string_expr), "args[2]" => "p")
-    string_expr = replace(string(string_expr), "args[3]" => "t")
-    string_expr = replace(string(string_expr), "args" => "p, t, q")
+    string_expr = replace(string(expr), "args[1]" => "q")
+    string_expr = replace(string_expr, "args[2]" => "p")
+    string_expr = replace(string_expr, "args[3]" => "t")
+    string_expr = replace(string_expr, "args" => "p, t, q")
     expr = Meta.parse(string_expr)
 end
 
 function rewrite_lagrangian(expr, args, sparams = nothing, fun_name = "slagrangian")
     expr = rewrite_code(expr, args, sparams, fun_name)
     string_expr = replace(string(expr), "args[1]" => "x")
-    string_expr = replace(string(string_expr), "args[2]" => "v")
-    string_expr = replace(string(string_expr), "args[3]" => "t")
-    string_expr = replace(string(string_expr), "args" => "t, x, v")
+    string_expr = replace(string_expr, "args[2]" => "v")
+    string_expr = replace(string_expr, "args[3]" => "t")
+    string_expr = replace(string_expr, "args" => "t, x, v")
     expr = Meta.parse(string_expr)
 end
 
 function rewrite_neuralnetwork(expr, args, sparams)
     expr = rewrite_code(expr, args, sparams)
     string_expr = replace(string(expr), "args[1]" => "x")
-    string_expr = replace(string(string_expr), "args" => "x")
+    string_expr = replace(string_expr, "args" => "x")
     expr = Meta.parse(string_expr)
 end

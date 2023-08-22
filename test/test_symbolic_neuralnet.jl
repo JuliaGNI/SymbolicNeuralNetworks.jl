@@ -7,7 +7,7 @@ hnn = NeuralNetwork(HamiltonianNeuralNetwork(2), Float64)
 shnn = Symbolize(hnn, 2)
 
 @test typeof(shnn) <: SymbolicNeuralNetwork{<:HamiltonianNeuralNetwork}
-#@test architecture(shnn) == hnn.architecture
+
 @test params(shnn) == hnn.params
 @test model(shnn) == hnn.model
 
