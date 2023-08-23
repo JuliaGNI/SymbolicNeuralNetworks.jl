@@ -4,22 +4,25 @@ module SymbolicNeuralNetworks
     using Symbolics
     using LinearAlgebra
     using RuntimeGeneratedFunctions
+    using KernelAbstractions
 
-    import AbstractNeuralNetworks: NeuralNetwork, dim
+    import AbstractNeuralNetworks: NeuralNetwork, Architecture, Model
+    import AbstractNeuralNetworks: architecture, model, params
+    
 
     include("utils.jl")
 
     export develop, envelop
-    include("de_envelop.jl")
+    include("utils/de_envelop.jl")
 
     export get_track
-    include("get_track.jl")
+    include("utils/get_track.jl")
 
     export rewrite_code
-    include("rewrite_code.jl")
+    include("utils/rewrite_code.jl")
 
     export symbolic_params
-    include("params.jl")
+    include("utils/params.jl")
 
     export symbolic_hamiltonian
     include("hamiltonian.jl")
@@ -28,9 +31,11 @@ module SymbolicNeuralNetworks
     include("lagrangian.jl")
 
     export AbstractSymbolicNeuralNetwork
-    export SymbolicNeuralNetwork
-    export Symbolize
-    export architecture, params, models_params, neuralnet
+    export SymbolicNeuralNetwork, SymbolicModel
+    export architecture, model, params, equations, functions
+    export symbolize
+
+    
     
     include("symbolic_neuralnet.jl")
 

@@ -1,18 +1,47 @@
 using SymbolicNeuralNetworks
 using GeometricMachineLearning
+using Symbolics
 
 using Test
 
-hnn = NeuralNetwork(HamiltonianNeuralNetwork(2), Float64)
-shnn = Symbolize(hnn, 2)
+##################
+@variables sx[1:1]
+@variables nn
+
+eq = Symbolics.gradient(nn, sx)
+
+eqs = (x = sx, nn = nn)
+
+arch = HamiltonianNeuralNetwork(1)
+hnn = NeuralNetwork(arch, Float64)
+
+shnn = SymbolicNeuralNetwork(arch; eqs = eqs)
 
 @test typeof(shnn) <: SymbolicNeuralNetwork{<:HamiltonianNeuralNetwork}
+@test architecture(shnn) == arch
+@test model(shnn)   == hnn.model
+@test params(shnn) === symbolic_params(hnn)
+@test keys(equations(shnn)) == (:eval,)
+@test keys(functions(shnn)) == (:eval,)
 
-@test params(shnn) == hnn.params
-@test model(shnn) == hnn.model
+x = [0.5]
 
-x = [0.5, 0.8]
-@time shnn(x)
+println("Compareason of performances between an clasical neuralnetwork and a symbolic one")
 @time hnn(x)
-@test shnn(x) == hnn(x)
+@time shnn(x, hnn.params)
+@test shnn(x, hnn.params) == hnn(x, hnn.params)
 
+
+
+##################
+
+hnn2  = symbolize(hnn; eqs = eqs)
+
+@test typeof(hnn2.model) <: SymbolicModel
+@test architecture(hnn2) == hnn.architecture
+@test model(hnn2) == hnn.model
+@test params(hnn2) == hnn.params
+
+println("Compareason of performances between an clasical neuralnetwork and a symbolized one")
+@time hnn(x)
+@time hnn2(x)
