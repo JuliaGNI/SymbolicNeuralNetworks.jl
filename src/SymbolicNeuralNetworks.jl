@@ -34,15 +34,7 @@ module SymbolicNeuralNetworks
     export SymbolicNeuralNetwork, SymbolicModel
     export architecture, model, params, equations, functions
     export symbolize
-
-    
-    
+  
     include("symbolic_neuralnet.jl")
-
-    
-
-    
-
-    
 
 end

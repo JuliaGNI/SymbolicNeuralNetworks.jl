@@ -53,6 +53,11 @@ function SymbolicNeuralNetwork(arch::Architecture, model::Model; eqs::NamedTuple
     SymbolicNeuralNetwork(arch, model, sparams, functions.eval, equations, functions)
 end
 
+function SymbolicNeuralNetwork(arch::Architecture, model::Model; dim::Int)
+    @variables x[1:dim], nn
+    SymbolicNeuralNetwork(arch, model; (x = x, nn = nn))
+end
+
 function SymbolicNeuralNetwork(model::Model; eqs::NamedTuple)
     SymbolicNeuralNetwork(UnknownArchitecture(), model; eqs)
 end
@@ -64,11 +69,21 @@ end
 (snn::SymbolicNeuralNetwork)(x, params) = snn.functions.eval(x, params)
 apply(snn::SymbolicNeuralNetwork, x, args...) = snn(x, args...)
 
-#=
+
 function Base.show(io::IO, snn::SymbolicNeuralNetwork)
     print(io, "\nSymbolicNeuralNetwork with\n")
+    print(io, "\nArchitecture = ")
+    print(io, architecture(snn))
+    print(io, "\nModel = ")
+    print(io, model(snn))
+    print(io, "\nSymbolic Params = ")
+    print(io, params(snn))
+    print(io, "\n\nand equations of motion\n\n")
+    for eq in equations(snn)
+        print(io, eq)
+        print(io, "\n")
+    end
 end
-=#
 
 ##############
 
@@ -78,6 +93,8 @@ struct SymbolicModel <: Model
 end
 
 (model::SymbolicModel)(x, params) = model.eval(x, params)
+
+@inline model(nn::NeuralNetwork{T, <:SymbolicModel}) where T = nn.model.model
 
 function NeuralNetwork(snn::SymbolicNeuralNetwork, backend::Backend, ::Type{T}; kwargs...) where T
     NeuralNetwork(snn.architecture, SymbolicModel(model(snn), functions(snn).eval), backend, T; kwargs...)
@@ -92,4 +109,3 @@ function symbolize(nn::NeuralNetwork; kwargs...)
     NeuralNetwork(architecture(nn), SymbolicModel(model(nn), functions(snn).eval), params(nn))
 end
 
-@inline model(nn::NeuralNetwork{T, <:SymbolicModel}) where T = nn.model.model
