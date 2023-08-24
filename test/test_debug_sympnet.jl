@@ -31,7 +31,7 @@ code = build_function(eva, x, sparams...)[1]
 postcode = SymbolicNeuralNetworks.rewrite_neuralnetwork(code, (x,), sparams)
 
 x = [1,2]
-@test functions(ssymnet).eval(x, sympnet.params) == sympnet(x)
+@test functions(ssympnet).eval(x, sympnet.params) == sympnet(x)
 
 #=
 @kernel function assign_first_half!(q::AbstractVector, x::AbstractVector)
