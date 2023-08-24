@@ -8,11 +8,11 @@ using Test
 # Creation of SymbolicNeuralNetwork
 
 @variables sx[1:2]
-@variables nn
+@variables nn(sx)[1:1]
+Dx = Differential(sx[1])
+eq = Dx(nn[1])
 
-eq = Symbolics.gradient(nn, sx)
-
-eqs = (x = sx, nn = nn)
+eqs = (x = sx, nn = nn, eq1 = eq)
 
 arch = HamiltonianNeuralNetwork(2)
 hnn = NeuralNetwork(arch, Float64)
@@ -23,8 +23,8 @@ shnn = SymbolicNeuralNetwork(arch; eqs = eqs)
 @test architecture(shnn) == arch
 @test model(shnn)   == hnn.model
 @test params(shnn) === symbolic_params(hnn)
-@test keys(equations(shnn)) == (:eval,)
-@test keys(functions(shnn)) == (:eval,)
+@test keys(equations(shnn)) == (:eq1, :eval)
+@test keys(functions(shnn)) == (:eq1, :eval)
 
 x = [0.5, 0.8]
 
@@ -40,8 +40,8 @@ shnn2 = SymbolicNeuralNetwork(arch, 2)
 @test architecture(shnn) == arch
 @test model(shnn)   == hnn.model
 @test params(shnn) === symbolic_params(hnn)
-@test keys(equations(shnn)) == (:eval,)
-@test keys(functions(shnn)) == (:eval,)
+@test keys(equations(shnn)) == (:eq1, :eval)
+@test keys(functions(shnn)) == (:eq1, :eval)
 
 @test shnn(x, hnn.params) == shnn2(x, hnn.params)
 

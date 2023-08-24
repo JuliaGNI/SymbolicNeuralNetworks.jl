@@ -36,7 +36,7 @@ function SymbolicNeuralNetwork(arch::Architecture, model::Model; eqs::NamedTuple
     # générer les équations
     eval = model(sinput, sparams)
 
-    equations = merge(NamedTuple{keys(new_eqs)}(Tuple(expand_derivatives(SymbolicUtils.substitute(eq, [snn => eval])) for eq in new_eqs)),(eval = eval,))
+    equations = merge(NamedTuple{keys(new_eqs)}(Tuple(expand_derivatives(Symbolics.scalarize(SymbolicUtils.substitute(eq, [snn => eval]))) for eq in new_eqs)),(eval = eval,))
 
     # générer les codes 
 
@@ -93,7 +93,6 @@ function Base.show(io::IO, snn::SymbolicNeuralNetwork)
     end
 end
 
-##############
 
 struct SymbolicModel <: Model
     model
