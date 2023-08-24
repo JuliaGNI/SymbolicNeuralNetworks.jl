@@ -16,16 +16,22 @@ function SymbolicNeuralNetworks.symbolicparameters(d::Gradient{M, N, false}) whe
     (scale = a, )
 end
 
+arch = GSympNet(2; nhidden = 1, width = 4, allow_fast_activation = false)
+sympnet=NeuralNetwork(arch, Float64)
 
-sympnet = Chain(Gradient(2, 10), Gradient(2, 10))
+ssympnet = SymbolicNeuralNetwork(arch, 2)
+
+eva = equations(ssympnet).eval
 
 @variables x[1:2]
-sparams = symbolicparameters(sympnet)
+sparams = symbolicparameters(model(ssympnet))
 
-sympnet(x, sparams)
+code = build_function(eva, x, sparams...)[1]
 
+postcode = SymbolicNeuralNetworks.rewrite_neuralnetwork(code, (x,), sparams)
 
-
+x = [1,2]
+@test functions(ssymnet).eval(x, sympnet.params) == sympnet(x)
 
 #=
 @kernel function assign_first_half!(q::AbstractVector, x::AbstractVector)
