@@ -53,17 +53,25 @@ function SymbolicNeuralNetwork(arch::Architecture, model::Model; eqs::NamedTuple
     SymbolicNeuralNetwork(arch, model, sparams, functions.eval, equations, functions)
 end
 
-function SymbolicNeuralNetwork(arch::Architecture, model::Model; dim::Int)
+function SymbolicNeuralNetwork(model::Model; kwargs...)
+    SymbolicNeuralNetwork(UnknownArchitecture(), model; kwargs...)
+end
+
+function SymbolicNeuralNetwork(arch::Architecture; kwargs...)
+    SymbolicNeuralNetwork(arch, Chain(arch); kwargs...)
+end
+
+function SymbolicNeuralNetwork(arch::Architecture, model::Model, dim::Int)
     @variables x[1:dim], nn
-    SymbolicNeuralNetwork(arch, model; (x = x, nn = nn))
+    SymbolicNeuralNetwork(arch, model; eqs = (x = x, nn = nn))
 end
 
-function SymbolicNeuralNetwork(model::Model; eqs::NamedTuple)
-    SymbolicNeuralNetwork(UnknownArchitecture(), model; eqs)
+function SymbolicNeuralNetwork(arch::Architecture, dim::Int)
+    SymbolicNeuralNetwork(arch, Chain(arch), dim)
 end
 
-function SymbolicNeuralNetwork(arch::Architecture; eqs::NamedTuple)
-    SymbolicNeuralNetwork(arch, Chain(arch); eqs)
+function SymbolicNeuralNetwork(model::Model, dim::Int)
+    SymbolicNeuralNetwork(UnknownArchitecture(), model, dim)
 end
 
 (snn::SymbolicNeuralNetwork)(x, params) = snn.functions.eval(x, params)
@@ -104,8 +112,12 @@ function NeuralNetwork(snn::SymbolicNeuralNetwork, ::Type{T}; kwargs...) where T
     NeuralNetwork(snn.architecture, SymbolicModel(model(snn), functions(snn).eval), T; kwargs...)
 end
 
-function symbolize(nn::NeuralNetwork; kwargs...)
-    snn = SymbolicNeuralNetwork(nn.architecture, model(nn); kwargs...)
+function symbolize(nn::NeuralNetwork; eqs::NamedTuple)
+    snn = SymbolicNeuralNetwork(nn.architecture, model(nn); eqs = eqs)
     NeuralNetwork(architecture(nn), SymbolicModel(model(nn), functions(snn).eval), params(nn))
 end
 
+function symbolize(nn::NeuralNetwork, dim::Int)
+    snn = SymbolicNeuralNetwork(nn.architecture, model(nn), dim)
+    NeuralNetwork(architecture(nn), SymbolicModel(model(nn), functions(snn).eval), params(nn))
+end
