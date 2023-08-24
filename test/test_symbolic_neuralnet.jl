@@ -27,7 +27,7 @@ shnn = SymbolicNeuralNetwork(arch; eqs = eqs)
 
 x = [0.5, 0.8]
 
-println("Compareason of performances between an clasical neuralnetwork and a symbolic one")
+println("Comparison of performances between an clasical neuralnetwork and a symbolic one")
 @test shnn(x, hnn.params) == hnn(x, hnn.params)
 @time hnn(x)
 @time shnn(x, hnn.params)
@@ -54,7 +54,7 @@ hnns  = symbolize(hnn; eqs = eqs)
 @test model(hnns) == hnn.model
 @test params(hnns) == hnn.params
 
-println("Compareason of performances between an clasical neuralnetwork and a symbolized one")
+println("Comparison of performances between an clasical neuralnetwork and a symbolized one")
 @test hnn(x) == hnns(x)
 @time hnn(x)
 @time hnns(x)

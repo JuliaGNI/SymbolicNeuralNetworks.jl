@@ -37,7 +37,7 @@ function SymbolicNeuralNetwork(arch::Architecture, model::Model; eqs::NamedTuple
 
     eval = model(sinput, sparams)
 
-    infos = merge(NamedTuple{keys(new_eqs)}(Tuple(typeof(eq) <: Vector{<:Num} ? 1 : 2 for eq in new_eqs)),(eval = 2,))
+    infos = merge(NamedTuple{keys(new_eqs)}(Tuple(typeof(eq) <: Vector{<:Real} ? 1 : 2 for eq in new_eqs)),(eval = typeof(eval) <: Vector{<:Real} ? 1 : 2,))
 
     pre_equations = Tuple(SymbolicUtils.substitute.(eq, [snn => eval]) for eq in new_eqs)
 
