@@ -7,7 +7,7 @@ function hamiltonian(p, t, q, params)
     p[1]^2 / 2 + params.k * q[1]^2 / 2
 end
 
-symbolic_params(parameters)
+symbolize(parameters)
 
 st̃, sq̃, sp̃, sparams, shamiltonian, hamiltonian_function = symbolic_hamiltonian(hamiltonian, 2, parameters)
 

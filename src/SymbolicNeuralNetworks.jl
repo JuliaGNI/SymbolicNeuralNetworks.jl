@@ -21,8 +21,8 @@ module SymbolicNeuralNetworks
     export rewrite_code
     include("utils/rewrite_code.jl")
 
-    export symbolic_params
-    include("utils/params.jl")
+    export symbolize
+    include("utils/symbolize.jl")
 
     export symbolic_hamiltonian
     include("hamiltonian.jl")
@@ -33,7 +33,10 @@ module SymbolicNeuralNetworks
     export AbstractSymbolicNeuralNetwork
     export SymbolicNeuralNetwork, SymbolicModel
     export architecture, model, params, equations, functions
-    export symbolize
+
+    export symbolicparameters
+    include("symbolicparameters.jl")
+
   
     include("symbolic_neuralnet.jl")
 

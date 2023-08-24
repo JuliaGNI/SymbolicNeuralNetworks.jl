@@ -38,3 +38,21 @@ function build_hamiltonien(H::Base.Callable, dim::Int, params::Union{Tuple, Name
         return (fun_est, fun_field)
 end
 
+function buildsymbolic(nn::NeuralNetwork, dim::Int)
+
+    RuntimeGeneratedFunctions.init(@__MODULE__)
+
+    @variables sinput[1:dim]
+    
+    sparams = symbolic_params(nn)
+
+    est = nn(sinput, sparams)
+
+    code = build_function(est, sinput, develop(sparams)...)[2]
+
+    rewrite_codes = rewrite_neuralnetwork(code, (sinput,), sparams)
+
+    fun = @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(rewrite_codes))
+
+    fun
+end

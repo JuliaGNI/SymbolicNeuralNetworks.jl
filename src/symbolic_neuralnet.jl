@@ -31,7 +31,7 @@ function SymbolicNeuralNetwork(arch::Architecture, model::Model; eqs::NamedTuple
     new_eqs = NamedTuple([p for p in pairs(eqs) if p[1] ∉ [:x, :nn]])
 
     # générer les paramètres symboliques
-    sparams = symbolic_params(initialparameters(CPU(), Float64, model))[1]
+    sparams = symbolicparameters(model)
 
     # générer les équations
     eval = model(sinput, sparams)
