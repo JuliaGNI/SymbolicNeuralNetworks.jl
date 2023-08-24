@@ -35,12 +35,11 @@ x = [1,2]
 
 H = functions(ssympnet).eval
 
-expr = :(function (x, p)
+expr = :(function (x::AbstractArray, p::Tuple)
     (((adjoint(p[1].weight) * p[1].scale .* tanh.(p[1].weight * x[2] + p[1].bias))[1] + x[1])[1], x[2])
- #(x + adjoint((params[1]).weight)) * ((params[1]).scale * (tanh.((params[1]).weight * x + (params[1]).bias)))
 end)
 #=
- getindex(broadcast(+, Real[x[1]],  ), 1), getindex(x, 2))
+SymbolicUtils.Code.create_array(Array, nothing, Val{1}(), Val{(2,)}(), getindex(broadcast(+, Real[x[1]], adjoint((params[1]).weight) * broadcast(*, (params[1]).scale, broadcast(tanh, broadcast(+, (params[1]).weight * Real[x[2]], (params[1]).bias)))), 1), getindex(x, 2))
 =#
 
 funnn = @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(expr))
