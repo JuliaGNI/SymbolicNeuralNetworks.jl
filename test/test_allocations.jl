@@ -2,6 +2,7 @@ using Symbolics
 using GeometricMachineLearning
 using SymbolicNeuralNetworks
 using RuntimeGeneratedFunctions
+using BenchmarkTools
 
 RuntimeGeneratedFunctions.init(@__MODULE__)
 
@@ -42,9 +43,65 @@ end)
 SymbolicUtils.Code.create_array(Array, nothing, Val{1}(), Val{(2,)}(), getindex(broadcast(+, Real[x[1]], adjoint((params[1]).weight) * broadcast(*, (params[1]).scale, broadcast(tanh, broadcast(+, (params[1]).weight * Real[x[2]], (params[1]).bias)))), 1), getindex(x, 2))
 =#
 
-funnn = @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(expr))
-funnn(x, sympnet.params)
+expr2 = :(function (x::AbstractArray, params::Tuple)
+ getindex(broadcast(+, x[1], adjoint((params[1]).weight) * broadcast(*, (params[1]).scale, broadcast(tanh, broadcast(+, (params[1]).weight * x[2], (params[1]).bias)))), 1), getindex(x, 2)
+end)
+
+fun1 = @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(expr))
+fun1(x, sympnet.params)
+
+fun2 = @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(expr2))
+fun2(x, sympnet.params)
+
+sympnet(x, sympnet.params)
 
 @time functions(ssympnet).eval(x, sympnet.params)
-@time funnn(x, sympnet.params)
+@time fun1(x, sympnet.params)
+@time fun2(x, sympnet.params)
 @time sympnet(x, sympnet.params)
+
+#=
+@benchmark functions(ssympnet).eval(x, sympnet.params)
+@benchmark fun1(x, sympnet.params)
+@benchmark fun2(x, sympnet.params)
+@benchmark sympnet(x, sympnet.params)
+=#
+
+function optimize_code!(expr)
+    try expr.args
+    catch
+        return expr
+    end
+    for i in eachindex(expr.args)
+        expr.args[i] =  optimize_code!(expr.args[i])
+    end
+    if expr.args[1] == :broadcast
+        if length(expr.args) == 4
+            return :(($(expr.args[2])).($(expr.args[3]), $(expr.args[4])))
+        elseif length(expr.args) == 3
+            return :(($(expr.args[2])).($(expr.args[3])))
+        end
+    elseif expr.args[1] == :getindex
+        return Meta.parse(string(expr.args[2],"[",expr.args[3],"]"))
+    elseif expr.args[1] == :Real
+        return expr.args[2]
+    end
+    return expr
+end
+
+expr = :(broadcast(+,broadcast(+,x[1],z), getindex(broadcast(tanh,y),1)))
+optimize_code!(expr)
+
+
+c = :(SymbolicUtils.Code.create_array(Array, nothing, Val{1}(), Val{(2,)}(), getindex(broadcast(+, Real[x[1]], adjoint((params[1]).weight) * broadcast(*, (params[1]).scale, broadcast(tanh, broadcast(+, (params[1]).weight * Real[x[2]], (params[1]).bias)))), 1), getindex(x, 2)))
+optimize_code!(c)
+
+
+optimize_code!(expr2)
+
+
+
+func = @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(expr2))
+func(x, sympnet.params)
+
+@time func(x, sympnet.params)

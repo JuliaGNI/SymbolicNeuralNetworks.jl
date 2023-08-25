@@ -9,8 +9,8 @@ module SymbolicNeuralNetworks
     import AbstractNeuralNetworks: NeuralNetwork, Architecture, Model
     import AbstractNeuralNetworks: architecture, model, params
     
-
-    include("utils.jl")
+    export optimize_code!
+    include("utils/optimize_code.jl")
 
     export develop, envelop
     include("utils/de_envelop.jl")

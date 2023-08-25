@@ -53,6 +53,8 @@ function SymbolicNeuralNetwork(arch::Architecture, model::Model; eqs::NamedTuple
 
     code = Tuple(typeof(c) <: Tuple ? c[i] : c for (c,i) in pre_code)
 
+    optimize_code!.(code)
+
     # Rewrite of the codes
     rewrite_codes = NamedTuple{keys(equations)}(Tuple(rewrite_neuralnetwork(c, (sinput,), sparams) for c in code))
 
