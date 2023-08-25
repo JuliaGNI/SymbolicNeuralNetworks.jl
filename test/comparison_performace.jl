@@ -36,7 +36,6 @@ ssympnet = symbolize(sympnet, 2)
 #parameters for the training
 method = BasicSympNet()
 mopt = AdamOptimizer()
-training_parameters = TrainingParameters(nruns, method, mopt)
 
 
 function performance_symbolic(nruns::Int)

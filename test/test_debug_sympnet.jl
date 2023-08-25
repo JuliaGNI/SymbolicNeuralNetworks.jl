@@ -21,17 +21,16 @@ sympnet=NeuralNetwork(arch, Float64)
 
 ssympnet = SymbolicNeuralNetwork(arch, 2)
 
-eva = equations(ssympnet).eval
-
-@variables x[1:2]
-sparams = symbolicparameters(model(ssympnet))
-
-code = build_function(eva, x, sparams...)[1]
-
-postcode = SymbolicNeuralNetworks.rewrite_neuralnetwork(code, (x,), sparams)
-
 x = [1,2]
-@test functions(ssymnet).eval(x, sympnet.params) == sympnet(x)
+@test functions(ssympnet).eval(x, sympnet.params) == sympnet(x)
+
+
+@time functions(ssympnet).eval(x, sympnet.params)
+@time sympnet(x)
+
+
+
+
 
 #=
 @kernel function assign_first_half!(q::AbstractVector, x::AbstractVector)
