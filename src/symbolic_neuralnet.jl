@@ -1,11 +1,12 @@
 
 abstract type AbstractSymbolicNeuralNetwork{AT} <: AbstractNeuralNetwork{AT} end
 
-struct SymbolicNeuralNetwork{AT,MT,PT,EVT,ET,FT} <: AbstractSymbolicNeuralNetwork{AT}
+struct SymbolicNeuralNetwork{AT,MT,PT,CT,EVT,ET,FT} <: AbstractSymbolicNeuralNetwork{AT}
     architecture::AT
     model::MT
     params::PT
 
+    code::CT
     eval::EVT
     equations::ET
     functions::FT
@@ -53,17 +54,23 @@ function SymbolicNeuralNetwork(arch::Architecture, model::Model; eqs::NamedTuple
 
     code = Tuple(typeof(c) <: Tuple ? c[i] : c for (c,i) in pre_code)
 
-    code = optimize_code!.(code)
-
-    code = Meta.parse.(replace.(string.(code), "SymbolicUtils.Code.create_array(Array, nothing, Val{1}(), Val{(2,)}()," => "(" ))
-
     # Rewrite of the codes
-    rewrite_codes = NamedTuple{keys(equations)}(Tuple(rewrite_neuralnetwork(c, (sinput,), sparams) for c in code))
+    rewrite_codes = Tuple(rewrite_neuralnetwork(c, (sinput,), sparams) for c in code)
+
+    # Optimization of the code
+
+    code_opti = optimize_code!.(rewrite_codes)
+
+    code_corr = Meta.parse.(replace.(string.(code_opti), "SymbolicUtils.Code.create_array(Array, nothing, Val{1}(), Val{(2,)}()," => "(" ))
+    
+    # Creation of NamedTuple code
+
+    nt_code = NamedTuple{keys(equations)}(code_corr)
 
     # Generations of the functions
-    functions = NamedTuple{keys(rewrite_codes)}(Tuple(@RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(c)) for c in rewrite_codes))
+    functions = NamedTuple{keys(nt_code)}(Tuple(@RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(c)) for c in nt_code))
 
-    SymbolicNeuralNetwork(arch, model, sparams, functions.eval, equations, functions)
+    SymbolicNeuralNetwork(arch, model, sparams, code, functions.eval, equations, functions)
 end
 
 function SymbolicNeuralNetwork(model::Model; kwargs...)

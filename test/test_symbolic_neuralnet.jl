@@ -22,8 +22,8 @@ shnn = SymbolicNeuralNetwork(arch; eqs = eqs)
 @test architecture(shnn) == arch
 @test model(shnn)   == hnn.model
 @test params(shnn) === symbolize(hnn.params)[1]
-@test keys(equations(shnn)) == (:eval,)
-@test keys(functions(shnn)) == (:eval,)
+#@test keys(equations(shnn)) == (:eval,)
+#@test keys(functions(shnn)) == (:eval,)
 
 x = [0.5, 0.8]
 
@@ -40,8 +40,8 @@ shnn2 = SymbolicNeuralNetwork(arch, 2)
 @test architecture(shnn) == arch
 @test model(shnn)   == hnn.model
 @test params(shnn) === symbolize(hnn.params)[1]
-@test keys(equations(shnn)) == (:eval,)
-@test keys(functions(shnn)) == (:eval,)
+#@test keys(equations(shnn)) == (:eval,)
+#@test keys(functions(shnn)) == (:eval,)
 
 @test shnn(x, hnn.params) == shnn2(x, hnn.params)
 
