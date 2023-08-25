@@ -9,6 +9,8 @@ using Test
 @safetestset "Rewrite code                                                                           " begin include("test_rewrite.jl") end
 @safetestset "Hamiltonian                                                                            " begin include("test_hamiltonian.jl") end
 @safetestset "Lagrangian                                                                             " begin include("test_lagrangian.jl") end
+#= To add once GeometricMachineLearning is updated on the main branch
 @safetestset "SymbolicNeuralNetwork                                                                  " begin include("test_symbolic_neuralnet.jl") end
 @safetestset "Training SymbolicNeuralNetwork                                                         " begin include("test_training.jl") end
 @safetestset "SymbolicNeuralNetwork with eqs                                                         " begin include("test_equations.jl") end
+=#

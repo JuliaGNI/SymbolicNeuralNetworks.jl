@@ -14,7 +14,6 @@ vectorfield = [0 1; -1 0] * [Dx1(nn[1]), Dx2(nn[1])]
 eqs = (x = sx, nn = nn, vectorfield = vectorfield)
 
 arch = HamiltonianNeuralNetwork(2)
-hnn = NeuralNetwork(arch, Float64)
 shnn = SymbolicNeuralNetwork(arch; eqs = eqs)
 
 @test keys(equations(shnn)) == (:vectorfield, :eval)
@@ -22,6 +21,7 @@ shnn = SymbolicNeuralNetwork(arch; eqs = eqs)
 
 x = [0.5, 0.8]
 
+hnn = NeuralNetwork(arch, Float64)
 fun_vectorfield = functions(shnn).vectorfield
 ω∇ₓnn(x, params) = [0 1; -1 0] * Zygote.gradient(x->hnn(x, params)[1], x)[1]
 
