@@ -10,4 +10,5 @@ using Test
 @safetestset "Hamiltonian                                                                            " begin include("test_hamiltonian.jl") end
 @safetestset "Lagrangian                                                                             " begin include("test_lagrangian.jl") end
 @safetestset "SymbolicNeuralNetwork                                                                  " begin include("test_symbolic_neuralnet.jl") end
-
+@safetestset "Training SymbolicNeuralNetwork                                                         " begin include("test_training.jl") end
+@safetestset "SymbolicNeuralNetwork with eqs                                                         " begin include("test_equations.jl") end

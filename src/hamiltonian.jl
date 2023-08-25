@@ -15,7 +15,7 @@ function symbolic_hamiltonian(H::Base.Callable, dim::Int, params::Union{Tuple, N
     @variables q(st)[1:dim]               # for the position
     @variables p(st)[1:dim]               # for the momentum
     
-    sparams = symbolic_params(params; redundancy = false)[1]        # for the parameters
+    sparams = symbolize(params; redundancy = false)[1]        # for the parameters
 
     # create the symbolic hamiltonian
     sH = H(p, st, q, sparams)

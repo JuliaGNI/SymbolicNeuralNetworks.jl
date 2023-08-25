@@ -15,7 +15,7 @@ function symbolic_lagrangian(L::Base.Callable, dim::Int, params::Union{Tuple, Na
     @variables x(st)[1:dim]               # for the position
     @variables v(st)[1:dim]               # for the velocity
     
-    sparams = symbolic_params(params; redundancy = false)[1]       # for the parameters
+    sparams = symbolize(params; redundancy = false)[1]       # for the parameters
 
     # create the symbolic hamiltonian
     sL = L(st, x, v, sparams)

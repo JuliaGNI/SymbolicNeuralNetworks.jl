@@ -15,6 +15,7 @@ rewrite_ouput = eval(rewrite_code(code_output, Tuple(sargs), sparams, "OUTPUT"))
 
 params = ((W = [1 3; 2 2], b = [1, 0]), (W = [1 1; 0 2], b = [1, 0]))
 args = [1, 0.2]
-rewrite_ouput(args, params) 
+
+@test_nowarn rewrite_ouput(args, params) 
 
 

@@ -47,9 +47,9 @@ Loss(params, batch) = loss(shnn, training_data, batch, params)
 ∇Loss(params(shnn), (1,2))
 =#
 
-nruns = 1000
+nruns = 1
 
-train!(shnn, training_data, mopt, loss; ntraining = nruns, batch_size = 3, showprogress = true, timer = true)
+@test_nowarn train!(shnn, training_data, mopt, loss; ntraining = nruns, batch_size = 3, showprogress = false, timer = false)
 
 
 

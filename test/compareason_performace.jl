@@ -1,5 +1,6 @@
 using GeometricMachineLearning
 using SymbolicNeuralNetworks
+using Symbolics
 using GeometricEquations
 using Test
 

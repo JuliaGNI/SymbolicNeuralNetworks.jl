@@ -37,7 +37,8 @@ module SymbolicNeuralNetworks
     export symbolicparameters
     include("symbolicparameters.jl")
 
-  
     include("symbolic_neuralnet.jl")
+
+    include("neuralnet.jl")
 
 end

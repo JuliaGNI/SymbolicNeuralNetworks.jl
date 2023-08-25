@@ -10,8 +10,6 @@ using Zygote
 
 @variables sx[1:2]
 @variables nn(sx)[1:1]
-Dx1 = Differential(sx[1])
-Dx2 = Differential(sx[2])
 
 eqs = (x = sx, nn = nn)
 
@@ -24,15 +22,15 @@ shnn = SymbolicNeuralNetwork(arch; eqs = eqs)
 @test architecture(shnn) == arch
 @test model(shnn)   == hnn.model
 @test params(shnn) === symbolize(hnn.params)[1]
-@test keys(equations(shnn)) == (:eval)
-@test keys(functions(shnn)) == (:eval)
+@test keys(equations(shnn)) == (:eval,)
+@test keys(functions(shnn)) == (:eval,)
 
 x = [0.5, 0.8]
 
 println("Compareason of performances between an clasical neuralnetwork and a symbolic one")
+@test shnn(x, hnn.params) == hnn(x, hnn.params)
 @time hnn(x)
 @time shnn(x, hnn.params)
-@test shnn(x, hnn.params) == hnn(x, hnn.params)
 
 # with dim
 
@@ -42,8 +40,8 @@ shnn2 = SymbolicNeuralNetwork(arch, 2)
 @test architecture(shnn) == arch
 @test model(shnn)   == hnn.model
 @test params(shnn) === symbolize(hnn.params)[1]
-@test keys(equations(shnn)) == (:eq1, :eval)
-@test keys(functions(shnn)) == (:eq1, :eval)
+@test keys(equations(shnn)) == (:eval,)
+@test keys(functions(shnn)) == (:eval,)
 
 @test shnn(x, hnn.params) == shnn2(x, hnn.params)
 
@@ -57,6 +55,7 @@ hnns  = symbolize(hnn; eqs = eqs)
 @test params(hnns) == hnn.params
 
 println("Compareason of performances between an clasical neuralnetwork and a symbolized one")
+@test hnn(x) == hnns(x)
 @time hnn(x)
 @time hnns(x)
 
