@@ -33,6 +33,9 @@ postcode = SymbolicNeuralNetworks.rewrite_neuralnetwork(code, (x,), sparams)
 x = [1,2]
 @test functions(ssympnet).eval(x, sympnet.params) == sympnet(x)
 
+
+@time functions(ssympnet).eval(x, sympnet.params)
+@time sympnet(x)
 #=
 @kernel function assign_first_half!(q::AbstractVector, x::AbstractVector)
     i = @index(Global)

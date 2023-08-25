@@ -2,7 +2,7 @@ using Symbolics
 using GeometricMachineLearning
 using SymbolicNeuralNetworks
 using RuntimeGeneratedFunctions
-using BenchmarkTools
+#using BenchmarkTools
 
 RuntimeGeneratedFunctions.init(@__MODULE__)
 
@@ -19,7 +19,7 @@ function SymbolicNeuralNetworks.symbolicparameters(d::Gradient{M, N, false}) whe
 end
 
 arch = GSympNet(2; nhidden = 1, width = 4, allow_fast_activation = false)
-sympnet=NeuralNetwork(arch, Float64)
+sympnet = NeuralNetwork(arch, Float64)
 
 ssympnet = SymbolicNeuralNetwork(arch, 2)
 
@@ -36,15 +36,15 @@ x = [1,2]
 
 H = functions(ssympnet).eval
 
-expr = :(function (x::AbstractArray, p::Tuple)
-    (((adjoint(p[1].weight) * p[1].scale .* tanh.(p[1].weight * x[2] + p[1].bias))[1] + x[1])[1], x[2])
+expr = :(function (x::AbstractArray, params::Tuple)
+    SymbolicUtils.Code.create_array(Array, nothing, Val{1}(), Val{(2,)}(), getindex(broadcast(+, Real[x[1]], adjoint((params[1]).weight) * broadcast(*, (params[1]).scale, broadcast(tanh, broadcast(+, (params[1]).weight * Real[x[2]], (params[1]).bias)))), 1), getindex(x, 2))
 end)
 #=
 SymbolicUtils.Code.create_array(Array, nothing, Val{1}(), Val{(2,)}(), getindex(broadcast(+, Real[x[1]], adjoint((params[1]).weight) * broadcast(*, (params[1]).scale, broadcast(tanh, broadcast(+, (params[1]).weight * Real[x[2]], (params[1]).bias)))), 1), getindex(x, 2))
 =#
 
-expr2 = :(function (x::AbstractArray, params::Tuple)
- getindex(broadcast(+, x[1], adjoint((params[1]).weight) * broadcast(*, (params[1]).scale, broadcast(tanh, broadcast(+, (params[1]).weight * x[2], (params[1]).bias)))), 1), getindex(x, 2)
+expr2 = :(function (x::AbstractArray, p::Tuple)
+    getindex(broadcast(+, x[1], adjoint((p[1]).weight) * broadcast(*, (p[1]).scale, broadcast(tanh, broadcast(+, (p[1]).weight * x[2], (p[1]).bias)))), 1), getindex(x, 2)
 end)
 
 fun1 = @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(expr))
@@ -89,19 +89,12 @@ function optimize_code!(expr)
     return expr
 end
 
-expr = :(broadcast(+,broadcast(+,x[1],z), getindex(broadcast(tanh,y),1)))
-optimize_code!(expr)
+expr = optimize_code!(expr)
+
+expr = Meta.parse(replace(string(expr), "SymbolicUtils.Code.create_array(Array, nothing, Val{1}(), Val{(2,)}()," => "(" ))
 
 
-c = :(SymbolicUtils.Code.create_array(Array, nothing, Val{1}(), Val{(2,)}(), getindex(broadcast(+, Real[x[1]], adjoint((params[1]).weight) * broadcast(*, (params[1]).scale, broadcast(tanh, broadcast(+, (params[1]).weight * Real[x[2]], (params[1]).bias)))), 1), getindex(x, 2)))
-optimize_code!(c)
-
-
-optimize_code!(expr2)
-
-
-
-func = @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(expr2))
+func = @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(expr))
 func(x, sympnet.params)
 
 @time func(x, sympnet.params)
