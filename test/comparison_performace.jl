@@ -42,7 +42,6 @@ function performance_symbolic(nruns::Int)
     training_parameters =TrainingParameters(nruns, method, mopt)
     training_set = TrainingSet(ssympnet, training_parameters, training_data)
     train!(training_set; showprogress = true, timer = true)
-    nothing
 end
 
 function performance_withoutsymbolic(nruns::Int)
@@ -55,7 +54,9 @@ end
 
 #Plots
 
-function _plot(neuralnetsolution)
+function _plot(neural_net_solution)
     H(x) = hamiltonian(x[1+length(x)÷2:end], 0.0, x[1:length(x)], default_parameters)
     plot_result(training_data, neural_net_solution, H; batch_nb_trajectory = 10, filename = "GSympNet 4-10 on Harmonic Oscillator", nb_prediction = 5)
 end
+
+_plot(performance_symbolic(5000))

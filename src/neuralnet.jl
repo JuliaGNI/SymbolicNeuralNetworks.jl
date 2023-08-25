@@ -6,7 +6,7 @@ end
 
 (model::SymbolicModel)(x, params) = model.eval(x, params)
 @inline equations(model::SymbolicModel) = model.equations
-@inline equations(model::SymbolicModel, key::Symbol, x, params) = equations(model)(x, params)
+@inline equations(model::SymbolicModel, key::Symbol, x, params) = equations(model)[key](x, params)
 
 @inline model(nn::NeuralNetwork{T, <:SymbolicModel}) where T = nn.model.model
 

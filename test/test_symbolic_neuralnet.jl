@@ -4,6 +4,8 @@ using Symbolics
 using Test
 using Zygote
 
+include("macro_testerror.jl")
+
 # Creation of SymbolicNeuralNetwork
 
 # with eqs
@@ -16,14 +18,14 @@ eqs = (x = sx, nn = nn)
 arch = HamiltonianNeuralNetwork(2)
 hnn = NeuralNetwork(arch, Float64)
 
-shnn = SymbolicNeuralNetwork(arch; eqs = eqs)
+@test_noerror shnn = SymbolicNeuralNetwork(arch; eqs = eqs)
 
 @test typeof(shnn) <: SymbolicNeuralNetwork{<:HamiltonianNeuralNetwork}
 @test architecture(shnn) == arch
 @test model(shnn)   == hnn.model
 @test params(shnn) === symbolize(hnn.params)[1]
-#@test keys(equations(shnn)) == (:eval,)
-#@test keys(functions(shnn)) == (:eval,)
+@test keys(equations(shnn)) == (:eval,)
+@test keys(functions(shnn)) == (:eval,)
 
 x = [0.5, 0.8]
 
@@ -31,6 +33,8 @@ println("Comparison of performances between an clasical neuralnetwork and a symb
 @test shnn(x, hnn.params) == hnn(x, hnn.params)
 @time hnn(x)
 @time shnn(x, hnn.params)
+
+@test_noerror SymbolicNeuralNetwork(Chain(arch); eqs = eqs)
 
 # with dim
 
@@ -40,14 +44,16 @@ shnn2 = SymbolicNeuralNetwork(arch, 2)
 @test architecture(shnn) == arch
 @test model(shnn)   == hnn.model
 @test params(shnn) === symbolize(hnn.params)[1]
-#@test keys(equations(shnn)) == (:eval,)
-#@test keys(functions(shnn)) == (:eval,)
+@test keys(equations(shnn)) == (:eval,)
+@test keys(functions(shnn)) == (:eval,)
 
 @test shnn(x, hnn.params) == shnn2(x, hnn.params)
 
+@test_nowarn SymbolicNeuralNetwork(Chain(arch), 2)
+
 # Symbolisation of NeuralNetwork
 
-hnns  = symbolize(hnn; eqs = eqs)
+@test_noerror hnns  = symbolize(hnn; eqs = eqs)
 
 @test typeof(hnns.model) <: SymbolicModel
 @test architecture(hnns) == hnn.architecture
@@ -65,3 +71,4 @@ hnns2  = symbolize(hnn, 2)
 @test architecture(hnns2) == hnn.architecture
 @test model(hnns2) == hnn.model
 @test params(hnns2) == hnn.params
+
