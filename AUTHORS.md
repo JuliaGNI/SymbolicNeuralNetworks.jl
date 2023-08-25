@@ -6,9 +6,12 @@ SymbolicNeuralNetworks' development is coordinated by a group of *principal deve
 
 * [Michael Kraus](https://www.michael-kraus.org/),
   Max Planck Institute for Plasma Physics, Garching, Germany
-
+* Théo Duez,
+  Max Planck Institute for Plasma Physics, Garching, Germany
+  
 ## Contributors
 
 The following people contributed to SymbolicNeuralNetworks and are listed in alphabetical order:
 
 * Michael Kraus
+* Théo Duez
