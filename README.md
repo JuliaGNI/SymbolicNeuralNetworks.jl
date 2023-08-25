@@ -1,4 +1,4 @@
-# SymbolicNeuralNetworks
+# SymbolicNeuralNetworks.jl
 
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://JuliaGNI.github.io/SymbolicNeuralNetworks.jl/stable/)
 [![Latest](https://img.shields.io/badge/docs-latest-blue.svg)](https://JuliaGNI.github.io/SymbolicNeuralNetworks.jl/latest/)
