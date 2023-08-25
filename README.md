@@ -6,4 +6,4 @@
 [![Coverage](https://codecov.io/gh/JuliaGNI/SymbolicNeuralNetworks.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/JuliaGNI/SymbolicNeuralNetworks.jl)
 [![PkgEval](https://JuliaCI.github.io/NanosoldierReports/pkgeval_badges/S/SymbolicNeuralNetworks.svg)](https://JuliaCI.github.io/NanosoldierReports/pkgeval_badges/S/SymbolicNeuralNetworks.html)
 
-`SymbolicNeuralNetworks.jl` wants to take advantage of `Symbolics.jl` for training neural networks by accelarating their evaluation and by simplifing the computation of some derivatives of the neural network that may be needed for loss functions for example. 
+`SymbolicNeuralNetworks.jl` was created to take advantage of `Symbolics.jl` for training neural networks by accelarating their evaluation and by simplifing the computation of some derivatives of the neural network that may be needed for loss functions for example. 
