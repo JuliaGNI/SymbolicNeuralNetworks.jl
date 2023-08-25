@@ -17,3 +17,4 @@ function symbolicparameters(::Dense{M,N,false}) where {M,N}
     (W = W,)
 end
 
+symbolicparameters(nn::NeuralNetwork) = symbolicparameters(model(nn))

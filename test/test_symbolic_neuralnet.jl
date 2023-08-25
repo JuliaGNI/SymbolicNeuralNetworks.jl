@@ -60,6 +60,9 @@ shnn2 = SymbolicNeuralNetwork(arch, 2)
 @test model(hnns) == hnn.model
 @test params(hnns) == hnn.params
 
+@test_nowarn equations(model)
+@test_nowarn equations(model)[:eval](x, hnn.params)
+
 println("Comparison of performances between an clasical neuralnetwork and a symbolized one")
 @test hnn(x) == hnns(x)
 @time hnn(x)
