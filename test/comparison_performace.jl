@@ -32,11 +32,10 @@ include("plots.jl")
 training_data = TrainingData(ensemble_solution)
 
 #creating a training sets
-arch = GSympNet(2; nhidden = 4, width = 10)
-sympnet = NeuralNetwork(GSympNet(2; nhidden = 4, width = 10), Float64)
+arch = GSympNet(2; nhidden = 4, width = 10, allow_fast_activation = false)
+sympnet = NeuralNetwork(arch, Float64)
 
-ssympnet = SymbolicNeuralNetwork(arch, 2)
-#ssympnet = symbolize(sympnet, 2)
+ssympnet = symbolize(sympnet, 2)
 
 nruns = 100
 method = BasicSympNet()
