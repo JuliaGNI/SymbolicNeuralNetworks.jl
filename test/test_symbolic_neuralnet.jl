@@ -18,7 +18,7 @@ eqs = (x = sx, nn = nn)
 arch = HamiltonianNeuralNetwork(2)
 hnn = NeuralNetwork(arch, Float64)
 
-@test_noerror shnn = SymbolicNeuralNetwork(arch; eqs = eqs)
+@testnoerror shnn = SymbolicNeuralNetwork(arch; eqs = eqs)
 
 @test typeof(shnn) <: SymbolicNeuralNetwork{<:HamiltonianNeuralNetwork}
 @test architecture(shnn) == arch
@@ -34,7 +34,7 @@ println("Comparison of performances between an clasical neuralnetwork and a symb
 @time hnn(x)
 @time shnn(x, hnn.params)
 
-@test_noerror SymbolicNeuralNetwork(Chain(arch); eqs = eqs)
+@testnoerror SymbolicNeuralNetwork(Chain(arch); eqs = eqs)
 
 # with dim
 
@@ -53,15 +53,15 @@ shnn2 = SymbolicNeuralNetwork(arch, 2)
 
 # Symbolisation of NeuralNetwork
 
-@test_noerror hnns  = symbolize(hnn; eqs = eqs)
+@testnoerror hnns  = symbolize(hnn; eqs = eqs)
 
 @test typeof(hnns.model) <: SymbolicModel
 @test architecture(hnns) == hnn.architecture
 @test model(hnns) == hnn.model
 @test params(hnns) == hnn.params
 
-@test_nowarn equations(model)
-@test_nowarn equations(model)[:eval](x, hnn.params)
+@test_nowarn equations(hnns.model)
+@test_nowarn equations(hnns.model)[:eval](x, hnn.params)
 
 println("Comparison of performances between an clasical neuralnetwork and a symbolized one")
 @test hnn(x) == hnns(x)
@@ -75,3 +75,7 @@ hnns2  = symbolize(hnn, 2)
 @test model(hnns2) == hnn.model
 @test params(hnns2) == hnn.params
 
+# Creation of NeuralNetwork from a SymbolicNeuralNetwork
+
+#@testnoerror nn1 = NeuralNetwork(shnn, CPU(), Float32)
+#@testnoerror nn2 = NeuralNetwork(shnn, Float32)

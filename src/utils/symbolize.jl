@@ -45,4 +45,3 @@ function symbolize(t::Tuple, var_name::Union{Missing, Symbol} = missing, storage
     end
 end
 
-#symbolize(nn::NeuralNetwork) = symbolize(nn.params, missing, Dict())[1]

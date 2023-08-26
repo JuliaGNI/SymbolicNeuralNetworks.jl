@@ -46,31 +46,42 @@ function SymbolicNeuralNetwork(arch::Architecture, model::Model; eqs::NamedTuple
 
     pre_equations = Tuple(expand_derivatives.(eq) for eq in pre_equations)
 
-    equations = merge(NamedTuple{keys(new_eqs)}(pre_equations),(eval = eval,))
+    equations = NamedTuple{keys(new_eqs)}(pre_equations)
 
-    # Generation of the code
+    # Gestion of evaluation function
+
+    pre_code_eval = build_function(eval, sinput, sparams...)
+
+    code_eval = typeof(pre_code_eval) <: Tuple ? pre_code_eval[infos[:eval]] : pre_code_eval
+
+    rewrite_code_eval = rewrite_neuralnetwork(code_eval, (sinput,), sparams)
+
+    code_opti_eval = optimize_code!(rewrite_code_eval)
+
+    code_corr_eval = Meta.parse(replace(string(code_opti_eval), "SymbolicUtils.Code.create_array(Array, nothing, Val{1}(), Val{(2,)}()," => "(" ))
+    
+    # Generation of the code for equations
 
     pre_code = Tuple((build_function(eq, sinput, sparams...), infos[keq]) for (keq,eq) in pairs(equations))
 
-    code = Tuple(typeof(c) <: Tuple ? c[i] : c for (c,i) in pre_code)
+    code = Tuple(typeof(c) <: Tuple ? c[i] : c for (c,i) in pre_code) 
 
     # Rewrite of the codes
     rewrite_codes = Tuple(rewrite_neuralnetwork(c, (sinput,), sparams) for c in code)
 
     # Optimization of the code
 
-    code_opti = optimize_code!.(rewrite_codes)
+    #code_opti = optimize_code!.(rewrite_codes)
 
-    code_corr = Meta.parse.(replace.(string.(code_opti), "SymbolicUtils.Code.create_array(Array, nothing, Val{1}(), Val{(2,)}()," => "(" ))
+    #code_corr = Meta.parse.(replace.(string.(code_opti), "SymbolicUtils.Code.create_array(Array, nothing, Val{1}(), Val{(2,)}()," => "(" ))
     
     # Creation of NamedTuple code
-
-    nt_code = NamedTuple{keys(equations)}(code_corr)
+    nt_code = merge(NamedTuple{keys(equations)}(rewrite_codes),(eval = code_corr_eval,))
 
     # Generations of the functions
     functions = NamedTuple{keys(nt_code)}(Tuple(@RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(c)) for c in nt_code))
 
-    SymbolicNeuralNetwork(arch, model, sparams, code, functions.eval, equations, functions)
+    SymbolicNeuralNetwork(arch, model, sparams, nt_code, functions.eval, merge(equations, (eval = eval,)), functions)
 end
 
 function SymbolicNeuralNetwork(model::Model; kwargs...)

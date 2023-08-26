@@ -29,7 +29,7 @@ fun_vectorfield = functions(shnn).vectorfield
 @test_nowarn ω∇ₓnn(x, hnn.params)
 
 println("Comparison of performances between Zygote and SymbolicNeuralNetwork for ω∇ₓnn")
-@time ω∇ₓnn(x, hnn.params)[1]
+@time ω∇ₓnn(x, hnn.params)
 @time fun_vectorfield(x, hnn.params)
 @test chebyshev(fun_vectorfield(x, hnn.params),ω∇ₓnn(x, hnn.params)) < 1e-15
 
