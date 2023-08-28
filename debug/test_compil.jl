@@ -1,11 +1,35 @@
-f(x,p) = x^2 + p.W^2
+using BenchmarkTools
 
-g(x) = x^2
-h(p) = p.W^2
+function g(x)
+    x^2 * tanh(x) - sin(cos(sin(x)))
+end
 
-r(x,p) = g(x) + h(p)
+function f(x)
+    (x^2 * tanh(x) - sin(cos(sin(x))))^2 * tanh(x^2 * tanh(x) - sin(cos(sin(x)))) - sin(cos(sin(x^2 * tanh(x) - sin(cos(sin(x))))))
+end
 
+function h(x)
+    z = g(x)
+    g(z)
+end
 
-@time r(4, (W = 2,))
-@time f(4, (W = 2,))
+function w(x)
+    (g∘g)(x)
+end
+
+function zz(x)
+    ff(x) = x^2 * tanh(x) - sin(cos(sin(x)))
+    a = ff(x)
+    ff(a)
+end
+
+x = 4
+@time f(x)
+@time h(x)
+@time w(x)
+@time zz(x)
+
+using Test
+@test f(x) == h(x) == w(x) == zz(x)
+
 
