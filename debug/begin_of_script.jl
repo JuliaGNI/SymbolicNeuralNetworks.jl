@@ -2,6 +2,9 @@ using Symbolics
 using GeometricMachineLearning
 using AbstractNeuralNetworks
 import AbstractNeuralNetworks: layer
+using Base.Iterators
+
+unzip(a) = map(x->getfield.(a, x), fieldnames(eltype(a)))
 
 function symbolicparameters(::Dense{M,N,true}) where {M,N}
     @variables W[1:N, 1:M], b[1:N]
@@ -43,26 +46,44 @@ function symbolize_layers(chain)
     symbolic_layers, index_layer, NamedTuple(memo)
 end
 
-
-
 symbolic_layers, index_layer, memo =  symbolize_layers(model(hnn))
-@show symbolic_layers
-@show index_layer
-@show memo
 
 
 function compute_one_derivative(chain, symbolic_layers, index_layer, idxi)
- 
-    IndexSparse = Vector{Vector{Int16}}[]
-    l1 = layer(chain,1)
-    push!(IndexSparse, 1:size_output(l1))
-    for n in eachindex(index_layer)
-        ln = layer(chain,1)
-        IndexSparse_n = Vector{Int16}[]
-        for k in IndexSparse[]
-        @variables x[1:size_input(l)]
-        Jacln = sparsejacobian_vals(symbolic_layers[n], x, I, J)
-
+    memo = Dict()
+    IndexSparse = Vector{Int64}[[idxi]]
+    for (n,m) in zip(eachindex(index_layer),index_layer)
+        ln = layer(chain,n)
+        szin = size_input(ln)
+        szout = size_output(ln)
+        stl = Symbol(typeof(ln))
+        if stl ∉ keys(memo)
+            @variables x[1:szin]
+            indexR, indexC = unzip([collect(Iterators.product(1:szout,IndexSparse[end]))...]) 
+            Jacln = Symbolics.sparsejacobian_vals(symbolic_layers[m], x, indexR, indexC)
+            IndexSparse_n = 1:4
+            push!(IndexSparse, IndexSparse_n)
+            s = spzeros(eltype(Jacln), szout, szin)
+            for (i,j,k) in zip(indexR,indexC, eachindex(Jacln))
+                s[i,j] = Jacln[k]
+            end
+            memo[stl] = s
         end
     end
+    NamedTuple(memo), IndexSparse
 end
+
+
+layer_2 = layer(model(hnn),2)
+@variables x[1:4]
+sparams = symbolicparameters(layer_2)
+sl = layer_2(x, sparams)
+
+J = Symbolics.sparsejacobian_vals(sl,x,[1,2,3],[1,2,3])
+
+s = spzeros(eltype(J), size_output(layer_2), size_input(layer_2))
+for (e,f,n) in zip([1,2,3],[1,2,3],eachindex(J))
+    s[e,f] = J[n]
+end
+
+memo2, IndexSparse = compute_one_derivative(model(hnn), symbolic_layers, index_layer, 1)
