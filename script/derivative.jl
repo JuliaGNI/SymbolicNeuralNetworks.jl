@@ -48,6 +48,7 @@ struct SymbolFunction{M,N,S} <: AbstractSymbolFunction{M,N,S}
     SymbolFunction(s::Symbol, m::Int, n::Int) = new{m,n,s}()
 end
 
+
 ############################################
 #           IndexSymbolFunction
 ############################################
@@ -225,21 +226,6 @@ function (pard::PartialDerivative{D,I})(scf::AddSymbolFunction{M,N}, j::Int) whe
     @assert 1≤j≤N string(scf, " doesn't have a ",j,"ᵗʰ component.")
     @assert 1≤I≤M string(scf, " doesn't have a ",I,"ᵗʰ input.")
     AddSymbolFunction(pard(scf.right, j), pard(scf.left, j))
-end
-
-
-
-
-
-struct BigAddSymbolFunction{M,N,S} <: AbstractSymbolFunction{M,N,S}
-    Index
-    f::Int
-    e::Int
-    function BigAddSymbolFunction(::IndexSymbolFunction{M,S}, index) where {M,S}
-        str_s = Symbol(string(:∑, "[",index,"](",S,")"))
-        new{M,1,str_s}(index)
-    end
-
 end
 
 
