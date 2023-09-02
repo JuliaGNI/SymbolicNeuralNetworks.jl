@@ -1,8 +1,9 @@
 using Symbolics
 using GeometricMachineLearning
 using AbstractNeuralNetworks
-import AbstractNeuralNetworks: layer
+import AbstractNeuralNetworks: layer, AbstractLayer
 using Base.Iterators
+using SparseArrays
 
 unzip(a) = map(x->getfield.(a, x), fieldnames(eltype(a)))
 
@@ -22,18 +23,23 @@ size_output(::Dense{M,N}) where {M,N} = N
 arch = HamiltonianNeuralNetwork(2; nhidden = 7, width = 4)
 hnn = NeuralNetwork(arch, Float16)
 
+# Symbolize layer
 
-function symbolize_layers(chain)
+function symbolize(l::AbstractLayer)
+    sparams = symbolicparameters(l)
+    sin = size_input(l)
+    @variables x[1:sin]
+    l(x, sparams)
+end
+
+function symbolize_eachlayer(chain::Chain)
     symbolic_layers = []
     index_layer = zeros(Int64, length(chain))
     memo = Dict()
     for (l,i) in zip(model(hnn), eachindex(chain))
         stl = Symbol(typeof(l))
         if stl ∉ keys(memo)
-            sparams = symbolicparameters(l)
-            sin = size_input(l)
-            @variables x[1:sin]
-            sl = l(x, sparams)
+            sl = symbolize(l)
             push!(symbolic_layers, sl)
             size_sl = length(symbolic_layers)
             index_layer[i] = size_sl
@@ -46,7 +52,15 @@ function symbolize_layers(chain)
     symbolic_layers, index_layer, NamedTuple(memo)
 end
 
-symbolic_layers, index_layer, memo =  symbolize_layers(model(hnn))
+symbolic_layers, index_layer, memo =  symbolize_eachlayer(model(hnn))
+
+
+function symbolics_computation(bricks::AbstractVector)
+    sbricks = []
+    for b in bricks
+
+    end
+end
 
 
 function compute_one_derivative(chain, symbolic_layers, index_layer, idxi)
@@ -74,16 +88,5 @@ function compute_one_derivative(chain, symbolic_layers, index_layer, idxi)
 end
 
 
-layer_2 = layer(model(hnn),2)
-@variables x[1:4]
-sparams = symbolicparameters(layer_2)
-sl = layer_2(x, sparams)
-
-J = Symbolics.sparsejacobian_vals(sl,x,[1,2,3],[1,2,3])
-
-s = spzeros(eltype(J), size_output(layer_2), size_input(layer_2))
-for (e,f,n) in zip([1,2,3],[1,2,3],eachindex(J))
-    s[e,f] = J[n]
-end
 
 memo2, IndexSparse = compute_one_derivative(model(hnn), symbolic_layers, index_layer, 1)
