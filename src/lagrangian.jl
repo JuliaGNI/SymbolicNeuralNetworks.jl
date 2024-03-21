@@ -27,7 +27,7 @@ function symbolic_lagrangian(L::Base.Callable, dim::Int, params::Union{Tuple, Na
     rewrite_code_L = rewrite_lagrangian(code_L, (x, v, st), sparams)
 
     # create the related function
-    gL = @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(rewrite_code_L))
+    gL = @RuntimeGeneratedFunction(rewrite_code_L)
 
     return st, x, v, sparams, sL, gL
 end

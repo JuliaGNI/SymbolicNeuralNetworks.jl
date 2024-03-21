@@ -27,7 +27,7 @@ function symbolic_hamiltonian(H::Base.Callable, dim::Int, params::Union{Tuple, N
     rewrite_code_H = rewrite_hamiltonian(code_H, (q, p, st), sparams)
 
     # create the related function
-    gH = @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(rewrite_code_H))
+    gH = @RuntimeGeneratedFunction(rewrite_code_H)
 
     return st, q, p, sparams, sH, gH
 end
