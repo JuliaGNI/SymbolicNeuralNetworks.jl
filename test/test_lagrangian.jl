@@ -3,6 +3,7 @@ using Symbolics
 using Test
 
 parameters = (k=1, )
+
 function lagrangian(t, q, v, params)
     v[1]^2 / 2 - params.k * q[1]^2 / 2
 end

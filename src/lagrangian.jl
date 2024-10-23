@@ -1,11 +1,10 @@
-#=
+"""
     symbolic_lagrangian is a functions that creates a symbolic lagrangian from any lagrangian.
     The output of the function is 
         - the symbolics parameters used to build the hamiltonian (i.e t, x, v),
         - the symbolic expression of the lagrangian,
         - the function generated from the symbolic lagrangian. 
-=#
-
+"""
 function symbolic_lagrangian(L::Base.Callable, dim::Int, params::Union{Tuple, NamedTuple, AbstractArray})
 
     RuntimeGeneratedFunctions.init(@__MODULE__)
@@ -31,4 +30,3 @@ function symbolic_lagrangian(L::Base.Callable, dim::Int, params::Union{Tuple, Na
 
     return st, x, v, sparams, sL, gL
 end
-

@@ -15,7 +15,7 @@ function build_eval(f::Base.Callable, args...; params = params::Union{Tuple, Nam
 end
 
 
-function build_hamiltonien(H::Base.Callable, dim::Int, params::Union{Tuple, NamedTuple, AbstractArray})
+function build_hamiltonian(H::Base.Callable, dim::Int, params::Union{Tuple, NamedTuple, AbstractArray})
 
         #compute the symplectic matrix
         sympmatrix = symplecticMatrix(dim)
