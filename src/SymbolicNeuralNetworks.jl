@@ -6,7 +6,7 @@ module SymbolicNeuralNetworks
     using RuntimeGeneratedFunctions
     using KernelAbstractions
 
-    import AbstractNeuralNetworks: NeuralNetwork, Architecture, Model
+    import AbstractNeuralNetworks: NeuralNetwork, Architecture, Model, UnknownArchitecture
     import AbstractNeuralNetworks: architecture, model, params
     
     export optimize_code!

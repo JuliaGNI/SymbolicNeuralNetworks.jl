@@ -1,6 +1,30 @@
-
 abstract type AbstractSymbolicNeuralNetwork{AT} <: AbstractNeuralNetwork{AT} end
 
+"""
+    SymbolicNeuralNetwork <: AbstractSymbolicNeuralNetwork
+
+A symbolic neural network realizes a symbolic represenation (of small neural networks).
+
+The `struct` has the following fields:
+- `architecture`: the neural network architecture,
+- `model`: the model (typically a Chain that is the realization of the architecture),
+- `params`: the symbolic parameters of the network,
+- `code`:
+- `eval`:
+- `equations`:
+- `functions`: 
+
+# Constructors
+
+    SymbolicNeuralNetwork(arch; eqs)
+
+Make a `SymbolicNeuralNetwork` based on an architecture and a set of equations.
+`eqs` here has to be a `NamedTuple` that contains keys 
+- `:x`: gives the inputs to the neural network and 
+- `:nn`: symbolic expression of the neural network.
+
+Internally this calls [`evaluate_equations`](@ref)
+"""
 struct SymbolicNeuralNetwork{AT,MT,PT,CT,EVT,ET,FT} <: AbstractSymbolicNeuralNetwork{AT}
     architecture::AT
     model::MT
@@ -19,7 +43,6 @@ end
 @inline equations(snn::SymbolicNeuralNetwork) = snn.equations
 @inline functions(snn::SymbolicNeuralNetwork) = snn.functions
 
-
 function SymbolicNeuralNetwork(arch::Architecture, model::Model; eqs::NamedTuple)
 
     @assert [:x, :nn] ⊆ keys(eqs)
@@ -31,46 +54,87 @@ function SymbolicNeuralNetwork(arch::Architecture, model::Model; eqs::NamedTuple
 
     new_eqs = NamedTuple([p for p in pairs(eqs) if p[1] ∉ [:x, :nn]])
 
-    # Generation of symbolicparamters
+    # Generation of symbolic paramters
     sparams = symbolicparameters(model)
 
-    # Generation of the equations
-
+    # Evaluation of the symbolic input
     eval = model(sinput, sparams)
 
-    infos = merge(NamedTuple{keys(new_eqs)}(Tuple(typeof(eq) <: Vector{<:Real} ? 1 : 2 for eq in new_eqs)),(eval = typeof(eval) <: Vector{<:Real} ? 1 : 2,))
+    infos = merge(classify_equations(new_eqs), (eval = classify_equation(eval),))
 
-    pre_equations = Tuple(SymbolicUtils.substitute.(eq, [snn => eval]) for eq in new_eqs)
-
-    pre_equations = Tuple(Symbolics.scalarize.(eq) for eq in pre_equations)
-
-    pre_equations = Tuple(expand_derivatives.(eq) for eq in pre_equations)
-
-    equations = merge(NamedTuple{keys(new_eqs)}(pre_equations),(eval = eval,))
+    equations = evaluate_equations(new_eqs, eval)
 
     # Generation of the code
-
-    pre_code = Tuple((build_function(eq, sinput, sparams...), infos[keq]) for (keq,eq) in pairs(equations))
-
-    code = Tuple(typeof(c) <: Tuple ? c[i] : c for (c,i) in pre_code)
-
-    # Rewrite of the codes
-    rewrite_codes = Tuple(rewrite_neuralnetwork(c, (sinput,), sparams) for c in code)
-
-    # Optimization of the code
-
-    code_opti = optimize_code!.(rewrite_codes)
-
-    code_corr = Meta.parse.(replace.(string.(code_opti), "SymbolicUtils.Code.create_array(Array, nothing, Val{1}(), Val{(2,)}()," => "(" ))
-    
-    # Creation of NamedTuple code
-
-    nt_code = NamedTuple{keys(equations)}(code_corr)
+    codes = generate_codes(equations, sinput, sparams, infos)
 
     # Generations of the functions
-    functions = NamedTuple{keys(nt_code)}(Tuple(@RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(c)) for c in nt_code))
+    functions = generate_functions(codes)
 
-    SymbolicNeuralNetwork(arch, model, sparams, code, functions.eval, equations, functions)
+    SymbolicNeuralNetwork(arch, model, sparams, codes, functions.eval, equations, functions)
+end
+
+# return "1" if input is vector of reals; else return "2"
+function classify_equation(eq)::Integer
+    typeof(eq) <: Vector{<:Real} ? 1 : 2
+end
+
+function classify_equations(eqs::NamedTuple)
+    NamedTuple{keys(eqs)}(Tuple(classify_equation(eq) for eq in eqs))
+end
+
+"""
+    evaluate_equation(eq, eval)
+
+Replace `snn` in `eq` with `eval` (input), scalarize and expand derivatives.
+
+This uses `scalarize` and `expand_derivatives` from the `Symbolics` package.
+"""
+function evaluate_equation(eq, eval)
+    SymbolicUtils.substitute(eq, [snn => eval]) |> Symbolics.scalarize |> expand_derivatives
+end
+
+"""
+    evaluate_equations(eqs, eval)
+
+Apply [`evaulate_equation`](@ref) to a `NamedTuple` and append the `NamedTuple` `(eval = eval, )`.
+"""
+function evaluate_equations(eqs::NamedTuple, eval)
+    
+    pre_equations = Tuple(evaluate_equation.(eq) for eq in eqs)
+
+    merge(NamedTuple{keys(eqs)}(pre_equations),(eval = eval,))
+end
+
+"""
+    generate_code(eq, sinput, sparams, info)
+
+Generate code according to the equation `eq`, symbolic input `sinput`, symbolic neural network parameters `sparams` and `info`.
+
+# Arguments
+
+The last argument, `info`, is an integer that's either `1` or `2`. This is the output of the function `classify_equation`.
+"""
+function generate_code(eq, sinput, sparams, info)
+    @assert info ∈ [1, 2]
+    pre_code = build_function(eq, sinput, sparams...)
+    code = typeof(pre_code) <: Tuple ? pre_code[info] : pre_code
+    code_rewritten = rewrite_neuralnetwork(code, (sinput, ), sparams)
+    code_opti = optimize_code!(code_rewritten)
+    Meta.parse(replace(string(code_opti), "SymbolicUtils.Code.create_array(Array, nothing, Val{1}(), Val{(2,)}()," => "(" ))
+end
+
+function generate_codes(eqs::NamedTuple, sinput, sparams, infos::NamedTuple)
+    @assert keys(eqs) == keys(infos)
+    generated_code_tuples = Tuple(generate_code(eqs[key], sinput, sparams, infos[key]) for key in keys(eqs))
+    NamedTuple{keys(eqs)}(generated_code_tuples)
+end
+
+function generate_function(c)
+    @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(c))
+end
+
+function generate_functions(codes::NamedTuple)
+    NamedTuple{keys(codes)}(Tuple(generate_function(c) for c in codes))
 end
 
 function SymbolicNeuralNetwork(model::Model; kwargs...)
