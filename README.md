@@ -54,3 +54,9 @@ x = [0.5, 0.8]
 Let see another example of the training of a SympNet (an intrasec structure preserving architecture present in [GeometricMachineLearning.jl](https://github.com/JuliaGNI/GeometricMachineLearning.jl)) on an harmonic oscillator the data of which come from [GeometricProblem.jl](https://github.com/JuliaGNI/GeometricProblems.jl) :
 
 
+## Development
+
+We are using git hooks, e.g., to enforce that all tests pass before pushing. In order to activate these hooks, the following command must be executed once:
+```
+git config core.hooksPath .githooks
+```
