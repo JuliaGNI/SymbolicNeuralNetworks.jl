@@ -15,8 +15,12 @@ function HamiltonianSymbolicNeuralNetwork(arch::Architecture, model::Model)
     @assert output_dimension(model) == 1 "Output dimension of network has to be scalar."
 
     @variables nn ∇nn
-    x = Symbolics.vairables(:x, 1:input_dim)
-    eqs = (x = x, nn = nn, ∇nn = ∇nn, hvf = apply_𝕁(∇nn, n))
+    x = Symbolics.variables(:x, 1:input_dim)
+
+    𝕀 = I(n)
+    𝕆 = zero(𝕀)
+    𝕁 = hcat(vcat(𝕆, -𝕀), vcat(𝕀, 𝕆))
+    eqs = (x = x, nn = nn, ∇nn = ∇nn, hvf = 𝕁 * ∇nn)
 
     SymbolicNeuralNetwork(arch, model; eqs = eqs)
 end
@@ -26,7 +30,5 @@ input_dimension(c::Chain) = input_dimension(c.layers[1])
 
 output_dimension(::AbstractExplicitLayer{M, N}) where {M, N} = N
 output_dimension(c::Chain) = output_dimension(c.layers[end])
-
-apply_𝕁(x, n) = @views vcat(x[(n+1):2n], -x[1:n])
 
 HamiltonianSymbolicNeuralNetwork(model::Model) = HamiltonianSymbolicNeuralNetwork(UnknownArchitecture(), model)
