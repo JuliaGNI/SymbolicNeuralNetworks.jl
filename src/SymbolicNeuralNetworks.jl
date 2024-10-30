@@ -33,6 +33,7 @@ module SymbolicNeuralNetworks
 
     export AbstractSymbolicNeuralNetwork
     export SymbolicNeuralNetwork, SymbolicModel
+    export HamiltonianSymbolicNeuralNetwork
     export architecture, model, params, equations, functions
 
     export symbolicparameters
