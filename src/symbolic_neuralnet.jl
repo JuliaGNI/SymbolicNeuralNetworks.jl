@@ -108,7 +108,7 @@ end
 """
     evaluate_equations(eqs, soutput)
 
-Apply [`evaulate_equation`](@ref) to a `NamedTuple` and append `(soutput = soutput, s∇output = s∇output, sJoutput = sJoutput)`.
+Apply [`evaluate_equation`](@ref) to a `NamedTuple` and append `(soutput = soutput, s∇output = s∇output, sJoutput = sJoutput)`.
 """
 function evaluate_equations(eqs::NamedTuple, snn, s∇nn, sJnn, soutput, s∇output, sJoutput)
     
