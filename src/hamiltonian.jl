@@ -27,6 +27,6 @@ input_dimension(c::Chain) = input_dimension(c.layers[1])
 output_dimension(::AbstractExplicitLayer{M, N}) where {M, N} = N
 output_dimension(c::Chain) = output_dimension(c.layers[end])
 
-apply_𝕁(x, n) = vcat(@view x[(n+1):2n], -@view x[1:n])
+apply_𝕁(x, n) = @views vcat(x[(n+1):2n], -x[1:n])
 
 HamiltonianSymbolicNeuralNetwork(model::Model) = HamiltonianSymbolicNeuralNetwork(UnknownArchitecture(), model)
