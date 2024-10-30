@@ -9,10 +9,8 @@ The `struct` has the following fields:
 - `architecture`: the neural network architecture,
 - `model`: the model (typically a Chain that is the realization of the architecture),
 - `params`: the symbolic parameters of the network,
-- `code`:
-- `eval`:
-- `equations`:
-- `functions`: 
+- `equations`: gives a latex representation of the equations in terms of the neural network parameters (uses `latexify`),
+- `functions`: same as in the field `equations`, but in form of executable Julia code.
 
 # Constructors
 
@@ -25,13 +23,11 @@ Make a `SymbolicNeuralNetwork` based on an architecture and a set of equations.
 
 Internally this calls [`evaluate_equations`](@ref)
 """
-struct SymbolicNeuralNetwork{AT,MT,PT,CT,EVT,ET,FT} <: AbstractSymbolicNeuralNetwork{AT}
+struct SymbolicNeuralNetwork{AT, MT, PT, ET, FT} <: AbstractSymbolicNeuralNetwork{AT}
     architecture::AT
     model::MT
     params::PT
 
-    code::CT
-    eval::EVT
     equations::ET
     functions::FT
 end
@@ -47,94 +43,92 @@ function SymbolicNeuralNetwork(arch::Architecture, model::Model; eqs::NamedTuple
 
     @assert [:x, :nn] ⊆ keys(eqs)
     
-    RuntimeGeneratedFunctions.init(@__MODULE__)
-
     sinput = eqs.x
+
     snn = eqs.nn
 
-    new_eqs = NamedTuple([p for p in pairs(eqs) if p[1] ∉ [:x, :nn]])
+    s∇nn = haskey(eqs, :∇nn) ? eqs.∇nn : nothing
+
+    sJnn = haskey(eqs, :Jnn) ? eqs.Jnn : nothing
+
+    remaining_eqs = NamedTuple([p for p in pairs(eqs) if p[1] ∉ [:x, :nn, :∇nn, :Jnn]])
 
     # Generation of symbolic paramters
     sparams = symbolicparameters(model)
 
-    # Evaluation of the symbolic input
-    eval = model(sinput, sparams)
+    # Evaluation of the symbolic output
+    soutput = model(sinput, sparams)
 
-    infos = merge(classify_equations(new_eqs), (eval = classify_equation(eval),))
+    # Evaluation of gradient
+    s∇output = isnothing(s∇nn) ? nothing : Symbolics.gradient(sum(Symbolics.scalarize(soutput)), sinput)
 
-    equations = evaluate_equations(new_eqs, eval)
+    # Evaluation of the Jacobian matrix
+    sJoutput = isnothing(sJnn) ? nothing : Symbolics.jacobian(soutput, sinput)
+
+    equations = evaluate_equations(remaining_eqs, snn, s∇nn, sJnn, soutput, s∇output, sJoutput)
 
     # Generation of the code
-    codes = generate_codes(equations, sinput, sparams, infos)
+    # codes = generate_codes(equations, sinput, sparams, infos)
 
     # Generations of the functions
-    functions = generate_functions(codes)
+    functions = _generate_functions(equations, sinput, sparams)
 
-    SymbolicNeuralNetwork(arch, model, sparams, codes, functions.eval, equations, functions)
+    equations_latex = NamedTuple{keys(equations)}(Tuple(latexify(eq) for eq in equations))
+    SymbolicNeuralNetwork(arch, model, sparams, equations_latex, functions)
 end
 
-# return "1" if input is vector of reals; else return "2"
-function classify_equation(eq)::Integer
-    typeof(eq) <: Vector{<:Real} ? 1 : 2
+function substitute_jacobian(eq, sJnn, sJoutput)
+    substitute(eq, (Dict(sJnn => sJoutput),))
 end
 
-function classify_equations(eqs::NamedTuple)
-    NamedTuple{keys(eqs)}(Tuple(classify_equation(eq) for eq in eqs))
+function substitute_jacobian(eq, ::Nothing, ::Nothing)
+    eq
 end
 
-"""
-    evaluate_equation(eq, eval)
+function substitute_gradient(eq, s∇nn, s∇output)
+    substitute(eq, (Dict(s∇nn => s∇output),))
+end
 
-Replace `snn` in `eq` with `eval` (input), scalarize and expand derivatives.
-
-This uses `scalarize` and `expand_derivatives` from the `Symbolics` package.
-"""
-function evaluate_equation(eq, eval)
-    SymbolicUtils.substitute(eq, [snn => eval]) |> Symbolics.scalarize |> expand_derivatives
+function substitute_gradient(eq, ::Nothing, ::Nothing)
+    eq 
 end
 
 """
-    evaluate_equations(eqs, eval)
+    evaluate_equation(eq, soutput)
 
-Apply [`evaulate_equation`](@ref) to a `NamedTuple` and append the `NamedTuple` `(eval = eval, )`.
+Replace `snn` in `eq` with `soutput` (input), scalarize and expand derivatives.
 """
-function evaluate_equations(eqs::NamedTuple, eval)
+function evaluate_equation(eq, snn, s∇nn, sJnn, soutput, s∇output, sJoutput)
+    eq_output_substituted = substitute(eq, (Dict(snn => soutput,)))
+    eq_gradient_substituted = substitute_gradient(eq_output_substituted, s∇nn, s∇output)
+    eq_jacobian_substituted = substitute_jacobian(eq_gradient_substituted, sJnn, sJoutput)
+    simplify(eq_jacobian_substituted)
+end
+
+"""
+    evaluate_equations(eqs, soutput)
+
+Apply [`evaulate_equation`](@ref) to a `NamedTuple` and append `(soutput = soutput, s∇output = s∇output, sJoutput = sJoutput)`.
+"""
+function evaluate_equations(eqs::NamedTuple, snn, s∇nn, sJnn, soutput, s∇output, sJoutput)
     
-    pre_equations = Tuple(evaluate_equation.(eq) for eq in eqs)
+    # closure
+    _evaluate_equation(eq) = evaluate_equation(eq, snn, s∇nn, sJnn, soutput, s∇output, sJoutput)
+    evaluated_equations = Tuple(_evaluate_equation(eq) for eq in eqs)
 
-    merge(NamedTuple{keys(eqs)}(pre_equations),(eval = eval,))
+    soutput_eq = (soutput = simplify(soutput),)
+    s∇output_eq = isnothing(s∇nn) ? NamedTuple() : (s∇output = simplify(s∇output),)
+    sJoutput_eq = isnothing(sJnn) ? NamedTuple() : (sJoutput = simplify(sJoutput),)
+    merge(NamedTuple{keys(eqs)}(evaluated_equations), soutput_eq, s∇output_eq, sJoutput_eq)
 end
 
-"""
-    generate_code(eq, sinput, sparams, info)
-
-Generate code according to the equation `eq`, symbolic input `sinput`, symbolic neural network parameters `sparams` and `info`.
-
-# Arguments
-
-The last argument, `info`, is an integer that's either `1` or `2`. This is the output of the function `classify_equation`.
-"""
-function generate_code(eq, sinput, sparams, info)
-    @assert info ∈ [1, 2]
-    pre_code = build_function(eq, sinput, sparams...)
-    code = typeof(pre_code) <: Tuple ? pre_code[info] : pre_code
-    code_rewritten = rewrite_neuralnetwork(code, (sinput, ), sparams)
-    code_opti = optimize_code!(code_rewritten)
-    Meta.parse(replace(string(code_opti), "SymbolicUtils.Code.create_array(Array, nothing, Val{1}(), Val{(2,)}()," => "(" ))
+function _generate_function(expression, sinput, sparams)
+    # we use the second element as the first one is the inplace version of the function
+    build_function(expression, sinput, sparams; expression=Val{false})
 end
 
-function generate_codes(eqs::NamedTuple, sinput, sparams, infos::NamedTuple)
-    @assert keys(eqs) == keys(infos)
-    generated_code_tuples = Tuple(generate_code(eqs[key], sinput, sparams, infos[key]) for key in keys(eqs))
-    NamedTuple{keys(eqs)}(generated_code_tuples)
-end
-
-function generate_function(c)
-    @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(c))
-end
-
-function generate_functions(codes::NamedTuple)
-    NamedTuple{keys(codes)}(Tuple(generate_function(c) for c in codes))
+function _generate_functions(expressions::NamedTuple, sinput, sparams)
+    NamedTuple{keys(expressions)}(Tuple(_generate_function(expression, sinput, sparams) for expression in expressions))
 end
 
 function SymbolicNeuralNetwork(model::Model; kwargs...)
@@ -146,7 +140,8 @@ function SymbolicNeuralNetwork(arch::Architecture; kwargs...)
 end
 
 function SymbolicNeuralNetwork(arch::Architecture, model::Model, dim::Int)
-    @variables x[1:dim], nn
+    @variables nn
+    x = Symbolics.variables(:x, 1:dim)
     SymbolicNeuralNetwork(arch, model; eqs = (x = x, nn = nn))
 end
 
@@ -158,7 +153,11 @@ function SymbolicNeuralNetwork(model::Model, dim::Int)
     SymbolicNeuralNetwork(UnknownArchitecture(), model, dim)
 end
 
-(snn::SymbolicNeuralNetwork)(x, params) = snn.functions.eval(x, params)
+function SymbolicNeuralNetwork(d::AbstractExplicitLayer{M}) where M
+    SymbolicNeuralNetwork(d, M)
+end
+
+(snn::SymbolicNeuralNetwork)(x, params) = snn.functions.soutput(x, params)
 apply(snn::SymbolicNeuralNetwork, x, args...) = snn(x, args...)
 
 
@@ -176,5 +175,3 @@ function Base.show(io::IO, snn::SymbolicNeuralNetwork)
         print(io, "\n")
     end
 end
-
-

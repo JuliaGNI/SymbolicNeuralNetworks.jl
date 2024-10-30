@@ -6,8 +6,9 @@ module SymbolicNeuralNetworks
     using RuntimeGeneratedFunctions
     using KernelAbstractions
 
-    import AbstractNeuralNetworks: NeuralNetwork, Architecture, Model, UnknownArchitecture
+    import AbstractNeuralNetworks: NeuralNetwork, Architecture, Model, UnknownArchitecture, AbstractExplicitLayer
     import AbstractNeuralNetworks: architecture, model, params
+    import Latexify: latexify
     
     export optimize_code!
     include("utils/optimize_code.jl")
