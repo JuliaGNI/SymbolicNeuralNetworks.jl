@@ -11,6 +11,8 @@ input_dim = 2
 d = Dense(input_dim, 1, tanh)
 
 x = Symbolics.variables(:x, 1:input_dim)
+∇nn = Symbolics.variables(:∇nn, 1:input_dim)
+nn = Symbolics.variables(:nn, 1:1)
 Symbolics.@variables nn ∇nn
 eqs = (x = x, nn = nn, ∇nn = ∇nn)
 nn = SymbolicNeuralNetwork(d; eqs = eqs)

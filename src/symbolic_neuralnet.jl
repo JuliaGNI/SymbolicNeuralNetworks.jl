@@ -67,9 +67,6 @@ function SymbolicNeuralNetwork(arch::Architecture, model::Model; eqs::NamedTuple
 
     equations = evaluate_equations(remaining_eqs, snn, s∇nn, sJnn, soutput, s∇output, sJoutput)
 
-    # Generation of the code
-    # codes = generate_codes(equations, sinput, sparams, infos)
-
     # Generations of the functions
     functions = _generate_functions(equations, sinput, sparams)
 
@@ -77,16 +74,36 @@ function SymbolicNeuralNetwork(arch::Architecture, model::Model; eqs::NamedTuple
     SymbolicNeuralNetwork(arch, model, sparams, equations_latex, functions)
 end
 
+"""
+    substitute_jacobian(eq, sJnn, sJoutput)
+
+Substitute the symbolic expression `sJnn` in `eq` with the symbolic expression `sJoutput`.
+
+# Implementation 
+
+See the comment in [`evaluate_equation`](@ref).
+"""
 function substitute_jacobian(eq, sJnn, sJoutput)
-    substitute(eq, (Dict(sJnn => sJoutput),))
+    @assert axes(sJnn) == axes(sJoutput)
+    substitute.(eq, Ref(Dict([sJnn[i, j] => sJoutput[i, j] for (i, j) in axes(sJnn)])))
 end
 
 function substitute_jacobian(eq, ::Nothing, ::Nothing)
     eq
 end
 
+"""
+    substitute_gradient(eq, s∇nn, s∇output)
+
+Substitute the symbolic expression `s∇nn` in `eq` with the symbolic expression `s∇output`.
+
+# Implementation 
+
+See the comment in [`evaluate_equation`](@ref).
+"""
 function substitute_gradient(eq, s∇nn, s∇output)
-    substitute(eq, (Dict(s∇nn => s∇output),))
+    @assert axes(s∇nn) == axes(s∇output)
+    substitute.(eq, Ref(Dict([s∇nn[i] => s∇output[i] for i in axes(s∇nn, 1)])))
 end
 
 function substitute_gradient(eq, ::Nothing, ::Nothing)
@@ -97,9 +114,16 @@ end
     evaluate_equation(eq, soutput)
 
 Replace `snn` in `eq` with `soutput` (input), scalarize and expand derivatives.
+
+# Implementation
+
+Here we use `Symbolics.substitute` with broadcasting to be able to handle `eq`s that are arrays.
+For that reason we use [`Ref` before `Dict`](https://discourse.julialang.org/t/symbolics-and-substitution-using-broadcasting/68705).
+This is also the case for the functions [`substitute_gradient`](@ref) and [`substitute_jacobian`](@ref).
 """
 function evaluate_equation(eq, snn, s∇nn, sJnn, soutput, s∇output, sJoutput)
-    eq_output_substituted = substitute(eq, (Dict(snn => soutput,)))
+    @assert axes(snn) == axes(soutput)
+    eq_output_substituted = substitute.(eq, Ref(Dict([snn[i] => soutput[i] for i in axes(snn, 1)])))
     eq_gradient_substituted = substitute_gradient(eq_output_substituted, s∇nn, s∇output)
     eq_jacobian_substituted = substitute_jacobian(eq_gradient_substituted, sJnn, sJoutput)
     simplify(eq_jacobian_substituted)

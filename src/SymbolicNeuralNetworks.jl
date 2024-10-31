@@ -43,4 +43,7 @@ module SymbolicNeuralNetworks
 
     include("neuralnet.jl")
 
+
+    export parallelized_expression, parallelize_expression_inplace
+    include("parallelize_expression.jl")
 end
