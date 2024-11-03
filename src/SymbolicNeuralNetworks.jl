@@ -9,6 +9,8 @@ module SymbolicNeuralNetworks
     import AbstractNeuralNetworks: NeuralNetwork, Architecture, Model, UnknownArchitecture, AbstractExplicitLayer
     import AbstractNeuralNetworks: architecture, model, params
     import Latexify: latexify
+    import Zygote
+    import ChainRulesCore
     
     export optimize_code!
     include("utils/optimize_code.jl")
@@ -44,6 +46,6 @@ module SymbolicNeuralNetworks
     include("neuralnet.jl")
 
 
-    export parallelized_expression, parallelize_expression_inplace
+    export parallelize_expression, parallelize_expression_inplace, parallelize_pullback!
     include("parallelize_expression.jl")
 end

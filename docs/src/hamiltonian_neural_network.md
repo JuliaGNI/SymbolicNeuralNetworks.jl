@@ -5,12 +5,14 @@ Here we build a Hamiltonian neural network as a symbolic neural network.
 ```@example hnn
 using SymbolicNeuralNetworks
 using GeometricMachineLearning
-using AbstractNeuralNetworks: Dense, initialparameters, UnknownArchitecture, AbstractExplicitLayer
+using AbstractNeuralNetworks: Dense, initialparameters, UnknownArchitecture, Model
 using LinearAlgebra: norm
+using ChainRulesCore
+using KernelAbstractions
 import Symbolics
 
 input_dim = 2
-d = Dense(input_dim, 1, tanh)
+d = Chain(Dense(input_dim, 10, tanh), Dense(10, 1))
 
 nn = HamiltonianSymbolicNeuralNetwork(d)
 
@@ -37,11 +39,34 @@ struct CustomLoss{NF} <: NetworkLoss
     network_function::NF
 end
 
-function (loss::CustomLoss)(model::AbstractExplicitLayer, ps::NamedTuple, input::Array{T}, output::Array{T}) where T
-    norm(loss.network_function[1](input, ps) - output)
-end
+parallelized_expression, pb = parallelize_expression(nn.functions.hvf[1])
 
-loss = CustomLoss(nn.functions.hvf)
+### parallelize pullback proof of concept
+function parallelize_pullback!(parallelized_expression, pb)
+    @eval function ChainRulesCore.rrule(::typeof(parallelized_expression), input::AT, ps) where {T, AT <: AbstractArray{T, 3}}
+        output = parallelized_expression(input, ps)
+        function parallelized_expression_pullback(doutput::AT)
+            f̄ = NoTangent()
+            backend = KernelAbstractions.get_backend(doutput)
+            dinput = zero(input)
+            dnt = [deepcopy(ps) for _ ∈ axes(input, 2), _ ∈ axes(input, 3)]
+            kernel! = SymbolicNeuralNetworks.parallelize_expression_differential_kernel!(backend)
+            kernel!(dinput, dnt, doutput, input, ps, pb; ndrange = (size(input, 2), size(input, 3)))
+            dnt_final = SymbolicNeuralNetworks._sum(dnt)
+            f̄, dinput, dnt_final
+        end
+        output, parallelized_expression_pullback
+    end
+    nothing
+end
+parallelize_pullback!(parallelized_expression, pb)
+###
+
+loss = CustomLoss(parallelized_expression)
+
+function (loss::CustomLoss)(model::Model, ps::NamedTuple, input::Array{T}, output::Array{T}) where T
+    norm(loss.network_function(input, ps) - output)
+end
 nothing # hide
 ```
 
