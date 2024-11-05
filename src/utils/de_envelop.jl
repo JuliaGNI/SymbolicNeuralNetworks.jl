@@ -3,7 +3,7 @@
     The option completely enables or not to iterates the elements of an array, if not the array is considered as a final element.
 =#
 
-develop(x; completely = false) = return completely ? x : [x]
+develop(x; completely = false) = completely ? x : [x]
 develop(t::Tuple{Any}; completely = false) = [develop(t[1]; completely = completely)...]
 develop(t::Tuple; completely = false) = [develop(t[1]; completely = completely)..., develop(t[2:end]; completely = completely)...]
 develop(t::NamedTuple; completely = false) = vcat([[develop(e; completely = completely)...] for e in t]...)
