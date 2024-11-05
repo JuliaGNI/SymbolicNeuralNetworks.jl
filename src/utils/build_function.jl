@@ -39,20 +39,21 @@ function build_hamiltonian(H::Base.Callable, dim::Int, params::Union{Tuple, Name
 end
 
 function buildsymbolic(nn::NeuralNetwork, dim::Int)
-
-    RuntimeGeneratedFunctions.init(@__MODULE__)
-
+    # get symbolic input variables with specified dimension
     @variables sinput[1:dim]
     
+    # get symbolic representation of parameters
     sparams = symbolic_params(nn)
 
-    est = nn(sinput, sparams)
+    # evaluate network on symbolic inputs and parameters
+    snn = nn(sinput, sparams)
 
-    code = build_function(est, sinput, develop(sparams)...)[2]
+    # generate code for evaluating the network
+    code = build_function(snn, sinput, develop(sparams)...)[2]
 
+    # rewrite function signatures and function names
     rewrite_codes = rewrite_neuralnetwork(code, (sinput,), sparams)
 
-    fun = @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(rewrite_codes))
-
-    fun
+    # inject code into current module
+    @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(rewrite_codes))
 end

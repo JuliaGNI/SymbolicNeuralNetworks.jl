@@ -12,6 +12,8 @@ module SymbolicNeuralNetworks
     import Zygote
     import ChainRulesCore
     
+    RuntimeGeneratedFunctions.init(@__MODULE__)
+
     export optimize_code!
     include("utils/optimize_code.jl")
 
