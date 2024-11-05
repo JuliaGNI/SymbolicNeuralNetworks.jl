@@ -3,39 +3,37 @@
 =#
 
 function build_eval(f::Base.Callable, args...; params = params::Union{Tuple, NamedTuple, AbstractArray})
+    # create symbolic variables for the arguments and parameters
+    sargs = symbolic_params(args)
+    sparams = symbolic_params(params)
 
-    # creates variables 
-    sargs = symbolic_params(args)             # for the argument
-    sparams = symbolic_params(params)    # for the parameters
+    # create symbolic neural network
+    snn = f(sargs..., sparams)
 
-    # create the estimation of the hamiltonian
-    est = f(sargs..., sparams)
-
-    build_function(est, develop(sargs)..., develop(sparams)...)[2]
+    build_function(snn, develop(sargs)..., develop(sparams)...)[2]
 end
 
 
 function build_hamiltonian(H::Base.Callable, dim::Int, params::Union{Tuple, NamedTuple, AbstractArray})
-
-        #compute the symplectic matrix
+        # compute the symplectic matrix
         sympmatrix = symplecticMatrix(dim)
         
-        # creates variables 
-        @variables sq[1:dim÷2]               # for the position
-        @variables sp[1:dim÷2]               # for the momentum
-        @variables st                        # for the time
-        sparams = symbolic_params(params)     # for the parameters
+        # create symbolic variables 
+        @variables sq[1:dim÷2]               # position
+        @variables sp[1:dim÷2]               # momentum
+        @variables st                        # time
+        sparams = symbolic_params(params)    # parameters
 
-        # create the estimation of the hamiltonian
-        est = H(st, sq, sp, sparams)
+        # create symbolic Hamiltonian neural network
+        snn = H(st, sq, sp, sparams)
 
         # compute the vectorfield from the hamiltonian
-        field =  sympmatrix * Symbolics.gradient(est, [sq..., sp...])
+        field = sympmatrix * Symbolics.gradient(snn, [sq..., sp...])
     
-        fun_est = build_function(est, st, sq, sp, develop(sparams)...)[2]
-        fun_field = build_function(field,  st, sq, sp, develop(sparams)...)[1]
+        fun_snn = build_function(snn, st, sq, sp, develop(sparams)...)[2]
+        fun_field = build_function(field, st, sq, sp, develop(sparams)...)[1]
     
-        return (fun_est, fun_field)
+        return (fun_snn, fun_field)
 end
 
 function buildsymbolic(nn::NeuralNetwork, dim::Int)
