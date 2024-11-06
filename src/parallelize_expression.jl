@@ -45,8 +45,8 @@ end
 
     din, dt_jk = dpullback(input[:, j, k], ps)(doutput[:, j, k])
     dinput[:, j, k] .= din
-    for i in axes(dt[j, k], 1)
-        for key in keys(dnt[j, k])
+    for i in 1:length(dt[j, k])
+        for key in keys(dt[j, k][i])
             dt[j, k][i][key] .= dt_jk[i][key]
         end
     end
@@ -66,7 +66,7 @@ function _sum(A::AbstractMatrix{<:NamedTuple}; kwargs...)
 end
 
 function _sum(A::AbstractMatrix{<:Tuple}; kwargs...)
-    indices = index(A[1, 1], 1)
+    indices = 1:length(A[1, 1])
     entries = ()
     for index in indices
         matrix_for_index = [A[j, k][index] for j ∈ axes(A, 1), k ∈ axes(A, 2)]

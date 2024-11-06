@@ -12,10 +12,10 @@ using KernelAbstractions
 import Symbolics
 
 input_dim = 2
-d = Chain(Dense(input_dim, 10, tanh), Dense(10, 1))
+d = Chain(Dense(input_dim, 4, tanh), Dense(4, 4, tanh), Dense(4, 1))
 
 nn = HamiltonianSymbolicNeuralNetwork(d)
-
+nn.functions.hvf(x, ps) = nn.functions.hvf(x, ps...)
 nn.equations.hvf
 ```
 
@@ -39,10 +39,11 @@ struct CustomLoss{NF} <: NetworkLoss
     network_function::NF
 end
 
-parallelized_expression, pb = parallelize_expression(nn.functions.hvf[1])
+expression_through_ps(x, ps) = nn.functions.hvf(x, ps...)
+parallelized_expression, pb = parallelize_expression(expression_through_ps)
 
 ### parallelize pullback proof of concept
-function parallelize_pullback!(parallelized_expression, pb)
+function _parallelize_pullback!(parallelized_expression, pb)
     @eval function ChainRulesCore.rrule(::typeof(parallelized_expression), input::AT, ps) where {T, AT <: AbstractArray{T, 3}}
         output = parallelized_expression(input, ps)
         function parallelized_expression_pullback(doutput::AT)
@@ -59,12 +60,12 @@ function parallelize_pullback!(parallelized_expression, pb)
     end
     nothing
 end
-parallelize_pullback!(parallelized_expression, pb)
+_parallelize_pullback!(parallelized_expression, pb)
 ###
 
 loss = CustomLoss(parallelized_expression)
 
-function (loss::CustomLoss)(model::Model, ps::NamedTuple, input::Array{T}, output::Array{T}) where T
+function (loss::CustomLoss)(model::Chain, ps::Tuple, input::AbstractArray{T}, output::AbstractArray{T}) where T
     norm(loss.network_function(input, ps) - output)
 end
 nothing # hide
@@ -77,8 +78,8 @@ ps = initialparameters(d, T)
 dl = DataLoader(z_data, hvf(z_data))
 o = Optimizer(AdamOptimizer(T), ps)
 batch = Batch(10)
-const n_epochs = 10
+const n_epochs = 100
 nn_dummy = NeuralNetwork(UnknownArchitecture(), d, ps, CPU())
-o(nn_dummy, dl, batch, n_epochs, loss; show_progress = false)
+o(nn_dummy, dl, batch, n_epochs, loss; show_progress = true)
 nothing # hide
 ```

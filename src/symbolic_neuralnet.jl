@@ -148,7 +148,8 @@ end
 
 function _generate_function(expression, sinput, sparams)
     # we use the second element as the first one is the inplace version of the function
-    build_function(expression, sinput, sparams; expression=Val{false})
+    # we take the first output of build_function; this needs to be checked!
+    build_function(expression, sinput, sparams...; expression=Val{false})[1]
 end
 
 function _generate_functions(expressions::NamedTuple, sinput, sparams)
