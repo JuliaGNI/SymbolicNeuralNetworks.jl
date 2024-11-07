@@ -43,6 +43,7 @@ module SymbolicNeuralNetworks
     export symbolicparameters
     include("symbolicparameters.jl")
 
+    export evaluate_equations
     include("symbolic_neuralnet.jl")
 
     include("neuralnet.jl")
