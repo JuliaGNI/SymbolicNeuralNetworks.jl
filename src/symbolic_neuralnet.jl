@@ -80,7 +80,7 @@ function evaluate_equations(eqs::NamedTuple, snn::EqT, s∇nn::EqT, soutput::EqT
 
     soutput_eq = (soutput = simplify == true ? Symbolics.simplify(soutput) : soutput,)
     s∇output_eq = isnothing(s∇nn) ? NamedTuple() : (s∇output = simplify == true ? Symbolics.simplify(s∇output) : s∇output,)
-    merge(NamedTuple{keys(eqs)}(evaluated_equations), soutput_eq, s∇output_eq)
+    merge(soutput_eq, s∇output_eq, NamedTuple{keys(eqs)}(evaluated_equations))
 end
 
 """
@@ -117,7 +117,7 @@ function evaluate_equations(eqs::NamedTuple, nn::SymbolicNeuralNetwork; kwargs..
     Dx = collect(Differential.(sinput))
 
     # Evaluation of gradient
-    s∇output = isnothing(s∇nn) ? nothing :  [dx(soutput) for dx in Dx]
+    s∇output = isnothing(s∇nn) ? nothing : [expand_derivatives(Symbolics.scalarize(dx(soutput))) for dx in Dx]
 
     evaluate_equations(remaining_eqs, snn, s∇nn, soutput, s∇output; kwargs...)
 end
@@ -152,11 +152,18 @@ The output of `gradient` consists of
 2. a symbolic expression of the input.
 """
 function gradient(nn::SymbolicNeuralNetwork)
-    x, output, ∇nn = @variables x[1:2] output[1:1] ∇nn[1:2]
+    @assert output_dimension(nn.model) == 1 "Output dimension has to be 1 to be able to compute the gradient."
+    input_dim = input_dimension(nn.model)
+    x, output, ∇nn = @variables x[1:input_dim] output[1:1] ∇nn[1:input_dim]
     eqs = (x = x, nn = output, ∇nn = ∇nn)
-    s∇output = evaluate_equations(eqs, nn)
-    s∇output, x
+    evaluated_equations = evaluate_equations(eqs, nn)
+    merge((x = x,), evaluated_equations)
 end
+
+input_dimension(::AbstractExplicitLayer{M}) where M = M 
+input_dimension(c::Chain) = input_dimension(c.layers[1])
+output_dimension(::AbstractExplicitLayer{M, N}) where {M, N} = N
+output_dimension(c::Chain) = output_dimension(c.layers[end])
 
 function Base.show(io::IO, snn::SymbolicNeuralNetwork)
     print(io, "\nSymbolicNeuralNetwork with\n")

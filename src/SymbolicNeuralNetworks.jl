@@ -48,6 +48,8 @@ module SymbolicNeuralNetworks
 
     include("neuralnet.jl")
 
+    export build_nn_function
+    include("utils/build_function.jl")
 
     export parallelize_expression, parallelize_expression_inplace, parallelize_pullback!
     include("parallelize_expression.jl")

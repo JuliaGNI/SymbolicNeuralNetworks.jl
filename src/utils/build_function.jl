@@ -1,57 +1,109 @@
-#=
-     This files contains general functions to create symbolics functions.
-=#
+"""
+    build_nn_function(eq, sinput, nn)
 
-function build_eval(f::Base.Callable, args...; params = params::Union{Tuple, NamedTuple, AbstractArray})
-    # create symbolic variables for the arguments and parameters
-    sargs = symbolic_params(args)
-    sparams = symbolic_params(params)
+Build an executable function based on a symbolic equation, a symbolic input array and a [`SymbolicNeuralNetwork`](@ref).
 
-    # create symbolic neural network
-    snn = f(sargs..., sparams)
+# Implementation
 
-    build_function(snn, develop(sargs)..., develop(sparams)...)[2]
+This first calls `Symbolics.build_function` with the keyword argument `expression = Val{true}` and then modifies the generated code by calling:
+1. [`fix_create_array`](@ref),
+2. [`_rewrite_code`](@ref),
+3. [`_modify_input_parameters`](@ref),
+4. [`fix_map_reduce`](@ref).
+
+See the docstrings for those four functions for details on how the code is modified. 
+
+# Extended Help
+
+The functions mentioned in the implementation section were adjusted ad-hoc to deal with problems that emerged on the fly. 
+Other problems may occur. In case you bump into one please open an issue on github.
+"""
+function build_nn_function(eq::EqT, sinput::Symbolics.Arr, nn::SymbolicNeuralNetwork)
+    code = build_function(eq, sinput, nn.params...; expression = Val{true}) |> _reduce_code
+    rewritten_code = fix_map_reduce(_modify_input_parameters(_rewrite_code(fix_create_array(code))))
+    @RuntimeGeneratedFunction(rewritten_code)
 end
 
+"""
+    _reduce_code(code)
 
-function build_hamiltonian(H::Base.Callable, dim::Int, params::Union{Tuple, NamedTuple, AbstractArray})
-        # compute the symplectic matrix
-        sympmatrix = symplecticMatrix(dim)
-        
-        # create symbolic variables 
-        @variables sq[1:dim÷2]               # position
-        @variables sp[1:dim÷2]               # momentum
-        @variables st                        # time
-        sparams = symbolic_params(params)    # parameters
+Reduce the code.
 
-        # create symbolic Hamiltonian neural network
-        snn = H(st, sq, sp, sparams)
+# Extended Help
 
-        # compute the vectorfield from the hamiltonian
-        field = sympmatrix * Symbolics.gradient(snn, [sq..., sp...])
-    
-        fun_snn = build_function(snn, st, sq, sp, develop(sparams)...)[2]
-        fun_field = build_function(field, st, sq, sp, develop(sparams)...)[1]
-    
-        return (fun_snn, fun_field)
+For some reason `Symbolics.build_function` sometimes returns a tuple and sometimes it doesn't.
+This function takes care of this.
+"""
+function _reduce_code(code::Expr)
+    code
 end
 
-function buildsymbolic(nn::NeuralNetwork, dim::Int)
-    # get symbolic input variables with specified dimension
-    @variables sinput[1:dim]
-    
-    # get symbolic representation of parameters
-    sparams = symbolic_params(nn)
+_reduce_code(code::Tuple) = code[1]
 
-    # evaluate network on symbolic inputs and parameters
-    snn = nn(sinput, sparams)
+function _rewrite_code(expression::AbstractString)
+    regex = r"ˍ₋arg([0-9]+)"
+    reformatted = s"ps.L⨸\1⨸"
+    # this contains $ as an escape character
+    expression_with_char = replace(expression, regex => reformatted)
+    # de-escape
+    expression_split = split(expression_with_char, "⨸")
+    *(_modify_integer.(expression_split)...)
+end
 
-    # generate code for evaluating the network
-    code = build_function(snn, sinput, develop(sparams)...)[2]
+function _rewrite_code(expression::Expr)
+    Meta.parse(_rewrite_code(string(expression)))
+end
 
-    # rewrite function signatures and function names
-    rewrite_codes = rewrite_neuralnetwork(code, (sinput,), sparams)
+function _modify_integer(s::AbstractString)
+    (contains(s, r"[^0-9]+") || isempty(s)) ? s : "$(Meta.parse(s)-1)"
+end
 
-    # inject code into current module
-    @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(rewrite_codes))
+function _modify_input_parameters(s::AbstractString)
+    @assert contains(s, "(x, ") "The first input argument must be x."
+    regex = r"\(x, ps[a-zA-Z0-9., ]+\)"
+    replace(s, regex => "(x, ps)")
+end
+
+function _modify_input_parameters(expression::Expr)
+    Meta.parse(_modify_input_parameters(string(expression)))
+end
+
+"""
+   fix_create_array(s)
+
+Fix a problem that occurs in connection with `create_array`.
+
+The function `create_array` from `SymbolicUtils.Code` takes as first input the type of a symbolic array. 
+For reasons that are not entirely clear yet the first argument of `create_array` ends up being `ˍ₋arg2`, which is a `NamedTuple` of symoblic arrays.
+We solve this problem by replacing `typeof(ˍ₋arg[0-9]+)` with `Array`, which seems to be the most generic possible input to `create_array`.
+
+# Examples
+
+```jldoctest
+using SymbolicNeuralNetworks: fix_create_array
+
+s = "SymbolicUtils.Code.create_array(typeof(ˍ₋arg2)"
+fix_create_array
+
+# output
+"SymbolicUtils.Code.create_array(Array
+```
+"""
+function fix_create_array(s::AbstractString)
+    @assert contains(s, "ˍ₋arg") "Doesn't contain ˍ₋arg!"
+    # replace(s, r"\(SymbolicUtils\.Code\.create_array\)\(typeof\(..arg[0-9]+\), nothing, Val\{1\}\(\), Val\{\(2,\)\}\(\)," => "(")
+    replace(s, r"\(SymbolicUtils\.Code\.create_array\)\(typeof\(..arg[0-9]+\)" => "SymbolicUtils.Code.create_array(Array")
+end
+
+function fix_create_array(expression::Expr)
+    Meta.parse(fix_create_array(string(expression)))
+end
+
+function fix_map_reduce(s::AbstractString)
+    s1 = replace(s, "Symbolics._mapreduce" => "mapreduce")
+    replace(s1, ", Colon(), (:init => false,)" => ", dims = Colon()")
+end
+
+function fix_map_reduce(expression::Expr)
+    Meta.parse(fix_map_reduce(string(expression)))
 end
