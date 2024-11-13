@@ -18,7 +18,7 @@ See the docstrings for those four functions for details on how the code is modif
 The functions mentioned in the implementation section were adjusted ad-hoc to deal with problems that emerged on the fly. 
 Other problems may occur. In case you bump into one please open an issue on github.
 """
-function build_nn_function(eq::EqT, sinput::Symbolics.Arr, nn::SymbolicNeuralNetwork)
+function build_nn_function(eq::EqT, sinput::Symbolics.Arr, nn::AbstractSymbolicNeuralNetwork)
     code = build_function(eq, sinput, nn.params...; expression = Val{true}) |> _reduce_code
     rewritten_code = fix_map_reduce(modify_input_arguments(rewrite_arguments(fix_create_array(code))))
     @RuntimeGeneratedFunction(rewritten_code)
