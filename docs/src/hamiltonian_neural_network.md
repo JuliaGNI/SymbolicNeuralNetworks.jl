@@ -45,15 +45,19 @@ end
 hvf_function = build_nn_function(hvf, x, nn)
 loss = CustomLoss(hvf_function)
 
-function (loss::CustomLoss)(model::Chain, ps::NeuralNetworkParameters, input::AbstractVector{T}, output::AbstractVector{T}) where T
+function (loss::CustomLoss)(model::Chain, ps::NeuralNetworkParameters, input::AbstractMatrix{T}, output::AbstractMatrix{T}) where T
     @assert axes(input) == axes(output)
     norm(loss.network_function(input, ps) - output) / norm(output)
 end
 
-function (loss::CustomLoss)(model::Chain, ps::NeuralNetworkParameters, input::AbstractMatrix{T}, output::AbstractMatrix{T}) where T 
-    @assert axes(input) == axes(output)
-    sum(hcat([loss(model, ps, input[:, i], output[:, i]) for i in axes(input, 2)]...)) / sqrt(size(input, 2))
-end
+# function (loss::CustomLoss)(model::Chain, ps::NeuralNetworkParameters, input::AbstractMatrix{T}, output::AbstractMatrix{T}) where T 
+#     @assert axes(input) == axes(output)
+#     l::T = 0
+#     for i in axes(input, 2)
+#         @views l += loss(model, ps, input[:, i], output[:, i])
+#     end
+#     l / sqrt(size(input, 2))
+# end
 
 _reshape_to_matrix(input::AbstractArray{<:Number, 3}) = reshape(input, size(input, 1), size(input, 2) * size(input, 3))
 

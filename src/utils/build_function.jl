@@ -21,7 +21,9 @@ Other problems may occur. In case you bump into one please open an issue on gith
 function build_nn_function(eq::EqT, sinput::Symbolics.Arr, nn::AbstractSymbolicNeuralNetwork)
     code = build_function(eq, sinput, nn.params...; expression = Val{true}) |> _reduce_code
     rewritten_code = fix_map_reduce(modify_input_arguments(rewrite_arguments(fix_create_array(code))))
-    @RuntimeGeneratedFunction(rewritten_code)
+    parallelized_code = make_kernel(rewritten_code)
+    gen_fun = @RuntimeGeneratedFunction(parallelized_code)
+    function (x::AbstractMatrix, ps) begin mapreduce(k -> gen_fun(x, ps, k), hcat, axes(x, 2)) end end
 end
 
 """
@@ -67,9 +69,8 @@ We first change this to `(x, ps.L2, ps.L3)` etc. and then to `(x, ps.L1, ps.L2)`
 function rewrite_arguments(s::AbstractString)
     regex = r"ˍ₋arg([0-9]+)"
     reformatted = s"ps.L⨸\1⨸"
-    # this contains $ as an escape character
     expression_with_char = replace(s, regex => reformatted)
-    # de-escape
+    # split at ⨸ symbol:
     expression_split = split(expression_with_char, "⨸")
     *(_modify_integer.(expression_split)...)
 end
@@ -180,4 +181,28 @@ end
 
 function fix_map_reduce(expression::Expr)
     Meta.parse(fix_map_reduce(string(expression)))
+end
+
+"""
+# Examples
+```jldoctest
+using SymbolicNeuralNetworks
+
+s = "function (x, ps)\n begin\n getindex(x, 1) + getindex(x, 2) \n end\n end"
+SymbolicNeuralNetworks.make_kernel(s)
+
+# output
+
+"function (x, ps, k)\n begin\n getindex(x, 1, k) + getindex(x, 2, k) \n end\n end"
+```
+"""
+function make_kernel(s::AbstractString)
+    # add k to function arguments
+    s_added_k = replace(s, "function (x, ps)" => "function (x, ps, k)")
+    # add k in body of function
+    replace(s_added_k, r"getindex\(x, ([0-9]+)\)" => s"getindex(x, \1, k)")
+end
+
+function make_kernel(expression::Expr)
+    Meta.parse(make_kernel(string(expression)))
 end
