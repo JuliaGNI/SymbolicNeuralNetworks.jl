@@ -29,12 +29,6 @@ module SymbolicNeuralNetworks
     export symbolize
     include("utils/symbolize.jl")
 
-    export symbolic_hamiltonian
-    include("hamiltonian.jl")
-
-    export symbolic_lagrangian
-    include("lagrangian.jl")
-
     export AbstractSymbolicNeuralNetwork
     export SymbolicNeuralNetwork, SymbolicModel
     export HamiltonianSymbolicNeuralNetwork
@@ -47,6 +41,12 @@ module SymbolicNeuralNetworks
     include("symbolic_neuralnet.jl")
 
     include("neuralnet.jl")
+
+    export symbolic_hamiltonian
+    include("hamiltonian.jl")
+
+    export symbolic_lagrangian
+    include("lagrangian.jl")
 
     export build_nn_function
     include("utils/build_function.jl")
