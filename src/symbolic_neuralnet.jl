@@ -1,7 +1,7 @@
 abstract type AbstractSymbolicNeuralNetwork{AT} <: AbstractNeuralNetwork{AT} end
 
 # define custom equation type
-const EqT = Union{Symbolics.Arr{Num}, AbstractArray{Num}, Num}
+const EqT = Union{Symbolics.Arr{Num}, AbstractArray{Num}, Num, AbstractArray{<:Symbolics.BasicSymbolic}}
 
 """
     SymbolicNeuralNetwork <: AbstractSymbolicNeuralNetwork
@@ -99,7 +99,7 @@ Internally this
 2. calls [`evaluate_equations(::NamedTuple, ::EqT, ::EqT, ::EqT, EqT)`](@ref).
 
 """
-function evaluate_equations(eqs::NamedTuple, nn::SymbolicNeuralNetwork; kwargs...)
+function evaluate_equations(eqs::NamedTuple, nn::AbstractSymbolicNeuralNetwork; kwargs...)
     @assert [:x, :nn] ⊆ keys(eqs)
     
     sinput = eqs.x
@@ -130,12 +130,11 @@ function SymbolicNeuralNetwork(arch::Architecture)
     SymbolicNeuralNetwork(arch, Chain(arch))
 end
 
-function SymbolicNeuralNetwork(d::AbstractExplicitLayer{M}) where M
-    SymbolicNeuralNetwork(d, M)
+function SymbolicNeuralNetwork(d::AbstractExplicitLayer)
+    SymbolicNeuralNetwork(UnknownArchitecture(), d)
 end
 
-(snn::SymbolicNeuralNetwork)(x, params) = snn.functions.soutput(x, params)
-apply(snn::SymbolicNeuralNetwork, x, args...) = snn(x, args...)
+apply(snn::AbstractSymbolicNeuralNetwork, x, args...) = snn(x, args...)
 
 function _scalarize(y::Symbolics.Arr{Num})
     @assert axes(y) == (1:1,)
@@ -147,11 +146,36 @@ end
 
 Compute the gradient of a [`SymbolicNeuralNetwork`](@ref) with respect to the input arguments.
 
-The output of `gradient` consists of
-1. a symbolic expression of the gradient,
-2. a symbolic expression of the input.
+The output of `gradient` consists of a `NamedTuple` that has the following keys:
+1. a symbolic expression of the input (keyword `x`),
+2. a symbolic expression of the output (keyword `soutput`),
+3. a symbolic expression of the gradient (keyword `s∇output`).
+
+# Examples
+
+Using `gradient` is equivalent to calling the more complicated function [`evaluate_equations`](@ref) with the appropriate arguments:
+
+```jldoctest
+using SymbolicNeuralNetworks
+using AbstractNeuralNetworks: Dense
+using Symbolics
+import Latexify
+
+input_dim = 5
+d = Dense(input_dim, 1, tanh)
+nn = SymbolicNeuralNetwork(d)
+@variables x[1:input_dim] ∇nn[1:input_dim] output[1:1]
+eqs = (x = x, nn = output, ∇nn = ∇nn)
+evaluated_equations = evaluate_equations(eqs, nn)
+evaluated_equations2 = SymbolicNeuralNetworks.gradient(nn)
+Latexify.latexify(evaluated_equations.s∇output) == Latexify.latexify(evaluated_equations2.s∇output)
+
+# output
+
+true
+```
 """
-function gradient(nn::SymbolicNeuralNetwork)
+function gradient(nn::AbstractSymbolicNeuralNetwork)
     @assert output_dimension(nn.model) == 1 "Output dimension has to be 1 to be able to compute the gradient."
     input_dim = input_dimension(nn.model)
     x, output, ∇nn = @variables x[1:input_dim] output[1:1] ∇nn[1:input_dim]
