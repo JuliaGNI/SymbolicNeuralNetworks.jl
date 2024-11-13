@@ -10,13 +10,16 @@ using LinearAlgebra: norm
 using ChainRulesCore
 using KernelAbstractions
 import Symbolics
+import Latexify
 
 input_dim = 2
-d = Chain(Dense(input_dim, 4, tanh), Dense(4, 4, tanh), Dense(4, 1))
+c = Chain(Dense(input_dim, 4, tanh), Dense(4, 4, tanh), Dense(4, 1))
 
-nn = HamiltonianSymbolicNeuralNetwork(d)
-nn.functions.hvf(x, ps) = nn.functions.hvf(x, ps...)
-nn.equations.hvf
+nn = HamiltonianSymbolicNeuralNetwork(c)
+x_hvf = SymbolicNeuralNetworks.vector_field(nn)
+x = x_hvf.x
+hvf = x_hvf.hvf
+hvf |> Latexify.latexify
 ```
 
 We can now train this Hamiltonian neural network based on vector field data. As a Hamiltonian we take that of a harmonic oscillator:
@@ -24,7 +27,7 @@ We can now train this Hamiltonian neural network based on vector field data. As 
 ```@example hnn
 H(z::Array{T}) where T = sum(z.^2) / T(2)
 𝕁 = PoissonTensor(input_dim)
-hvf(z) = 𝕁(z)
+hvf_analytic(z) = 𝕁(z)
 
 const T = Float64
 n_points = 2000
@@ -35,38 +38,27 @@ nothing # hide
 Next we need to define a new loss function. We do this based on the [`HamiltonianSymbolicNeuralNetwork`](@ref).
 
 ```@example hnn
-struct CustomLoss{NF} <: NetworkLoss 
+struct CustomLoss{NF} <: NetworkLoss
     network_function::NF
 end
 
-expression_through_ps(x, ps) = nn.functions.hvf(x, ps...)
-parallelized_expression, pb = parallelize_expression(expression_through_ps)
+hvf_function = build_nn_function(hvf, x, nn)
+loss = CustomLoss(hvf_function)
 
-### parallelize pullback proof of concept
-function _parallelize_pullback!(parallelized_expression, pb)
-    @eval function ChainRulesCore.rrule(::typeof(parallelized_expression), input::AT, ps) where {T, AT <: AbstractArray{T, 3}}
-        output = parallelized_expression(input, ps)
-        function parallelized_expression_pullback(doutput::AT)
-            f̄ = NoTangent()
-            backend = KernelAbstractions.get_backend(doutput)
-            dinput = zero(input)
-            dnt = [deepcopy(ps) for _ ∈ axes(input, 2), _ ∈ axes(input, 3)]
-            kernel! = SymbolicNeuralNetworks.parallelize_expression_differential_kernel!(backend)
-            kernel!(dinput, dnt, doutput, input, ps, pb; ndrange = (size(input, 2), size(input, 3)))
-            dnt_final = SymbolicNeuralNetworks._sum(dnt)
-            f̄, dinput, dnt_final
-        end
-        output, parallelized_expression_pullback
-    end
-    nothing
+function (loss::CustomLoss)(model::Chain, ps::NeuralNetworkParameters, input::AbstractVector{T}, output::AbstractVector{T}) where T
+    @assert axes(input) == axes(output)
+    norm(loss.network_function(input, ps) - output) / norm(output)
 end
-_parallelize_pullback!(parallelized_expression, pb)
-###
 
-loss = CustomLoss(parallelized_expression)
+function (loss::CustomLoss)(model::Chain, ps::NeuralNetworkParameters, input::AbstractMatrix{T}, output::AbstractMatrix{T}) where T 
+    @assert axes(input) == axes(output)
+    sum(hcat([loss(model, ps, input[:, i], output[:, i]) for i in axes(input, 2)]...)) / sqrt(size(input, 2))
+end
 
-function (loss::CustomLoss)(model::Chain, ps::Tuple, input::AbstractArray{T}, output::AbstractArray{T}) where T
-    norm(loss.network_function(input, ps) - output)
+_reshape_to_matrix(input::AbstractArray{<:Number, 3}) = reshape(input, size(input, 1), size(input, 2) * size(input, 3))
+
+function (loss::CustomLoss)(model::Chain, ps::NeuralNetworkParameters, input::AbstractArray{T, 3}, output::AbstractArray{T, 3}) where T
+    loss(model, ps, _reshape_to_matrix(input), _reshape_to_matrix(output))
 end
 nothing # hide
 ```
@@ -74,12 +66,12 @@ nothing # hide
 We can now train the network:
 
 ```@example hnn
-ps = initialparameters(d, T)
-dl = DataLoader(z_data, hvf(z_data))
+ps = NeuralNetworkParameters(initialparameters(c, T))
+dl = DataLoader(z_data, hvf_analytic(z_data))
 o = Optimizer(AdamOptimizer(T), ps)
 batch = Batch(10)
 const n_epochs = 100
-nn_dummy = NeuralNetwork(UnknownArchitecture(), d, ps, CPU())
-o(nn_dummy, dl, batch, n_epochs, loss; show_progress = true)
+nn_dummy = NeuralNetwork(UnknownArchitecture(), c, ps, CPU())
+o(nn_dummy, dl, batch, n_epochs, loss; show_progress = false)
 nothing # hide
 ```
