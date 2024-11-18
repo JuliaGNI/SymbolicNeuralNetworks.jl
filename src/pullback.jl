@@ -23,7 +23,7 @@ function (_pullback::SymbolicPullback)(ps, model, input_nt_output_nt::Tuple{<:QP
     _pullback.loss(model, ps, input_nt_output_nt...), _pullback.fun(input_nt_output_nt..., ps)
 end
 
-function build_executable_gradient(eqs::NamedTuple, sinput::Symbolics.Arr, soutput::Symbolics.Arr, sparams)
+function build_executable_gradient(eqs::NamedTuple, sinput::Symbolics.Arr, soutput::Symbolics.Arr, sparams::NeuralNetworkParameters)
     vals = Tuple(build_executable_gradient(eqs[key], sinput, soutput, sparams) for key in keys(eqs))
     ps = NamedTuple{keys(eqs)}(vals)
     function pbs_executable(input, output, params)
@@ -33,7 +33,7 @@ function build_executable_gradient(eqs::NamedTuple, sinput::Symbolics.Arr, soutp
     pbs_executable
 end
 
-function build_executable_gradient(eqs::NeuralNetworkParameters, sinput::Symbolics.Arr, soutput::Symbolics.Arr, sparams)
+function build_executable_gradient(eqs::NeuralNetworkParameters, sinput::Symbolics.Arr, soutput::Symbolics.Arr, sparams::NeuralNetworkParameters)
     function pbs_executable(input, output, params)
         vals = Tuple(build_executable_gradient(eqs[key], sinput, soutput, sparams)(input, output, params) for key in keys(eqs))
         NeuralNetworkParameters{keys(eqs)}(vals)
@@ -95,14 +95,14 @@ function symbolic_gradient(soutput, dps::NeuralNetworkParameters)
     NeuralNetworkParameters{keys(dps)}(vals)
 end
 
-function build_executable_gradient(eq::EqT, sinput::Symbolics.Arr, soutput::Symbolics.Arr, params)
+function build_executable_gradient(eq::EqT, sinput::Symbolics.Arr, soutput::Symbolics.Arr, params::NeuralNetworkParameters)
     code = build_function(eq, sinput, soutput, values(params)...; expression = Val{true}) |> _reduce_code
     rewritten_code = fix_map_reduce(modify_input_arguments2(rewrite_arguments2(fix_create_array(code))))
     parallelized_code = make_kernel2(rewritten_code)
     gen_fun = @RuntimeGeneratedFunction(parallelized_code)
     # + here instead of hcat!
     gen_fun_returned(input, output, ps) = mapreduce(k -> gen_fun(input, output, ps, k), +, axes(input, 2))
-    gen_fun_returned(input::AT, output::AT, ps) where {AT <: Union{AbstractVector, Symbolics.Arr}} = gen_fun_returned(reshape(input, length(input), 1), ps)
+    gen_fun_returned(input::AT, output::AT, ps) where {AT <: Union{AbstractVector, Symbolics.Arr}} = gen_fun_returned(reshape(input, length(input), 1), reshape(output, length(output), 1), ps)
     gen_fun_returned(input::AT, output::AT, ps) where {T, AT <: AbstractArray{T, 3}} = gen_fun_returned(reshape(input, size(input, 1), size(input, 2) * size(input, 3)), reshape(output, size(output, 1), size(output, 2) * size(output, 3)), ps)
     gen_fun_returned
 end
