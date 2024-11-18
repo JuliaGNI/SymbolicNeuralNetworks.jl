@@ -49,3 +49,48 @@ function vector_field(nn::HamiltonianSymbolicNeuralNetwork)
     𝕁 = hcat(vcat(𝕆, -𝕀), vcat(𝕀, 𝕆))
     (x = sinput, nn = soutput, ∇nn = ∇nn, hvf = substitute(𝕁 * ∇nn, Dict(o => 1, )))
 end
+
+"""
+    HNNLoss <: NetworkLoss
+
+The loss for a Hamiltonian neural network.
+
+# Constructor
+
+This can be called with an instance of [`HamiltonianSymbolicNeuralNetwork`](@ref) as the only input arguemtn, i.e.:
+```julia
+HNNLoss(nn)
+```
+where `nn` is a [`HamiltonianSymbolicNeuralNetwork`](@ref) gives the corresponding Hamiltonian loss.
+
+# Funktor
+
+```julia
+loss(c, ps, input, output)
+loss(ps, input, output) # equivalent to the above
+```
+"""
+struct HNNLoss{FT} <: NetworkLoss
+    hvf::FT
+end
+
+function HNNLoss(nn::HamiltonianSymbolicNeuralNetwork)
+    x_hvf = vector_field(nn)
+    x = x_hvf.x
+    hvf = x_hvf.hvf
+    hvf_function = build_nn_function(hvf, x, nn)
+    HNNLoss(hvf_function)
+end
+
+function (loss::HNNLoss)(   ::Union{Chain, AbstractExplicitLayer}, 
+                            ps::Union{NeuralNetworkParameters, NamedTuple}, 
+                            input::QPTOAT, 
+                            output::QPTOAT)
+    loss(ps, input, output)
+end
+
+function (loss::HNNLoss)(   ps::Union{NeuralNetworkParameters, NamedTuple},
+                            input::QPTOAT,
+                            output::QPTOAT)
+    norm(loss.hvf(input, ps) - output) / norm(output)
+end

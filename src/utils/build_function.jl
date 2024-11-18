@@ -19,11 +19,15 @@ The functions mentioned in the implementation section were adjusted ad-hoc to de
 Other problems may occur. In case you bump into one please open an issue on github.
 """
 function build_nn_function(eq::EqT, sinput::Symbolics.Arr, nn::AbstractSymbolicNeuralNetwork)
-    code = build_function(eq, sinput, nn.params...; expression = Val{true}) |> _reduce_code
+    code = build_function(eq, sinput, values(nn.params)...; expression = Val{true}) |> _reduce_code
     rewritten_code = fix_map_reduce(modify_input_arguments(rewrite_arguments(fix_create_array(code))))
     parallelized_code = make_kernel(rewritten_code)
     gen_fun = @RuntimeGeneratedFunction(parallelized_code)
-    function (x::AbstractMatrix, ps) begin mapreduce(k -> gen_fun(x, ps, k), hcat, axes(x, 2)) end end
+    gen_fun_returned(x, ps) = mapreduce(k -> gen_fun(x, ps, k), hcat, axes(x, 2))
+    gen_fun_returned(x::Union{AbstractVector, Symbolics.Arr}, ps) = gen_fun_returned(reshape(x, length(x), 1), ps)
+    # check this! (definitely not correct in all cases!)
+    gen_fun_returned(x::AbstractArray{<:Number, 3}, ps) = reshape(gen_fun_returned(reshape(x, size(x, 1), size(x, 2) * size(x, 3)), ps), size(x, 1), size(x, 2), size(x, 3))
+    gen_fun_returned
 end
 
 """

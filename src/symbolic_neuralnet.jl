@@ -19,7 +19,7 @@ The `struct` has the following fields:
 
 Make a `SymbolicNeuralNetwork` based on an architecture and a set of equations.
 """
-struct SymbolicNeuralNetwork{AT, MT, PT} <: AbstractSymbolicNeuralNetwork{AT}
+struct SymbolicNeuralNetwork{AT, MT, PT <: NeuralNetworkParameters} <: AbstractSymbolicNeuralNetwork{AT}
     architecture::AT
     model::MT
     params::PT
@@ -114,7 +114,7 @@ function evaluate_equations(eqs::NamedTuple, nn::AbstractSymbolicNeuralNetwork; 
     soutput = _scalarize(nn.model(sinput, nn.params))
 
     # make differential 
-    Dx = collect(Differential.(sinput))
+    Dx = symbolic_differentials(sinput)
 
     # Evaluation of gradient
     s∇output = isnothing(s∇nn) ? nothing : [expand_derivatives(Symbolics.scalarize(dx(soutput))) for dx in Dx]
