@@ -14,8 +14,9 @@ function test_hnn_loss(input_dim::Integer = 2, nhidden::Integer = 1, hidden_dim:
     spb = SymbolicPullback(snn)
     input = rand(T, input_dim, second_axis, third_axis)
     output = rand(T, input_dim, second_axis, third_axis)
-    zpb_evaluated = zpb(c, nn.params, input, output)[2](1)
-    spb_evaluated = spb(c, nn.params, input, output)[2](1)
+    # the x -> x[1].params is necessary because of Zygote idiosyncracies
+    zpb_evaluated = zpb(nn.params, c, (input, output))[2](1)[1].params
+    spb_evaluated = spb(nn.params, c, (input, output))[2](1)
     @assert keys(zpb_evaluated) == keys(spb_evaluated)
     for key in keys(zpb_evaluated) @assert keys(zpb_evaluated[key]) == keys(spb_evaluated[key]) end
     Tuple(Tuple(@test zpb_evaluated[key1][key2] ≈ spb_evaluated[key1][key2] for key2 in keys(zpb_evaluated[key1])) for key1 in keys(zpb_evaluated))

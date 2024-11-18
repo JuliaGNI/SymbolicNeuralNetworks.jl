@@ -2,6 +2,7 @@ using SymbolicNeuralNetworks
 using SafeTestsets
 using Test
 
+@safetestset "Symbolic gradient                                                                      " begin include("symbolic_gradient.jl") end
 # @safetestset "Symbolic Neural network                                                                " begin include("neural_network_derivative.jl") end
 # @safetestset "Symbolic Params                                                                        " begin include("test_params.jl") end
 # @safetestset "Develop/Envelop                                                                        " begin include("test_de_envelop.jl") end

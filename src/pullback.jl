@@ -23,8 +23,8 @@ function (_pullback::SymbolicPullback)(ps, model, input_nt_output_nt::Tuple{<:QP
     _pullback.loss(model, ps, input_nt_output_nt...), _pullback.fun(input_nt_output_nt..., ps)
 end
 
-function build_executable_gradient(eqs::NamedTuple, sinput::Symbolics.Arr, soutput::Symbolics.Arr, nn::AbstractSymbolicNeuralNetwork)
-    vals = Tuple(build_executable_gradient(eqs[key], sinput, soutput, nn) for key in keys(eqs))
+function build_executable_gradient(eqs::NamedTuple, sinput::Symbolics.Arr, soutput::Symbolics.Arr, sparams)
+    vals = Tuple(build_executable_gradient(eqs[key], sinput, soutput, sparams) for key in keys(eqs))
     ps = NamedTuple{keys(eqs)}(vals)
     function pbs_executable(input, output, params)
         vals = Tuple(ps[key](input, output, params) for key in keys(ps))
@@ -33,12 +33,16 @@ function build_executable_gradient(eqs::NamedTuple, sinput::Symbolics.Arr, soutp
     pbs_executable
 end
 
-function build_executable_gradient(eqs::NeuralNetworkParameters, sinput::Symbolics.Arr, soutput::Symbolics.Arr, nn::AbstractNeuralNetwork)
+function build_executable_gradient(eqs::NeuralNetworkParameters, sinput::Symbolics.Arr, soutput::Symbolics.Arr, sparams)
     function pbs_executable(input, output, params)
-        vals = Tuple(build_executable_gradient(eqs[key], sinput, soutput, nn)(input, output, params) for key in keys(eqs))
+        vals = Tuple(build_executable_gradient(eqs[key], sinput, soutput, sparams)(input, output, params) for key in keys(eqs))
         NeuralNetworkParameters{keys(eqs)}(vals)
     end
     pbs_executable
+end
+
+function build_executable_gradient(eqs, sinput, soutput, nn::AbstractSymbolicNeuralNetwork)
+    build_executable_gradient(eqs, sinput, soutput, nn.params)
 end
 
 function symbolic_pullback(nn::AbstractSymbolicNeuralNetwork, loss::NetworkLoss)
@@ -91,8 +95,8 @@ function symbolic_gradient(soutput, dps::NeuralNetworkParameters)
     NeuralNetworkParameters{keys(dps)}(vals)
 end
 
-function build_executable_gradient(eq::EqT, sinput::Symbolics.Arr, soutput::Symbolics.Arr, nn::AbstractSymbolicNeuralNetwork)
-    code = build_function(eq, sinput, soutput, values(nn.params)...; expression = Val{true}) |> _reduce_code
+function build_executable_gradient(eq::EqT, sinput::Symbolics.Arr, soutput::Symbolics.Arr, params)
+    code = build_function(eq, sinput, soutput, values(params)...; expression = Val{true}) |> _reduce_code
     rewritten_code = fix_map_reduce(modify_input_arguments2(rewrite_arguments2(fix_create_array(code))))
     parallelized_code = make_kernel2(rewritten_code)
     gen_fun = @RuntimeGeneratedFunction(parallelized_code)
