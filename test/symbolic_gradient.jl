@@ -13,9 +13,9 @@ function test_symbolic_gradient(input_dim::Integer = 3, output_dim::Integer = 1,
     sparams = symbolicparameters(c)
     ps = initialparameters(c, T) |> NeuralNetworkParameters
     @variables sinput[1:input_dim]
-    sout = norm(c(sinput, sparams))
+    sout = norm(c(sinput, sparams)) ^ 2
     input = rand(T, input_dim, second_dim, third_dim)
-    zgrad = Zygote.gradient(ps -> norm(c(input, ps)), ps)[1].params
+    zgrad = Zygote.gradient(ps -> (norm(c(input, ps)) ^ 2), ps)[1].params
     sdparams = symbolic_differentials(sparams)
     _sgrad = symbolic_gradient(sout, sdparams)
     # soutput is required!
@@ -24,4 +24,6 @@ function test_symbolic_gradient(input_dim::Integer = 3, output_dim::Integer = 1,
     for key1 in keys(sgrad) for key2 in keys(sgrad[key1]) @test zgrad[key1][key2] ≈ sgrad[key1][key2] end end
 end
 
-test_symbolic_gradient()
+for (second_dim, third_dim) in ((1, 1), )
+    test_symbolic_gradient(3, 1, 2, Float64, second_dim, third_dim)
+end
