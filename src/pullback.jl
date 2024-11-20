@@ -96,15 +96,19 @@ function symbolic_gradient(soutput, dps::NeuralNetworkParameters)
 end
 
 function build_executable_gradient(eq::EqT, sinput::Symbolics.Arr, soutput::Symbolics.Arr, params::NeuralNetworkParameters)
-    code = build_function(eq, sinput, soutput, values(params)...; expression = Val{true}) |> _reduce_code
-    rewritten_code = fix_map_reduce(modify_input_arguments2(rewrite_arguments2(fix_create_array(code))))
-    parallelized_code = make_kernel2(rewritten_code)
-    gen_fun = @RuntimeGeneratedFunction(parallelized_code)
+    gen_fun = _build_executable_gradient(eq, sinput, soutput, params)
     # + here instead of hcat!
     gen_fun_returned(input, output, ps) = mapreduce(k -> gen_fun(input, output, ps, k), +, axes(input, 2))
     gen_fun_returned(input::AT, output::AT, ps) where {AT <: Union{AbstractVector, Symbolics.Arr}} = gen_fun_returned(reshape(input, length(input), 1), reshape(output, length(output), 1), ps)
     gen_fun_returned(input::AT, output::AT, ps) where {T, AT <: AbstractArray{T, 3}} = gen_fun_returned(reshape(input, size(input, 1), size(input, 2) * size(input, 3)), reshape(output, size(output, 1), size(output, 2) * size(output, 3)), ps)
     gen_fun_returned
+end
+
+function _build_executable_gradient(eq::EqT, sinput::Symbolics.Arr, soutput::Symbolics.Arr, params::NeuralNetworkParameters)
+    code = build_function(eq, sinput, soutput, values(params)...; expression = Val{true}) |> _reduce_code
+    rewritten_code = fix_map_reduce(modify_input_arguments2(rewrite_arguments2(fix_create_array(code))))
+    parallelized_code = make_kernel2(rewritten_code)
+    @RuntimeGeneratedFunction(parallelized_code)
 end
 
 """
@@ -152,7 +156,8 @@ function make_kernel2(s::AbstractString)
     # add k to function arguments
     s_added_k = replace(s, "function (sinput, soutput, ps)" => "function (sinput, soutput, ps, k)")
     # add k in body of function
-    replace(s_added_k, r"getindex\(x, ([0-9]+)\)" => s"getindex(x, \1, k)")
+    s_added_k_input = replace(s_added_k, r"getindex\(sinput, ([0-9]+)\)" => s"getindex(sinput, \1, k)")
+    replace(s_added_k_input, r"getindex\(soutput, ([0-9]+)\)" => s"getindex(soutput, \1, k)")
 end
 
 function make_kernel2(expression::Expr)
