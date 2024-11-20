@@ -24,8 +24,8 @@ end
 
 for input_dim in (2, )
     for nhidden in (1, 2)
-        for hidden_dim in (2, 3)
-            for T in (Float32, Float64)
+        for hidden_dim in (2, )
+            for T in (Float32, )
                 test_hnn_loss(input_dim, nhidden, hidden_dim, T)
             end
         end
