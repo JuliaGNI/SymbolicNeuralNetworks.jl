@@ -13,7 +13,7 @@ import Symbolics
 import Latexify
 
 input_dim = 2
-c = Chain(Dense(input_dim, 4, tanh), Dense(4, 4, tanh), Dense(4, 1))
+c = Chain(Dense(input_dim, 4, tanh), Dense(4, 1, identity; use_bias = false))
 
 nn = HamiltonianSymbolicNeuralNetwork(c)
 x_hvf = SymbolicNeuralNetworks.vector_field(nn)
@@ -35,35 +35,10 @@ z_data = randn(T, 2, n_points)
 nothing # hide
 ```
 
-Next we need to define a new loss function. We do this based on the [`HamiltonianSymbolicNeuralNetwork`](@ref).
+We now specify a pullback [`HamiltonianSymbolicNeuralNetwork`](@ref):
 
 ```@example hnn
-struct CustomLoss{NF} <: NetworkLoss
-    network_function::NF
-end
-
-hvf_function = build_nn_function(hvf, x, nn)
-loss = CustomLoss(hvf_function)
-
-function (loss::CustomLoss)(model::Chain, ps::NeuralNetworkParameters, input::AbstractMatrix{T}, output::AbstractMatrix{T}) where T
-    @assert axes(input) == axes(output)
-    norm(loss.network_function(input, ps) - output) / norm(output)
-end
-
-# function (loss::CustomLoss)(model::Chain, ps::NeuralNetworkParameters, input::AbstractMatrix{T}, output::AbstractMatrix{T}) where T 
-#     @assert axes(input) == axes(output)
-#     l::T = 0
-#     for i in axes(input, 2)
-#         @views l += loss(model, ps, input[:, i], output[:, i])
-#     end
-#     l / sqrt(size(input, 2))
-# end
-
-_reshape_to_matrix(input::AbstractArray{<:Number, 3}) = reshape(input, size(input, 1), size(input, 2) * size(input, 3))
-
-function (loss::CustomLoss)(model::Chain, ps::NeuralNetworkParameters, input::AbstractArray{T, 3}, output::AbstractArray{T, 3}) where T
-    loss(model, ps, _reshape_to_matrix(input), _reshape_to_matrix(output))
-end
+_pullback = SymbolicPullback(nn)
 nothing # hide
 ```
 
@@ -72,10 +47,52 @@ We can now train the network:
 ```@example hnn
 ps = NeuralNetworkParameters(initialparameters(c, T))
 dl = DataLoader(z_data, hvf_analytic(z_data))
-o = Optimizer(AdamOptimizer(T), ps)
-batch = Batch(10)
-const n_epochs = 100
+o = Optimizer(AdamOptimizer(.01), ps)
+batch = Batch(2000)
+const n_epochs = 1000
 nn_dummy = NeuralNetwork(UnknownArchitecture(), c, ps, CPU())
-o(nn_dummy, dl, batch, n_epochs, loss; show_progress = false)
+o(nn_dummy, dl, batch, n_epochs, _pullback.loss, _pullback; show_progress = true)
 nothing # hide
+```
+
+We now integrate the vector field:
+
+```@example hnn
+using GeometricIntegrators
+hvf_closure(input) = build_nn_function(hvf, x, nn)(input, nn_dummy.params)
+function v(v, t, q, params)
+    v .= hvf_closure(q)
+end
+pr = ODEProblem(v, (0., 500.), 0.1, [1., 0.])
+sol = integrate(pr, ImplicitMidpoint())
+```
+
+```@example hnn
+using CairoMakie
+
+fig = Figure()
+ax = Axis(fig[1, 1])
+lines!(ax, [sol.q[i][1] for i in axes(sol.t, 1)].parent, [sol.q[i][2] for i in axes(sol.t, 1)].parent)
+```
+
+We also train a non-Hamiltonian vector field on the same data for comparison:
+
+```@example hnn
+c_nh = Chain(Dense(2, 10, tanh), Dense(10, 4, tanh), Dense(4, 2, identity; use_bias = false))
+nn_nh = NeuralNetwork(c_nh, CPU())
+o = Optimizer(AdamOptimizer(T), nn_nh)
+o(nn_nh, dl, batch, n_epochs * 10, FeedForwardLoss()) # we train for times as long as before
+```
+
+We now integrate the vector field and plot the solution:
+
+```@example hnn
+vf_closure(input) = c_nh(input, nn_nh.params)
+function v_nh(v, t, q, params)
+    v .= vf_closure(q)
+end
+pr = ODEProblem(v_nh, (0., 500.), 0.1, [1., 0.])
+sol_nh = integrate(pr, ImplicitMidpoint())
+
+lines!(ax, [sol_nh.q[i][1] for i in axes(sol_nh.t, 1)].parent, [sol_nh.q[i][2] for i in axes(sol_nh.t, 1)].parent)
 ```
