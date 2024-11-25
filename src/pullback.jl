@@ -43,7 +43,6 @@ end
 end
 
 @generated function apply_element_wise(ps::NeuralNetworkParameters, input, output, params::NeuralNetworkParameters)
-    # :( NeuralNetworkParameters{keys(ps)}((ps[$key](input, output, params) for key in keys(ps))) )
     N = length(ps.parameters[1])
     x_symbols = [gensym() for _ in 1:N]
     eqs = [:($x_symbol = ps[$i](input, output, params)) for (x_symbol, i) in zip(x_symbols, 1:N)]
