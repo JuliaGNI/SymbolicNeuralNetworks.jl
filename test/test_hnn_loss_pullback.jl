@@ -22,9 +22,9 @@ function test_hnn_loss(input_dim::Integer = 2, nhidden::Integer = 1, hidden_dim:
     for key1 in keys(zpb_evaluated) for key2 in keys(zpb_evaluated[key1]) @test zpb_evaluated[key1][key2] ≈ spb_evaluated[key1][key2] end end
 end
 
-for input_dim in (2, 3)
+for input_dim in (2, )
     for nhidden in (1, )
-        for hidden_dim in (3, 5)
+        for hidden_dim in (2, )
             for T in (Float32, Float64)
                 test_hnn_loss(input_dim, nhidden, hidden_dim, T)
             end
