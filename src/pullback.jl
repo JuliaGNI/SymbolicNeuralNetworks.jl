@@ -13,32 +13,42 @@ function SymbolicPullback(nn::HamiltonianSymbolicNeuralNetwork)
     symbolic_pullbacks, sinput, soutput = symbolic_pullback(nn, loss)
     pbs_executable = build_executable_gradient(symbolic_pullbacks, sinput, soutput, nn)
     function pbs(input, output, params)
-        _ -> pbs_executable(input, output, params).params
+        _ -> (pbs_executable(input, output, params) |> _get_params)
     end
     SymbolicPullback(loss, pbs)
 end
+
+_get_params(nt::NamedTuple) = nt
+_get_params(ps::NeuralNetworkParameters) = ps.params
 
 # (_pullback::SymbolicPullback)(ps, model, input_nt::QPTOAT)::Tuple = Zygote.pullback(ps -> _pullback.loss(model, ps, input_nt), ps)
 function (_pullback::SymbolicPullback)(ps, model, input_nt_output_nt::Tuple{<:QPTOAT, <:QPTOAT})::Tuple
     _pullback.loss(model, ps, input_nt_output_nt...), _pullback.fun(input_nt_output_nt..., ps)
 end
 
-function build_executable_gradient(eqs::NamedTuple, sinput::Symbolics.Arr, soutput::Symbolics.Arr, sparams::NeuralNetworkParameters)
+function build_executable_gradient(eqs::Union{NamedTuple, NeuralNetworkParameters}, sinput::Symbolics.Arr, soutput::Symbolics.Arr, sparams::NeuralNetworkParameters)
     vals = Tuple(build_executable_gradient(eqs[key], sinput, soutput, sparams) for key in keys(eqs))
     ps = NamedTuple{keys(eqs)}(vals)
-    function pbs_executable(input, output, params)
-        vals = Tuple(ps[key](input, output, params) for key in keys(ps))
-        NamedTuple{keys(ps)}(vals)
-    end
+    pbs_executable(ps, input, output, params) = apply_element_wise(ps, input, output, params)
+    pbs_executable(input, output, params) = pbs_executable(ps, input, output, params)
     pbs_executable
 end
 
-function build_executable_gradient(eqs::NeuralNetworkParameters, sinput::Symbolics.Arr, soutput::Symbolics.Arr, sparams::NeuralNetworkParameters)
-    function pbs_executable(input, output, params)
-        vals = Tuple(build_executable_gradient(eqs[key], sinput, soutput, sparams)(input, output, params) for key in keys(eqs))
-        NeuralNetworkParameters{keys(eqs)}(vals)
-    end
-    pbs_executable
+@generated function apply_element_wise(ps::NamedTuple, input, output, params::NeuralNetworkParameters)
+    N = length(ps.parameters[1])
+    x_symbols = [gensym() for _ in 1:N]
+    eqs = [:($x_symbol = ps[$i](input, output, params)) for (x_symbol, i) in zip(x_symbols, 1:N)]
+    calls = [eqs..., :(return NamedTuple{$(ps.parameters[1])}(tuple($(x_symbols...))))]
+    Expr(:block, calls...)
+end
+
+@generated function apply_element_wise(ps::NeuralNetworkParameters, input, output, params::NeuralNetworkParameters)
+    # :( NeuralNetworkParameters{keys(ps)}((ps[$key](input, output, params) for key in keys(ps))) )
+    N = length(ps.parameters[1])
+    x_symbols = [gensym() for _ in 1:N]
+    eqs = [:($x_symbol = ps[$i](input, output, params)) for (x_symbol, i) in zip(x_symbols, 1:N)]
+    calls = [eqs..., :(return NeuralNetworkParameters{$(ps.parameters[1])}(tuple($(x_symbols...))))]
+    Expr(:block, calls...)
 end
 
 function build_executable_gradient(eqs, sinput, soutput, nn::AbstractSymbolicNeuralNetwork)
@@ -54,7 +64,7 @@ function symbolic_pullback(nn::AbstractSymbolicNeuralNetwork, loss::NetworkLoss)
     symbolic_loss = loss(nn.model, nn.params, sinput, soutput)
     symbolic_diffs = symbolic_differentials(nn.params)
     symbolic_gradients = symbolic_gradient(symbolic_loss, symbolic_diffs)
-    NeuralNetworkParameters{keys(nn.params)}(symbolic_gradients)
+    NeuralNetworkParameters{keys(nn.params)}(symbolic_gradients), sinput, soutput
 end
 
 function symbolic_pullback(nn::HamiltonianSymbolicNeuralNetwork, loss::NetworkLoss)

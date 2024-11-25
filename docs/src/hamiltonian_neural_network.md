@@ -48,8 +48,8 @@ We can now train the network:
 ps = NeuralNetworkParameters(initialparameters(c, T))
 dl = DataLoader(z_data, hvf_analytic(z_data))
 o = Optimizer(AdamOptimizer(.01), ps)
-batch = Batch(2000)
-const n_epochs = 1000
+batch = Batch(200)
+const n_epochs = 150
 nn_dummy = NeuralNetwork(UnknownArchitecture(), c, ps, CPU())
 o(nn_dummy, dl, batch, n_epochs, _pullback.loss, _pullback; show_progress = true)
 nothing # hide
