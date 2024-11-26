@@ -5,12 +5,12 @@ module SymbolicNeuralNetworks
     using LinearAlgebra
     using RuntimeGeneratedFunctions
     using KernelAbstractions
-    using GeometricMachineLearning: QPTOAT
+    using AbstractNeuralNetworks: QPTOAT
 
     import AbstractNeuralNetworks: NeuralNetwork, Architecture, Model, UnknownArchitecture, AbstractExplicitLayer, NeuralNetworkParameters
     import AbstractNeuralNetworks: architecture, model, params
     # these types will be shifted to `GeometricOptimizers` once this package is ready
-    import GeometricMachineLearning: NetworkLoss, AbstractPullback
+    import AbstractNeuralNetworks: NetworkLoss, AbstractPullback
     import Symbolics: NaNMath
     import Latexify: latexify
     import Zygote
@@ -38,8 +38,12 @@ module SymbolicNeuralNetworks
     export HamiltonianSymbolicNeuralNetwork, HNNLoss
     export architecture, model, params, equations, functions
 
+    # make symbolic parameters (`NeuralNetworkParameters`)
     export symbolicparameters
-    include("symbolicparameters.jl")
+    include("layers/abstract.jl")
+    include("layers/dense.jl")
+    include("layers/linear.jl")
+    include("chain.jl")
 
     export evaluate_equations
     include("symbolic_neuralnet.jl")
@@ -60,4 +64,8 @@ module SymbolicNeuralNetworks
 
     export parallelize_expression, parallelize_expression_inplace, parallelize_pullback!
     include("parallelize_expression.jl")
+
+    include("derivatives/derivative.jl")
+    include("derivatives/jacobian.jl")
+    include("derivatives/gradient.jl")
 end
