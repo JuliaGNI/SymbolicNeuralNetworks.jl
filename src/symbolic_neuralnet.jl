@@ -12,6 +12,7 @@ The `struct` has the following fields:
 - `architecture`: the neural network architecture,
 - `model`: the model (typically a Chain that is the realization of the architecture),
 - `params`: the symbolic parameters of the network.
+- `sinput`: the symbolic input of the network.
 
 # Constructors
 
@@ -19,17 +20,19 @@ The `struct` has the following fields:
 
 Make a `SymbolicNeuralNetwork` based on an architecture and a set of equations.
 """
-struct SymbolicNeuralNetwork{AT, MT, PT <: NeuralNetworkParameters} <: AbstractSymbolicNeuralNetwork{AT}
+struct SymbolicNeuralNetwork{AT, MT, PT <: NeuralNetworkParameters, IT} <: AbstractSymbolicNeuralNetwork{AT}
     architecture::AT
     model::MT
     params::PT
+    input::IT
 end
 
 function SymbolicNeuralNetwork(arch::Architecture, model::Model)
     # Generation of symbolic paramters
     sparams = symbolicparameters(model)
+    @variables sinput[1:input_dimension(model)]
 
-    SymbolicNeuralNetwork(arch, model, sparams)
+    SymbolicNeuralNetwork(arch, model, sparams, sinput)
 end
 
 """
