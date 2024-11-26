@@ -18,6 +18,8 @@ module SymbolicNeuralNetworks
     
     RuntimeGeneratedFunctions.init(@__MODULE__)
 
+    include("equation_types.jl")
+
     export optimize_code!
     include("utils/optimize_code.jl")
 
@@ -68,4 +70,6 @@ module SymbolicNeuralNetworks
     include("derivatives/derivative.jl")
     include("derivatives/jacobian.jl")
     include("derivatives/gradient.jl")
+
+    include("custom_equation.jl")
 end

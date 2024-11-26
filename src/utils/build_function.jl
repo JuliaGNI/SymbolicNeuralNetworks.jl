@@ -1,5 +1,5 @@
 """
-    build_nn_function(eq, sinput, nn)
+    build_nn_function(eq, nn)
 
 Build an executable function based on a symbolic equation, a symbolic input array and a [`SymbolicNeuralNetwork`](@ref).
 
@@ -16,10 +16,10 @@ See the docstrings for those four functions for details on how the code is modif
 # Extended Help
 
 The functions mentioned in the implementation section were adjusted ad-hoc to deal with problems that emerged on the fly. 
-Other problems may occur. In case you bump into one please open an issue on github.
+Other problems may occur. In case you bump into one please [open an issue on github](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues).
 """
-function build_nn_function(eq::EqT, sinput::Symbolics.Arr, nn::AbstractSymbolicNeuralNetwork)
-    code = build_function(eq, sinput, values(nn.params)...; expression = Val{true}) |> _reduce_code
+function build_nn_function(eq::EqT, nn::AbstractSymbolicNeuralNetwork)
+    code = build_function(eq, nn.input, values(nn.params)...; expression = Val{true}) |> _reduce_code
     rewritten_code = fix_map_reduce(modify_input_arguments(rewrite_arguments(fix_create_array(code))))
     parallelized_code = make_kernel(rewritten_code)
     gen_fun = @RuntimeGeneratedFunction(parallelized_code)

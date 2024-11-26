@@ -1,5 +1,6 @@
-struct Gradient{ST, SDT} <: Derivative{ST, SDT} 
+struct Gradient{ST, OT, SDT} <: Derivative{ST, OT, SDT} 
     nn::ST
+    output::OT
     ∇::SDT
 end
 

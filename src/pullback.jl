@@ -76,33 +76,6 @@ function symbolic_pullback(nn::HamiltonianSymbolicNeuralNetwork, loss::NetworkLo
     symbolic_gradient(symbolic_loss, symbolic_diffs), sinput, soutput
 end
 
-function symbolic_differentials(sparams::Symbolics.Arr)
-    collect(Differential.(sparams))
-end
-
-function symbolic_differentials(sparams::NamedTuple)
-    differential_values = (symbolic_differentials(sparams[key]) for key in keys(sparams))
-    NamedTuple{keys(sparams)}(differential_values)
-end
-
-function symbolic_differentials(sparams::NeuralNetworkParameters)
-    vals = Tuple(symbolic_differentials(sparams[key]) for key in keys(sparams))
-    NeuralNetworkParameters{keys(sparams)}(vals)
-end
-
-function symbolic_gradient(soutput, Dx::AbstractArray)
-    [expand_derivatives(Symbolics.scalarize(dx(soutput))) for dx in Dx]
-end
-
-function symbolic_gradient(soutput, dps::NamedTuple)
-    gradient_values = (symbolic_gradient(soutput, dps[key]) for key in keys(dps))
-    NamedTuple{keys(dps)}(gradient_values)
-end
-
-function symbolic_gradient(soutput, dps::NeuralNetworkParameters)
-    vals = Tuple(symbolic_gradient(soutput, dp) for dp in values(dps))
-    NeuralNetworkParameters{keys(dps)}(vals)
-end
 
 function build_executable_gradient(eq::EqT, sinput::Symbolics.Arr, soutput::Symbolics.Arr, params::NeuralNetworkParameters)
     gen_fun = _build_executable_gradient(eq, sinput, soutput, params)
