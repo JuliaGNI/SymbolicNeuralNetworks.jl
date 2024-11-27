@@ -2,7 +2,7 @@
 
 Here we build a Hamiltonian neural network as a symbolic neural network.
 
-```@example hnn
+```julia hnn
 using SymbolicNeuralNetworks
 using GeometricMachineLearning
 using AbstractNeuralNetworks: Dense, initialparameters, UnknownArchitecture, Model
@@ -24,7 +24,7 @@ hvf |> Latexify.latexify
 
 We can now train this Hamiltonian neural network based on vector field data. As a Hamiltonian we take that of a harmonic oscillator:
 
-```@example hnn
+```julia hnn
 H(z::Array{T}) where T = sum(z.^2) / T(2)
 𝕁 = PoissonTensor(input_dim)
 hvf_analytic(z) = 𝕁(z)
@@ -37,14 +37,14 @@ nothing # hide
 
 We now specify a pullback [`HamiltonianSymbolicNeuralNetwork`](@ref):
 
-```@example hnn
+```julia hnn
 _pullback = SymbolicPullback(nn)
 nothing # hide
 ```
 
 We can now train the network:
 
-```@example hnn
+```julia hnn
 ps = NeuralNetworkParameters(initialparameters(c, T))
 dl = DataLoader(z_data, hvf_analytic(z_data))
 o = Optimizer(AdamOptimizer(.01), ps)
@@ -57,7 +57,7 @@ nothing # hide
 
 We now integrate the vector field:
 
-```@example hnn
+```julia hnn
 using GeometricIntegrators
 hvf_closure(input) = build_nn_function(hvf, x, nn)(input, nn_dummy.params)
 function v(v, t, q, params)
@@ -67,7 +67,7 @@ pr = ODEProblem(v, (0., 500.), 0.1, [1., 0.])
 sol = integrate(pr, ImplicitMidpoint())
 ```
 
-```@example hnn
+```julia hnn
 using CairoMakie
 
 fig = Figure()
@@ -77,7 +77,7 @@ lines!(ax, [sol.q[i][1] for i in axes(sol.t, 1)].parent, [sol.q[i][2] for i in a
 
 We also train a non-Hamiltonian vector field on the same data for comparison:
 
-```@example hnn
+```julia hnn
 c_nh = Chain(Dense(2, 10, tanh), Dense(10, 4, tanh), Dense(4, 2, identity; use_bias = false))
 nn_nh = NeuralNetwork(c_nh, CPU())
 o = Optimizer(AdamOptimizer(T), nn_nh)
@@ -86,7 +86,7 @@ o(nn_nh, dl, batch, n_epochs * 10, FeedForwardLoss()) # we train for times as lo
 
 We now integrate the vector field and plot the solution:
 
-```@example hnn
+```julia hnn
 vf_closure(input) = c_nh(input, nn_nh.params)
 function v_nh(v, t, q, params)
     v .= vf_closure(q)

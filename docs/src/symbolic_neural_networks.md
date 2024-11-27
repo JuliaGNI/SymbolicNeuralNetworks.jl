@@ -4,7 +4,7 @@ When using a symbolic neural network we can use *architectures* from [`Geometric
 
 We first call the symbolic neural network that only consists of one layer:
 
-```@example snn
+```julia snn
 using SymbolicNeuralNetworks
 using AbstractNeuralNetworks: Dense, initialparameters
 
@@ -15,7 +15,7 @@ nn = SymbolicNeuralNetwork(d)
 
 We can now build symbolic expressions based on this neural network. Here we do so by calling `evaluate_equations`:
 
-```@example snn
+```julia snn
 using Symbolics
 import Latexify
 
@@ -26,9 +26,9 @@ evaluated_equations = evaluate_equations(nn, eqs = eqs)
 evaluated_equations.∇nn |> Latexify.latexify
 ```
 
-Equivalently we can also use [`gradient`](@ref):
+Equivalently we can also use [`SymbolicNeuralNetworks.Jacobian`](@ref):
 
-```@example snn
+```julia snn
 evaluated_equations_alternative = gradient(d)
 
 evaluated_equations_alternative |> Latexify.latexify
