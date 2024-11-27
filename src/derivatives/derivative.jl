@@ -24,11 +24,11 @@ function symbolic_derivative(soutput, Dx::AbstractArray)
 end
 
 function symbolic_derivative(soutput, dps::NamedTuple)
-    gradient_values = (symbolic_gradient(soutput, dps[key]) for key in keys(dps))
+    gradient_values = (symbolic_derivative(soutput, dps[key]) for key in keys(dps))
     NamedTuple{keys(dps)}(gradient_values)
 end
 
 function symbolic_derivative(soutput, dps::NeuralNetworkParameters)
-    vals = Tuple(symbolic_gradient(soutput, dp) for dp in values(dps))
+    vals = Tuple(symbolic_derivative(soutput, dp) for dp in values(dps))
     NeuralNetworkParameters{keys(dps)}(vals)
 end

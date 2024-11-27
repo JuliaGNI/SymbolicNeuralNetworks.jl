@@ -60,6 +60,8 @@ module SymbolicNeuralNetworks
 
     export build_nn_function
     include("utils/build_function.jl")
+    include("utils/build_function2.jl")
+    include("utils/build_function_arrays.jl")
 
     export SymbolicPullback
     include("pullback.jl")

@@ -3,6 +3,12 @@
 
 Build an executable function based on a symbolic equation, a symbolic input array and a [`SymbolicNeuralNetwork`](@ref).
 
+This function can be called with:
+
+```julia
+built_function(input, ps)
+```
+
 # Implementation
 
 This first calls `Symbolics.build_function` with the keyword argument `expression = Val{true}` and then modifies the generated code by calling:
@@ -11,7 +17,7 @@ This first calls `Symbolics.build_function` with the keyword argument `expressio
 3. [`modify_input_arguments`](@ref),
 4. [`fix_map_reduce`](@ref).
 
-See the docstrings for those four functions for details on how the code is modified. 
+See the docstrings for those functions for details on how the code is modified. 
 
 # Extended Help
 
@@ -111,7 +117,7 @@ end
 """
     modify_input_arguments(s)
 
-Change input arguments of type `(x, ps.L1, ps.L2)` etc to `(x, ps)`.
+Change input arguments of type `(sinput, ps.L1, ps.L2)` etc to `(sinput, ps)`.
 This should be used after [`rewrite_arguments`](@ref). Also see [`build_nn_function`](@ref).
 
 # Examples
@@ -119,17 +125,17 @@ This should be used after [`rewrite_arguments`](@ref). Also see [`build_nn_funct
 ```jldoctest
 using SymbolicNeuralNetworks: modify_input_arguments
 
-s = "(x, ps.L1, ps.L2, ps.L3)"
+s = "(sinput, ps.L1, ps.L2, ps.L3)"
 modify_input_arguments(s)
 
 # output
-"(x, ps)"
+"(sinput, ps)"
 ```
 """
 function modify_input_arguments(s::AbstractString)
-    @assert contains(s, "(x, ") "The first input argument must be x."
-    regex = r"\(x, ps[a-zA-Z0-9., ]+\)"
-    replace(s, regex => "(x, ps)")
+    @assert contains(s, "(sinput, ") "The first input argument must be sinput."
+    regex = r"\(sinput, ps[a-zA-Z0-9., ]+\)"
+    replace(s, regex => "(sinput, ps)")
 end
 
 function modify_input_arguments(expression::Expr)
@@ -150,17 +156,18 @@ We solve this problem by replacing `typeof(ˍ₋arg[0-9]+)` with `Array`, which 
 ```jldoctest
 using SymbolicNeuralNetworks: fix_create_array
 
-s = "SymbolicUtils.Code.create_array(typeof(ˍ₋arg2)"
-fix_create_array
+s = "(SymbolicUtils.Code.create_array)(typeof(ˍ₋arg2)"
+fix_create_array(s)
 
 # output
-"SymbolicUtils.Code.create_array(Array
+
+"SymbolicUtils.Code.create_array(Array"
 ```
 """
 function fix_create_array(s::AbstractString)
     @assert contains(s, "ˍ₋arg") "Doesn't contain ˍ₋arg!"
     # replace(s, r"\(SymbolicUtils\.Code\.create_array\)\(typeof\(..arg[0-9]+\), nothing, Val\{1\}\(\), Val\{\(2,\)\}\(\)," => "(")
-    replace(s, r"\(SymbolicUtils\.Code\.create_array\)\(typeof\(..arg[0-9]+\)" => "SymbolicUtils.Code.create_array(Array")
+    replace(s, r"[\(]*SymbolicUtils\.Code\.create_array[\)]*\(typeof\(..arg[0-9]+\)" => "SymbolicUtils.Code.create_array(Array")
 end
 
 function fix_create_array(expression::Expr)
@@ -187,24 +194,24 @@ function fix_map_reduce(expression::Expr)
     Meta.parse(fix_map_reduce(string(expression)))
 end
 
-"""
+@doc raw"""
 # Examples
 ```jldoctest
 using SymbolicNeuralNetworks
 
-s = "function (x, ps)\n begin\n getindex(x, 1) + getindex(x, 2) \n end\n end"
+s = "function (sinput, ps)\n begin\n getindex(sinput, 1) + getindex(sinput, 2) \n end\n end"
 SymbolicNeuralNetworks.make_kernel(s)
 
 # output
 
-"function (x, ps, k)\n begin\n getindex(x, 1, k) + getindex(x, 2, k) \n end\n end"
+"function (sinput, ps, k)\n begin\n getindex(sinput, 1, k) + getindex(sinput, 2, k) \n end\n end"
 ```
 """
 function make_kernel(s::AbstractString)
     # add k to function arguments
-    s_added_k = replace(s, "function (x, ps)" => "function (x, ps, k)")
+    s_added_k = replace(s, "function (sinput, ps)" => "function (sinput, ps, k)")
     # add k in body of function
-    replace(s_added_k, r"getindex\(x, ([0-9]+)\)" => s"getindex(x, \1, k)")
+    replace(s_added_k, r"getindex\(sinput, ([0-9]+)\)" => s"getindex(sinput, \1, k)")
 end
 
 function make_kernel(expression::Expr)

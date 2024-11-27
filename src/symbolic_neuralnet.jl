@@ -49,11 +49,6 @@ end
 
 apply(snn::AbstractSymbolicNeuralNetwork, x, args...) = snn(x, args...)
 
-function _scalarize(y::Symbolics.Arr{Num})
-    @assert axes(y) == (1:1,)
-    sum(y)
-end
-
 input_dimension(::AbstractExplicitLayer{M}) where M = M 
 input_dimension(c::Chain) = input_dimension(c.layers[1])
 output_dimension(::AbstractExplicitLayer{M, N}) where {M, N} = N

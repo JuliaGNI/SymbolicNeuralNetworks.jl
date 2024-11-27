@@ -34,7 +34,7 @@ Get the symbolic expression for the vector field belonging to the HNN `nn`.
 
 # Implementation 
 
-This is calling [`gradient`](@ref) and then multiplies the result with a Poisson tensor.
+This is calling [`SymbolicNeuralNetworks.Jacobian`](@ref) and then multiplies the result with a Poisson tensor.
 """
 function vector_field(nn::HamiltonianSymbolicNeuralNetwork)
     gradient_output = gradient(nn)
