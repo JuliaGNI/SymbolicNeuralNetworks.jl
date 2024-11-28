@@ -91,7 +91,7 @@ using LinearAlgebra: norm
 c = Chain(Dense(2, 1, tanh))
 nn = SymbolicNeuralNetwork(c)
 output = c(nn.input, nn.params)
-spb = symbolic_pullback(nn, output)
+spb = symbolic_pullback(output, nn)
 
 spb[1].L1.b |> latexify
 

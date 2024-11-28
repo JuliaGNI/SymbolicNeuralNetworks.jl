@@ -8,16 +8,6 @@ built_function(input, output, ps)
 
 Also compare this to [`build_nn_function(::EqT, ::AbstractSymbolicNeuralNetwork)`](@ref).
 
-# Implementation
-
-This first calls `Symbolics.build_function` with the keyword argument `expression = Val{true}` and then modifies the generated code by calling:
-1. [`fix_create_array2`](@ref),
-2. [`rewrite_arguments2`](@ref),
-3. [`modify_input_arguments2`](@ref),
-4. [`fix_map_reduce2`](@ref).
-
-See the docstrings for those functions for details on how the code is modified. 
-
 # Extended Help
 
 See the *extended help section* of [`build_nn_function(::EqT, ::AbstractSymbolicNeuralNetwork)`](@ref).
@@ -35,8 +25,25 @@ function build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Sy
     gen_fun_returned
 end
 
+"""
+    _build_nn_function(eq, params, sinput, soutput)
+
+Build a function that can process a matrix.
+See [`build_nn_function(::EqT, ::NeuralNetworkParameters, ::Symbolics.Arr)`](@ref).
+
+# Implementation
+
+Note that we have two input arguments here which means this method processes code differently than [`_build_nn_function(::EqT, ::NeuralNetworkParameters, ::Symbolics.Arr, ::Symbolics.Arr)`](@ref). Here we call:
+1. [`fix_create_array`](@ref),
+2. [`rewrite_arguments2`](@ref),
+3. [`modify_input_arguments2`](@ref),
+4. [`fix_map_reduce`](@ref).
+
+See the docstrings for those functions for details on how the code is modified. 
+"""
 function _build_nn_function(eq::EqT, params::NeuralNetworkParameters, sinput::Symbolics.Arr, soutput::Symbolics.Arr)
-    code = build_function(eq, sinput, soutput, values(params)...; expression = Val{true}) |> _reduce_code
+    sc_eq = Symbolics.scalarize(eq)
+    code = build_function(sc_eq, sinput, soutput, values(params)...; expression = Val{true}) |> _reduce_code
     rewritten_code = fix_map_reduce(modify_input_arguments2(rewrite_arguments2(fix_create_array(code))))
     parallelized_code = make_kernel2(rewritten_code)
     @RuntimeGeneratedFunction(parallelized_code)
@@ -95,6 +102,29 @@ function make_kernel2(expression::Expr)
     Meta.parse(make_kernel2(string(expression)))
 end
 
+"""
+    rewrite_arguments2(s)
+
+Replace `ˍ₋arg3`, `ˍ₋arg4`, ... with `ps.L1`, `ps.L2` etc.
+Note that we subtract two from the input, unlike [`rewrite_arguments`](@ref) where it is one.
+
+# Examples 
+
+```jldoctest
+using SymbolicNeuralNetworks: rewrite_arguments2
+s = "We test if strings that contain ˍ₋arg3 and ˍ₋arg4 can be converted in the right way."
+rewrite_arguments2(s)
+
+# output
+"We test if strings that contain ps.L1 and ps.L2 can be converted in the right way."
+```
+
+# Implementation
+
+The input is first split at the relevant points and then we call [`_modify_integer2`](@ref).
+The routine [`_modify_integer2`](@ref) ensures that we start counting at 1 and not at 3.
+See [`rewrite_arguments`](@ref).
+"""
 function rewrite_arguments2(s::AbstractString)
     regex = r"ˍ₋arg([0-9]+)"
     reformatted = s"ps.L⨸\1⨸"
@@ -108,6 +138,27 @@ function rewrite_arguments2(expression::Expr)
     Meta.parse(rewrite_arguments2(string(expression)))
 end
 
+"""
+    _modify_integer2
+
+If the input is a single integer, subtract 2 from it.
+
+# Examples 
+
+```jldoctest
+using SymbolicNeuralNetworks: _modify_integer2
+
+s = ["3", "hello", "hello2", "4"]
+_modify_integer2.(s)
+
+# output
+4-element Vector{String}:
+ "1"
+ "hello"
+ "hello2"
+ "2"
+```
+"""
 function _modify_integer2(s::AbstractString)
     (contains(s, r"[^0-9]+") || isempty(s)) ? s : "$(Meta.parse(s)-2)"
 end

@@ -11,13 +11,7 @@ built_function(input, ps)
 
 # Implementation
 
-This first calls `Symbolics.build_function` with the keyword argument `expression = Val{true}` and then modifies the generated code by calling:
-1. [`fix_create_array`](@ref),
-2. [`rewrite_arguments`](@ref),
-3. [`modify_input_arguments`](@ref),
-4. [`fix_map_reduce`](@ref).
-
-See the docstrings for those functions for details on how the code is modified. 
+Internally this is calling [`_build_nn_function`](@ref) and then *parallelizing* the expression via the index `k`.
 
 # Extended Help
 
@@ -25,10 +19,7 @@ The functions mentioned in the implementation section were adjusted ad-hoc to de
 Other problems may occur. In case you bump into one please [open an issue on github](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues).
 """
 function build_nn_function(eq::EqT, nn::AbstractSymbolicNeuralNetwork)
-    code = build_function(eq, nn.input, values(nn.params)...; expression = Val{true}) |> _reduce_code
-    rewritten_code = fix_map_reduce(modify_input_arguments(rewrite_arguments(fix_create_array(code))))
-    parallelized_code = make_kernel(rewritten_code)
-    gen_fun = @RuntimeGeneratedFunction(parallelized_code)
+    gen_fun = _build_nn_function(eq, nn.params, nn.input)
     gen_fun_returned(x, ps) = mapreduce(k -> gen_fun(x, ps, k), hcat, axes(x, 2))
     gen_fun_returned(x::Union{AbstractVector, Symbolics.Arr}, ps) = gen_fun_returned(reshape(x, length(x), 1), ps)
     # check this! (definitely not correct in all cases!)
@@ -37,20 +28,67 @@ function build_nn_function(eq::EqT, nn::AbstractSymbolicNeuralNetwork)
 end
 
 """
+    _build_nn_function(eq, params, sinput)
+
+Build a function that can process a matrix. This is used as a starting point for [`build_nn_function`](@ref).
+
+# Examples
+
+```jldoctest
+using SymbolicNeuralNetworks: _build_nn_function, symbolicparameters
+using Symbolics
+using AbstractNeuralNetworks
+
+c = Chain(Dense(2, 1, tanh))
+params = symbolicparameters(c)
+@variables sinput[1:2]
+eq = c(sinput, params)
+built_function = _build_nn_function(eq, params, sinput)
+ps = initialparameters(c)
+input = rand(2, 2)
+
+(built_function(input, ps, 1), built_function(input, ps, 2)) .≈ (c(input[:, 1], ps), c(input[:, 2], ps))
+
+# output
+
+(true, true)
+```
+
+# Implementation
+
+This first calls `Symbolics.build_function` with the keyword argument `expression = Val{true}` and then modifies the generated code by calling:
+1. [`fix_create_array`](@ref),
+2. [`rewrite_arguments`](@ref),
+3. [`modify_input_arguments`](@ref),
+4. [`fix_map_reduce`](@ref).
+
+See the docstrings for those functions for details on how the code is modified. 
+"""
+function _build_nn_function(eq::EqT, params::NeuralNetworkParameters, sinput::Symbolics.Arr)
+    sc_eq = Symbolics.scalarize(eq)
+    code = build_function(sc_eq, sinput, values(params)...; expression = Val{true}) |> _reduce_code
+    rewritten_code = fix_map_reduce(modify_input_arguments(rewrite_arguments(fix_create_array(code))))
+    parallelized_code = make_kernel(rewritten_code)
+    @RuntimeGeneratedFunction(parallelized_code)
+end
+
+"""
     _reduce_code(code)
 
 Reduce the code.
 
-# Extended Help
-
 For some reason `Symbolics.build_function` sometimes returns a tuple and sometimes it doesn't.
-This function takes care of this.
+
+This function takes care of this. 
+If `build_function` returns a tuple `reduce_code` checks which of the expressions is in-place and then returns the other (not in-place) expression.
 """
 function _reduce_code(code::Expr)
     code
 end
 
-_reduce_code(code::Tuple) = code[1]
+function _reduce_code(code::Tuple{Expr, Expr})
+    contains(string(code[1]), "ˍ₋out") ? code[2] : code[1]
+end
 
 """
     rewrite_arguments(s)
@@ -163,6 +201,10 @@ fix_create_array(s)
 
 "SymbolicUtils.Code.create_array(Array"
 ```
+
+# Implementation
+
+This is used for [`_build_nn_function(::EqT, ::NeuralNetworkParameters, ::Symbolics.Arr)`](@ref) and [`_build_nn_function(::EqT, ::NeuralNetworkParameters, ::Symbolics.Arr, ::Symbolics.Arr)`](@ref).
 """
 function fix_create_array(s::AbstractString)
     @assert contains(s, "ˍ₋arg") "Doesn't contain ˍ₋arg!"
@@ -184,6 +226,10 @@ We get around this by replacing `Symbolics._mapreduce` with `mapreduce` and also
 ```julia
 replace(s, ", Colon(), (:init => false,)" => ", dims = Colon()")
 ```
+
+# Implementation 
+
+This is used for [`_build_nn_function(::EqT, ::NeuralNetworkParameters, ::Symbolics.Arr)`](@ref) and [`_build_nn_function(::EqT, ::NeuralNetworkParameters, ::Symbolics.Arr, ::Symbolics.Arr)`](@ref).
 """
 function fix_map_reduce(s::AbstractString)
     s1 = replace(s, "Symbolics._mapreduce" => "mapreduce")
