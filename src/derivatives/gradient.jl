@@ -113,12 +113,3 @@ function symbolic_pullback(soutput::EqT, nn::AbstractSymbolicNeuralNetwork)::Uni
     symbolic_diffs = symbolic_differentials(nn.params)
     [symbolic_derivative(soutput_single, symbolic_diffs) for soutput_single ∈ soutput]
 end
-
-
-function symbolic_pullback(loss::NetworkLoss, nn::AbstractSymbolicNeuralNetwork)
-    output_dim = output_dimension(nn.model)
-    @variables soutput[1:output_dim]
-
-    symbolic_loss = loss(nn.model, nn.params, nn.input, soutput)
-    symbolic_pullback(nn, symbolic_loss)
-end

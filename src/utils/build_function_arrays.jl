@@ -2,29 +2,118 @@
     build_nn_function(eqs::AbstractArray{<:NeuralNetworkParameters}, sparams, sinput...)
 
 Build an executable function based on `eqs` that potentially also has a symbolic output.
+
+# Examples
+
+```jldoctest
+using SymbolicNeuralNetworks: build_nn_function, SymbolicNeuralNetwork
+using AbstractNeuralNetworks: Chain, Dense, initialparameters, NeuralNetworkParameters
+import Random
+Random.seed!(123)
+
+c = Chain(Dense(2, 1, tanh))
+nn = SymbolicNeuralNetwork(c)
+eqs = [(a = c(nn.input, nn.params), b = c(nn.input, nn.params).^2), (c = c(nn.input, nn.params).^3, )]
+funcs = build_nn_function(eqs, nn.params, nn.input)
+input = [1., 2.]
+ps = initialparameters(c) |> NeuralNetworkParameters
+a = c(input, ps)
+b = c(input, ps).^2
+c = c(input, ps).^3
+funcs_evaluated = funcs(input, ps)
+
+(funcs_evaluated[1].a, funcs_evaluated[1].b, funcs_evaluated[2].c) .≈ (a, b, c)
+
+# output
+
+(true, true, true)
+```
 """
-function build_nn_function(eqs::AbstractArray{<:NeuralNetworkParameters}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...)
-    ps = [function_valued_parameters(eq, sprams, sinput...) for eq in eqs]
-    ps_semi = [build_nn_function(ps_single, sparams, sinput...) for ps_single in ps]
+function build_nn_function(eqs::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...)
+    ps_semi = [build_nn_function(eq, sparams, sinput...) for eq in eqs]
     pbs_executable(ps, params, input...) = apply_element_wise(ps, params, input...)
     pbs_executable(params, input...) = pbs_executable(ps_semi, params, input...)
     pbs_executable
 end
 
-function build_nn_function(eqs::Union{NamedTuple, NeuralNetworkParameters}, sparams::NeuralNetworkParameters, sinput...)
-    ps = function_valued_parameters(eqs, sparams, sinput...)
-    pbs_executable(ps, params, input...) = apply_element_wise(ps, params, input...)
-    pbs_executable(params, input...) = pbs_executable(ps, params, input...)
-    pbs_executable
-end
+"""
+    build_nn_function(eqs::Union{NamedTuple, NeuralNetworkParameters}, sparams, sinput...)
 
+Return a function that takes an input, (optionally) an output and neural network parameters and returns a `NeuralNetworkParameters`-valued output.
+
+# Examples
+
+```jldoctest
+using SymbolicNeuralNetworks: build_nn_function, SymbolicNeuralNetwork
+using AbstractNeuralNetworks: Chain, Dense, initialparameters, NeuralNetworkParameters
+import Random
+Random.seed!(123)
+
+c = Chain(Dense(2, 1, tanh))
+nn = SymbolicNeuralNetwork(c)
+eqs = (a = c(nn.input, nn.params), b = c(nn.input, nn.params).^2)
+funcs = build_nn_function(eqs, nn.params, nn.input)
+input = [1., 2.]
+ps = initialparameters(c) |> NeuralNetworkParameters
+a = c(input, ps)
+b = c(input, ps).^2
+funcs_evaluated = funcs(input, ps)
+
+(funcs_evaluated.a, funcs_evaluated.b) .≈ (a, b)
+
+# output
+
+(true, true)
+```
+
+# Implementation
+
+Internally this is using [`function_valued_parameters`](@ref) and [`apply_element_wise`](@ref).
+"""
+function build_nn_function(eqs::Union{NamedTuple, NeuralNetworkParameters}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...)
+    ps = function_valued_parameters(eqs, sparams, sinput...)
+    _pbs_executable(ps::Union{NamedTuple, NeuralNetworkParameters}, params::NeuralNetworkParameters, input::AbstractArray...) = apply_element_wise(ps, params, input...)
+    __pbs_executable(input::AbstractArray, params::NeuralNetworkParameters) = _pbs_executable(ps, params, input)
+    # return this one if sinput & soutput are supplied
+    ___pbs_executable(input::AbstractArray, output::AbstractArray, params::NeuralNetworkParameters) = _pbs_executable(ps, params, input, output)
+    typeof(sinput) <: Tuple{<:Any, <:Any} ? ___pbs_executable : __pbs_executable
+end
 
 """
     function_valued_parameters(eqs::Union{NamedTuple, NeuralNetworkParameters}, sparams, sinput...)
 
 Return an executable function for each entry in `eqs`. This still has to be processed with [`apply_element_wise`](@ref).
+
+# Examples
+
+```jldoctest
+using SymbolicNeuralNetworks: function_valued_parameters, SymbolicNeuralNetwork
+using AbstractNeuralNetworks: Chain, Dense, initialparameters, NeuralNetworkParameters
+import Random
+Random.seed!(123)
+
+c = Chain(Dense(2, 1, tanh))
+nn = SymbolicNeuralNetwork(c)
+eqs = (a = c(nn.input, nn.params), b = c(nn.input, nn.params).^2)
+funcs = function_valued_parameters(eqs, nn.params, nn.input)
+input = [1., 2.]
+ps = initialparameters(c) |> NeuralNetworkParameters
+a = c(input, ps)
+b = c(input, ps).^2
+
+(funcs.a(input, ps), funcs.b(input, ps)) .≈ (a, b)
+
+# output
+
+(true, true)
+```
 """
-function function_valued_parameters(eqs::Union{NamedTuple, NeuralNetworkParameters}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...)
+function function_valued_parameters(eqs::NeuralNetworkParameters, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...)
+    vals = Tuple(build_nn_function(eqs[key], sparams, sinput...) for key in keys(eqs))
+    NeuralNetworkParameters{keys(eqs)}(vals)
+end
+
+function function_valued_parameters(eqs::NamedTuple, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...)
     vals = Tuple(build_nn_function(eqs[key], sparams, sinput...) for key in keys(eqs))
     NamedTuple{keys(eqs)}(vals)
 end
@@ -68,7 +157,7 @@ apply_element_wise(ps, params, 1.) |> typeof
 
 # output
 
-Matrix{NeuralNetworkParameters{(:val1, :val2), Tuple{Float64, Float64}}}
+Matrix{NeuralNetworkParameters{(:val1, :val2), Tuple{Float64, Float64}}} (alias for Array{NeuralNetworkParameters{(:val1, :val2), Tuple{Float64, Float64}}, 2})
 ```
 
 # Implementation
