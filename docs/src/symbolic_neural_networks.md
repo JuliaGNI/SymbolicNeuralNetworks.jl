@@ -4,32 +4,42 @@ When using a symbolic neural network we can use *architectures* from [`Geometric
 
 We first call the symbolic neural network that only consists of one layer:
 
-```julia snn
+```@example snn
 using SymbolicNeuralNetworks
-using AbstractNeuralNetworks: Dense, initialparameters
+using AbstractNeuralNetworks: Chain, Dense, initialparameters
 
 input_dim = 2
-d = Dense(input_dim, 1, tanh)
-nn = SymbolicNeuralNetwork(d)
+output_dim = 1
+c = Chain(Dense(input_dim, output_dim))
+nn = SymbolicNeuralNetwork(c)
+nothing # hide
 ```
 
 We can now build symbolic expressions based on this neural network. Here we do so by calling `evaluate_equations`:
 
-```julia snn
+```@example snn
 using Symbolics
 import Latexify
 
-@variables x[1:input_dim] ∇nn[1:input_dim] output[1:1]
-eqs = (x = x, nn = output, ∇nn = ∇nn)
-evaluated_equations = evaluate_equations(nn, eqs = eqs)
+@variables sinput[1:input_dim]
+soutput = nn.model(sinput, nn.params)
 
-evaluated_equations.∇nn |> Latexify.latexify
+soutput |> Latexify.latexify
 ```
 
-Equivalently we can also use [`SymbolicNeuralNetworks.Jacobian`](@ref):
+We can compute the symbolic gradient with [`SymbolicNeuralNetworks.Gradient`](@ref):
 
-```julia snn
-evaluated_equations_alternative = gradient(d)
+```@example snn
+SymbolicNeuralNetworks.derivative(SymbolicNeuralNetworks.Gradient(soutput, nn))[1].L1.b |> Latexify.latexify
+```
 
-evaluated_equations_alternative |> Latexify.latexify
+!!! info
+    [`SymbolicNeuralNetworks.Gradient`](@ref) can also be called as `SymbolicNeuralNetworks.Gradient(snn)`, so without providing a specific output. In this case `soutput` is taken to be the symbolic output of the network (i.e. is equivalent to the construction presented here). Also note that we further called [`SymbolicNeuralNetworks.derivative`](@ref) here in order to get the symbolic gradient (as opposed to the symbolic output of the neural network).
+
+In order to *train* a [`SymbolicNeuralNetwork`](@ref) we can use:
+
+```@example snn
+pb = SymbolicPullback(nn)
+
+nothing # hide
 ```

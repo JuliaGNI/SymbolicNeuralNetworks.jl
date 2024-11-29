@@ -8,11 +8,21 @@
 ```jldoctest
 using SymbolicNeuralNetworks
 using AbstractNeuralNetworks
+import Random
+Random.seed!(123)
 
 c = Chain(Dense(2, 1, tanh))
 nn = SymbolicNeuralNetwork(c)
 loss = FeedForwardLoss()
 pb = SymbolicPullback(nn, loss)
+ps = initialparameters(c) |> NeuralNetworkParameters
+pv_values = pb(ps, nn.model, (rand(2), rand(1)))[2](1) |> typeof
+
+# output
+
+┌ Warning: You should only compute a pullback of array expressions!
+└ @ SymbolicNeuralNetworks ~/Documents/SymbolicNeuralNetworks/src/derivatives/gradient.jl:111
+Vector{@NamedTuple{L1::@NamedTuple{W::Matrix{Float64}, b::Vector{Float64}}}} (alias for Array{@NamedTuple{L1::@NamedTuple{W::Array{Float64, 2}, b::Array{Float64, 1}}}, 1})
 ```
 """
 struct SymbolicPullback{NNLT, FT} <: AbstractPullback{NNLT}
@@ -35,8 +45,11 @@ function SymbolicPullback(nn::SymbolicNeuralNetwork, loss::NetworkLoss)
     SymbolicPullback(loss, pbs)
 end
 
+SymbolicPullback(nn::SymbolicNeuralNetwork) = SymbolicPullback(nn, AbstractNeuralNetworks.FeedForwardLoss())
+
 _get_params(nt::NamedTuple) = nt
 _get_params(ps::NeuralNetworkParameters) = ps.params
+_get_params(ps::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}) = [_get_params(nt) for nt in ps]
 
 # (_pullback::SymbolicPullback)(ps, model, input_nt::QPTOAT)::Tuple = Zygote.pullback(ps -> _pullback.loss(model, ps, input_nt), ps)
 function (_pullback::SymbolicPullback)(ps, model, input_nt_output_nt::Tuple{<:QPTOAT, <:QPTOAT})::Tuple

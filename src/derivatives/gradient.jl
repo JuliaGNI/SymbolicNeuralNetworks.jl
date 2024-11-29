@@ -107,7 +107,7 @@ L"\begin{equation}
 "
 ```
 """
-function symbolic_pullback(soutput::EqT, nn::AbstractSymbolicNeuralNetwork)::Union{AbstractArray{<:NeuralNetworkParameters}, NeuralNetworkParameters}
+function symbolic_pullback(soutput::EqT, nn::AbstractSymbolicNeuralNetwork)::Union{AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}, Union{NamedTuple, NeuralNetworkParameters}}
     typeof(soutput) <: AbstractArray ? nothing : (@warn "You should only compute a pullback of array expressions!")
 
     symbolic_diffs = symbolic_differentials(nn.params)
