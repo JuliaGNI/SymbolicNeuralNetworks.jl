@@ -12,7 +12,7 @@ SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
-AbstractNeuralNetworks = "0.1, 0.3"
+AbstractNeuralNetworks = "0.1, 0.3, 0.4"
 KernelAbstractions = "0.9"
 RuntimeGeneratedFunctions = "0.5"
 SafeTestsets = "0.1"
