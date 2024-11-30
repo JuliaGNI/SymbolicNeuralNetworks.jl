@@ -40,7 +40,6 @@ using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: Jacobian, derivative
 using AbstractNeuralNetworks: Dense, Chain, initialparameters
 using Symbolics
-import Latexify
 import Random
 
 Random.seed!(123)

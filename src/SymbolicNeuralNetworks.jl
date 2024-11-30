@@ -12,7 +12,6 @@ module SymbolicNeuralNetworks
     # these types will be shifted to `GeometricOptimizers` once this package is ready
     import AbstractNeuralNetworks: NetworkLoss, AbstractPullback
     import Symbolics: NaNMath
-    import Latexify: latexify
     import Zygote
     import ChainRulesCore
     

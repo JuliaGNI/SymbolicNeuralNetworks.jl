@@ -16,8 +16,9 @@ Compute the symbolic output of `nn` and differentiate it with respect to the par
 # Examples
 
 ```jldoctest
-using SymbolicNeuralNetworks: SymbolicNeuralNetwork, Gradient, derivative, latexify
+using SymbolicNeuralNetworks: SymbolicNeuralNetwork, Gradient, derivative
 using AbstractNeuralNetworks
+using Latexify: latexify
 
 c = Chain(Dense(2, 1, tanh))
 nn = SymbolicNeuralNetwork(c)
@@ -84,9 +85,10 @@ This takes a symbolic output that depends on the parameters in `nn` and returns 
 # Examples
 
 ```jldoctest
-using SymbolicNeuralNetworks: SymbolicNeuralNetwork, symbolic_pullback, latexify
+using SymbolicNeuralNetworks: SymbolicNeuralNetwork, symbolic_pullback
 using AbstractNeuralNetworks
 using LinearAlgebra: norm
+using Latexify: latexify
 
 c = Chain(Dense(2, 1, tanh))
 nn = SymbolicNeuralNetwork(c)

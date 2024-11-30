@@ -21,7 +21,7 @@ pv_values = pb(ps, nn.model, (rand(2), rand(1)))[2](1) |> typeof
 # output
 
 ┌ Warning: You should only compute a pullback of array expressions!
-└ @ SymbolicNeuralNetworks ~/Documents/SymbolicNeuralNetworks/src/derivatives/gradient.jl:111
+└ @ SymbolicNeuralNetworks ~/Documents/SymbolicNeuralNetworks/src/derivatives/gradient.jl:113
 Vector{@NamedTuple{L1::@NamedTuple{W::Matrix{Float64}, b::Vector{Float64}}}} (alias for Array{@NamedTuple{L1::@NamedTuple{W::Array{Float64, 2}, b::Array{Float64, 1}}}, 1})
 ```
 """

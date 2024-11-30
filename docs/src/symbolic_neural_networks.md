@@ -19,18 +19,19 @@ We can now build symbolic expressions based on this neural network. Here we do s
 
 ```@example snn
 using Symbolics
-import Latexify
+using Latexify: latexify
 
 @variables sinput[1:input_dim]
 soutput = nn.model(sinput, nn.params)
 
-soutput |> Latexify.latexify
+soutput |> latexify
 ```
 
 We can compute the symbolic gradient with [`SymbolicNeuralNetworks.Gradient`](@ref):
 
 ```@example snn
-SymbolicNeuralNetworks.derivative(SymbolicNeuralNetworks.Gradient(soutput, nn))[1].L1.b |> Latexify.latexify
+using SymbolicNeuralNetworks: derivative
+derivative(SymbolicNeuralNetworks.Gradient(soutput, nn))[1].L1.b |> latexify
 ```
 
 !!! info
