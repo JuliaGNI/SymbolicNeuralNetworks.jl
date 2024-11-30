@@ -70,6 +70,7 @@ true
 derivative(g::Gradient) = g.∇
 
 function Gradient(output, nn::SymbolicNeuralNetwork)
+    typeof(output) <: AbstractArray ? nothing : (@warn "You should only use `Gradient` together with array expressions! Maybe you wanted to use `SymbolicPullback`.")
     Gradient(nn, output, symbolic_pullback(output, nn))
 end
 
@@ -110,8 +111,6 @@ L"\begin{equation}
 ```
 """
 function symbolic_pullback(soutput::EqT, nn::AbstractSymbolicNeuralNetwork)::Union{AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}, Union{NamedTuple, NeuralNetworkParameters}}
-    typeof(soutput) <: AbstractArray ? nothing : (@warn "You should only compute a pullback of array expressions!")
-
     symbolic_diffs = symbolic_differentials(nn.params)
     [symbolic_derivative(soutput_single, symbolic_diffs) for soutput_single ∈ soutput]
 end
