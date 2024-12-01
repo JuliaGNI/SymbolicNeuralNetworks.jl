@@ -14,7 +14,7 @@ Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
-AbstractNeuralNetworks = "0.1, 0.3"
+AbstractNeuralNetworks = "0.3, 0.4"
 Documenter = "1.8.0"
 KernelAbstractions = "0.9"
 Latexify = "0.16.5"
