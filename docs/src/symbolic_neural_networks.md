@@ -25,20 +25,20 @@ using Latexify: latexify
 @variables sinput[1:input_dim]
 soutput = nn.model(sinput, nn.params)
 
-soutput |> latexify
+soutput
 ```
 
 or use `Symbolics.scalarize` to get a more readable version of the equation:
 
 ```@example snn
-soutput |> Symbolics.scalarize |> latexify
+soutput |> Symbolics.scalarize
 ```
 
 We can compute the symbolic gradient with [`SymbolicNeuralNetworks.Gradient`](@ref):
 
 ```@example snn
 using SymbolicNeuralNetworks: derivative
-derivative(SymbolicNeuralNetworks.Gradient(soutput, nn))[1].L1.b |> latexify
+derivative(SymbolicNeuralNetworks.Gradient(soutput, nn))[1].L1.b
 ```
 
 !!! info

@@ -7,6 +7,7 @@ module SymbolicNeuralNetworks
     using KernelAbstractions
     using AbstractNeuralNetworks: QPTOAT
 
+    import Latexify: _latexraw
     import AbstractNeuralNetworks: NeuralNetwork, Architecture, Model, UnknownArchitecture, AbstractExplicitLayer, NeuralNetworkParameters
     import AbstractNeuralNetworks: architecture, model, params
     # these types will be shifted to `GeometricOptimizers` once this package is ready
@@ -53,4 +54,6 @@ module SymbolicNeuralNetworks
     include("derivatives/gradient.jl")
 
     include("custom_equation.jl")
+
+    include("utils/latexraw.jl")
 end
