@@ -13,7 +13,6 @@ module SymbolicNeuralNetworks
     # these types will be shifted to `GeometricOptimizers` once this package is ready
     import AbstractNeuralNetworks: NetworkLoss, AbstractPullback
     import Symbolics: NaNMath
-    import Zygote
     import ChainRulesCore
     
     RuntimeGeneratedFunctions.init(@__MODULE__)

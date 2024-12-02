@@ -1,5 +1,6 @@
 using Test, SymbolicNeuralNetworks
-using AbstractNeuralNetworks: Dense, initialparameters
+using SymbolicNeuralNetworks: Jacobian, derivative
+using AbstractNeuralNetworks: Chain, Dense, initialparameters, NeuralNetworkParameters
 using LinearAlgebra: norm
 import Symbolics, Random, ForwardDiff
 
@@ -17,22 +18,22 @@ The gradient of this expression is:
 ```math
     \nabla{}d: x \mapsto \mathrm{tanh}'(v^Tx + b)v.
 ```
-"""
-function test_gradient(n::Integer, T = Float32)
-    d = Dense(n, 1, tanh)
-    Symbolics.@variables nn ∇nn
-    x = Symbolics.variables(:x, 1:n)
-    eqs = (x = x, nn = nn, ∇nn = ∇nn)
-    nn = SymbolicNeuralNetwork(d; eqs = eqs)
 
-    params = initialparameters(d, T)
-    input = rand(n)
-    @test nn.functions.soutput[2](input, params) ≈ d(input, params)
-    @test nn.functions.s∇output[1](input, params) ≈ ForwardDiff.gradient(input -> sum(d(input, params)), input)
+Note that we use `Jacobian` here.
+"""
+function test_jacobian(n::Integer, T = Float32)
+    c = Chain(Dense(n, 1, tanh))
+    nn = SymbolicNeuralNetwork(c)
+    g = Jacobian(nn)
+
+    params = initialparameters(c, T) |> NeuralNetworkParameters
+    input = rand(T, n)
+    @test build_nn_function(g.output, nn)(input, params) ≈ c(input, params)
+    @test build_nn_function(derivative(g), nn)(input, params) ≈ ForwardDiff.jacobian(input -> c(input, params), input)
 end
 
 for n ∈ 1:10
     for T ∈ (Float32, Float64)
-        test_gradient(n, T)
+        test_jacobian(n, T)
     end
 end

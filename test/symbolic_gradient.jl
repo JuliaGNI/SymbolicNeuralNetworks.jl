@@ -25,7 +25,7 @@ function test_symbolic_gradient(input_dim::Integer = 3, output_dim::Integer = 1,
         zgrad = Zygote.gradient(ps -> (norm(c(input[:, k], ps)) ^ 2), ps)[1].params
         for key1 in keys(_sgrad)
             for key2 in keys(_sgrad[key1])
-                executable_gradient = _build_executable_gradient(_sgrad[key1][key2], sinput, soutput, sparams)
+                executable_gradient = build_nn_function(_sgrad[key1][key2], sinput, soutput, sparams)
                 sgrad = executable_gradient(input, zero(input), ps, k)
                 @test sgrad ≈ zgrad[key1][key2]
             end
