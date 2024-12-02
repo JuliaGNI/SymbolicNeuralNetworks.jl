@@ -23,7 +23,7 @@ makedocs(;
         "Home" => "index.md",
         "Tutorials" => [
             "Vanilla Symbolic Neural Network" => "symbolic_neural_networks.md",
-            "Hamiltonian Neural Network" => "hamiltonian_neural_network.md",
+            "Double Derivative" => "double_derivative.md",
             ],
     ],
 )

@@ -110,8 +110,8 @@ We can also compare the time it takes to train the [`SymbolicNeuralNetwork`](@re
 ```@example snn
 loss = FeedForwardLoss()
 pb2 = GeometricMachineLearning.ZygotePullback(loss)
-o(nn_cpu, dl, batch, n_epochs, pb.loss, pb; show_progress = false); # hide
-@time o(nn_cpu, dl, batch, n_epochs, pb.loss, pb; show_progress = false);
+o(nn_cpu, dl, batch, n_epochs, pb2.loss, pb2; show_progress = false); # hide
+@time o(nn_cpu, dl, batch, n_epochs, pb2.loss, pb2; show_progress = false);
 nothing # hide
 ```
 
