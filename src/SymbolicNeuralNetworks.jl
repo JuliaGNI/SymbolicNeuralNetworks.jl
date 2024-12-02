@@ -19,18 +19,6 @@ module SymbolicNeuralNetworks
 
     include("equation_types.jl")
 
-    export optimize_code!
-    include("utils/optimize_code.jl")
-
-    export develop, envelop
-    include("utils/de_envelop.jl")
-
-    export get_track
-    include("utils/get_track.jl")
-
-    export rewrite_code
-    include("utils/rewrite_code.jl")
-
     export symbolize
     include("utils/symbolize.jl")
 
@@ -49,13 +37,8 @@ module SymbolicNeuralNetworks
     export evaluate_equations
     include("symbolic_neuralnet.jl")
 
-    include("neuralnet.jl")
-
     export symbolic_hamiltonian
     include("hamiltonian.jl")
-
-    export symbolic_lagrangian
-    include("lagrangian.jl")
 
     export build_nn_function
     include("utils/build_function.jl")
@@ -64,9 +47,6 @@ module SymbolicNeuralNetworks
 
     export SymbolicPullback
     include("pullback.jl")
-
-    export parallelize_expression, parallelize_expression_inplace, parallelize_pullback!
-    include("parallelize_expression.jl")
 
     include("derivatives/derivative.jl")
     include("derivatives/jacobian.jl")
