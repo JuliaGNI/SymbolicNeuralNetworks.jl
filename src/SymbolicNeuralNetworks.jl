@@ -4,7 +4,6 @@ module SymbolicNeuralNetworks
     using Symbolics
     using LinearAlgebra
     using RuntimeGeneratedFunctions
-    using KernelAbstractions
     using AbstractNeuralNetworks: QPTOAT
 
     import Latexify: _latexraw
@@ -13,7 +12,6 @@ module SymbolicNeuralNetworks
     # these types will be shifted to `GeometricOptimizers` once this package is ready
     import AbstractNeuralNetworks: NetworkLoss, AbstractPullback
     import Symbolics: NaNMath
-    import ChainRulesCore
     
     RuntimeGeneratedFunctions.init(@__MODULE__)
 
