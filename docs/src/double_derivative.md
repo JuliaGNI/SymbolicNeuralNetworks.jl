@@ -1,4 +1,58 @@
-# Double Derivative
+# Arbitrarily Combining Derivatives
+
+`SymbolicNeuralNetworks` can compute derivatives of arbitrary order of a neural network. For this we use two `struct`s:
+1. [`SymbolicNeuralNetworks.Jacobian`](@ref) and
+2. [`SymbolicNeuralNetworks.Gradient`](@ref).
+
+!!! info "Terminology"
+    Whereas the name `Jacobian` is standard for the matrix whose entries consist of all partial derivatives of the output of a function, the name `Gradient` is typically not used the way it is done here. Normally a *gradient* collects all the partial derivatives of a scalar function. In `SymbolicNeuralNetworks` the `struct` `Gradient` performs all partial derivatives of a symbolic array with respect to all the parameters of a neural network. So if we compute the `Gradient` of a matrix, then the corresponding routine returns *a matrix of neural network parameters*, each of which is the *standard gradient* of a matrix element. So it can be written as:
+    ```math
+    \mathtt{Gradient}\left( \begin{pmatrix} m_{11} & m_{12} & \cdots & m_{1m} \\ m_{21} & m_{22} & \cdots & m_{2m} \\ \vdots & \vdots & \vdots & \vdots \\ m_{n1} & m_{n2} & \cdots & m_{nm} \end{pmatrix} \right) = \begin{pmatrix} \nabla_{\mathbb{P}}m_{11} & \nabla_{\mathbb{P}}m_{12} & \cdots & \nabla_{\mathbb{P}}m_{1m} \\ \nabla_{\mathbb{P}}m_{21} & \nabla_{\mathbb{P}}m_{22} & \cdots & \nabla_{\mathbb{P}}m_{2m} \\ \vdots & \vdots & \vdots & \vdots \\ \nabla_{\mathbb{P}}m_{n1} & \nabla_{\mathbb{P}}m_{n2} & \cdots & \nabla_{\mathbb{P}}m_{nm} \end{pmatrix},
+    ```
+    where ``\mathbb{P}`` are the parameters of the neural network. For computational and consistency reasons each element ``\nabla_\mathbb{P}m_{ij}`` are `NeuralNetworkParameters`.
+
+## Jacobian of a Neural Network
+
+[`SymbolicNeuralNetworks.Jacobian`](@ref) differentiates a symbolic expression with respect to the input arguments of a neural network:
+
+```@example jacobian_gradient
+using AbstractNeuralNetworks
+using SymbolicNeuralNetworks
+using SymbolicNeuralNetworks: Jacobian, Gradient, derivative
+using Latexify: latexify
+
+c = Chain(Dense(2, 1, tanh; use_bias = false))
+nn = SymbolicNeuralNetwork(c)
+□ = Jacobian(nn)
+# we show the derivative with respect to 
+derivative(□) |> latexify
+```
+
+Note that the output of `nn` is one-dimensional and we use the convention
+
+```math
+\square_{ij} = [\mathrm{jacobian}_{x}f]_{ij} = \frac{\partial}{\partial{}x_j}f_i,
+```
+so the output has shape ``\mathrm{input\_dim}\times\mathrm{output\_dim} = 1\times2``:
+
+```@example jacobian_gradient
+@assert size(derivative(□)) == (1, 2) # hide
+size(derivative(□))
+```
+
+## Gradient of a Neural Network
+
+As described above [`SymbolicNeuralNetworks.Gradient`](@ref) differentiates every element of the array-valued output with respect to the neural network parameters:
+
+```@example jacobian_gradient
+using SymbolicNeuralNetworks: Gradient
+
+g = Gradient(nn)
+
+derivative(g).L1.W |> latexify
+```
+
+## Double Derivatives
 
 We can easily differentiate a neural network twice by using [`SymbolicNeuralNetworks.Jacobian`](@ref) and [`SymbolicNeuralNetworks.Gradient`](@ref) together. We first use [`SymbolicNeuralNetworks.Jacobian`](@ref) to differentiate the network output with respect to its input:
 

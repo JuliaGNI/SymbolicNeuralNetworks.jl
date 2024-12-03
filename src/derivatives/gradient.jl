@@ -69,7 +69,7 @@ true
 """
 derivative(g::Gradient) = g.∇
 
-function Gradient(output, nn::SymbolicNeuralNetwork)
+function Gradient(output::EqT, nn::SymbolicNeuralNetwork)
     typeof(output) <: AbstractArray ? nothing : (@warn "You should only use `Gradient` together with array expressions! Maybe you wanted to use `SymbolicPullback`.")
     Gradient(nn, output, symbolic_pullback(output, nn))
 end
@@ -82,6 +82,8 @@ end
     symbolic_pullback(nn, output)
 
 This takes a symbolic output that depends on the parameters in `nn` and returns the corresponding pullback (a symbolic expression).
+
+This is used by [`Gradient`](@ref) and [`SymbolicPullback`](@ref).
 
 # Examples
 

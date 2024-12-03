@@ -5,6 +5,7 @@ An instance of [`Derivative`](@ref). Computes the derivatives of a neural networ
 
 # Constructors
 
+    Jacobian(output, nn)
     Jacobian(nn)
 
 Compute the jacobian of a [`SymbolicNeuralNetwork`](@ref) with respect to the input arguments.
@@ -14,12 +15,18 @@ The output of `Jacobian` consists of a `NamedTuple` that has the following keys:
 2. a symbolic expression of the output (keyword `soutput`),
 3. a symbolic expression of the gradient (keyword `s∇output`).
 
+If `output` is not supplied as an input argument than it is taken to be:
+
+```julia 
+soutput = nn.model(nn.input, nn.params)
+```
+
 # Implementation
 
 For a function ``f:\mathbb{R}^n\to\mathbb{R}^m`` we choose the following convention for the Jacobian:
 
 ```math
-\square_{ij} = \frac{\partial}{\partial{}x_i}f_j, \text{ i.e. } \square \in \mathbb{R}^{n\times{}m}
+\square_{ij} = \frac{\partial}{\partial{}x_j}f_i, \text{ i.e. } \square \in \mathbb{R}^{m\times{}n}
 ```
 This is also used by [`Zygote`](https://github.com/FluxML/Zygote.jl) and [`ForwardDiff`](https://github.com/JuliaDiff/ForwardDiff.jl).
 
@@ -77,6 +84,10 @@ function Jacobian(nn::AbstractSymbolicNeuralNetwork)
     # Evaluation of the symbolic output
     soutput = nn.model(nn.input, nn.params)
 
+    Jacobian(soutput, nn)
+end
+
+function Jacobian(soutput::EqT, nn::AbstractSymbolicNeuralNetwork)
     # make differential 
     Dx = symbolic_differentials(nn.input)
 
