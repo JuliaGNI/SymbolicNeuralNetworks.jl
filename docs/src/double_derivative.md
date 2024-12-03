@@ -49,7 +49,7 @@ using SymbolicNeuralNetworks: Gradient
 
 g = Gradient(nn)
 
-derivative(g).L1.W |> latexify
+derivative(g)[1].L1.W |> latexify
 ```
 
 ## Double Derivatives
