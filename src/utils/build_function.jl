@@ -213,7 +213,7 @@ This is used for [`_build_nn_function(::EqT, ::NeuralNetworkParameters, ::Symbol
 function fix_create_array(s::AbstractString)
     @assert contains(s, "ˍ₋arg") "Doesn't contain ˍ₋arg!"
     # replace(s, r"\(SymbolicUtils\.Code\.create_array\)\(typeof\(..arg[0-9]+\), nothing, Val\{1\}\(\), Val\{\(2,\)\}\(\)," => "(")
-    replace(s, r"[\(]*SymbolicUtils\.Code\.create_array[\)]*\(typeof\(..arg[0-9]+\)" => "SymbolicUtils.Code.create_array(Array")
+    replace(s, r"[\(]*SymbolicUtils\.Code\.create_array[\)]*\(typeof\(..arg[0-9]+\)" => "SymbolicUtils.Code.create_array(typeof(sinput)")
 end
 
 function fix_create_array(expression::Expr)
