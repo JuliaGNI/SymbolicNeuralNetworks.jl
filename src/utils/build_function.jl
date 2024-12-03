@@ -203,7 +203,7 @@ fix_create_array(s)
 
 # output
 
-"SymbolicUtils.Code.create_array(Array"
+"SymbolicUtils.Code.create_array(typeof(sinput)"
 ```
 
 # Implementation
