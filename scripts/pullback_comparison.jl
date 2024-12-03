@@ -19,8 +19,16 @@ output = rand(1, batch_size)
 # output sensitivities
 _do = 1.
 
-spb(nn_cpu.params, nn.model, (input, output))[2](_do)
-zpb(nn_cpu.params, nn.model, (input, output))[2](_do)
-@time spb_evaluated = spb(nn_cpu.params, nn.model, (input, output))[2](_do)
-@time zpb_evaluated = zpb(nn_cpu.params, nn.model, (input, output))[2](_do)[1].params
+# spb(nn_cpu.params, nn.model, (input, output))[2](_do)
+# zpb(nn_cpu.params, nn.model, (input, output))[2](_do)
+# @time spb_evaluated = spb(nn_cpu.params, nn.model, (input, output))[2](_do)
+# @time zpb_evaluated = zpb(nn_cpu.params, nn.model, (input, output))[2](_do)[1].params
 # @assert values(spb_evaluated) .≈ values(zpb_evaluated)
+
+function timenn(pb, params, model, input, output, _do = 1.)
+    pb(params, model, (input, output))[2](_do)
+    @time pb(params, model, (input, output))[2](_do)
+end
+
+timenn(spb, nn_cpu.params, nn.model, input, output)
+timenn(zpb, nn_cpu.params, nn.model, input, output)
