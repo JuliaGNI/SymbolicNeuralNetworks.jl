@@ -1,116 +1,65 @@
-
 abstract type AbstractSymbolicNeuralNetwork{AT} <: AbstractNeuralNetwork{AT} end
 
-struct SymbolicNeuralNetwork{AT,MT,PT,CT,EVT,ET,FT} <: AbstractSymbolicNeuralNetwork{AT}
+"""
+    SymbolicNeuralNetwork <: AbstractSymbolicNeuralNetwork
+
+A symbolic neural network realizes a symbolic represenation (of small neural networks).
+
+The `struct` has the following fields:
+- `architecture`: the neural network architecture,
+- `model`: the model (typically a Chain that is the realization of the architecture),
+- `params`: the symbolic parameters of the network.
+- `sinput`: the symbolic input of the network.
+
+# Constructors
+
+    SymbolicNeuralNetwork(arch)
+
+Make a `SymbolicNeuralNetwork` based on an architecture and a set of equations.
+"""
+struct SymbolicNeuralNetwork{   AT, 
+                                MT, 
+                                PT <: Union{NeuralNetworkParameters, NamedTuple}, 
+                                IT  } <: AbstractSymbolicNeuralNetwork{AT}
     architecture::AT
     model::MT
     params::PT
-
-    code::CT
-    eval::EVT
-    equations::ET
-    functions::FT
+    input::IT
 end
 
-@inline architecture(snn::SymbolicNeuralNetwork) = snn.architecture
-@inline model(snn::SymbolicNeuralNetwork) = snn.model
-@inline params(snn::SymbolicNeuralNetwork) = snn.params
-
-@inline equations(snn::SymbolicNeuralNetwork) = snn.equations
-@inline functions(snn::SymbolicNeuralNetwork) = snn.functions
-
-
-function SymbolicNeuralNetwork(arch::Architecture, model::Model; eqs::NamedTuple)
-
-    @assert [:x, :nn] ⊆ keys(eqs)
-    
-    RuntimeGeneratedFunctions.init(@__MODULE__)
-
-    sinput = eqs.x
-    snn = eqs.nn
-
-    new_eqs = NamedTuple([p for p in pairs(eqs) if p[1] ∉ [:x, :nn]])
-
-    # Generation of symbolicparamters
+function SymbolicNeuralNetwork(arch::Architecture, model::Model)
+    # Generation of symbolic paramters
     sparams = symbolicparameters(model)
+    @variables sinput[1:input_dimension(model)]
 
-    # Generation of the equations
-
-    eval = model(sinput, sparams)
-
-    infos = merge(NamedTuple{keys(new_eqs)}(Tuple(typeof(eq) <: Vector{<:Real} ? 1 : 2 for eq in new_eqs)),(eval = typeof(eval) <: Vector{<:Real} ? 1 : 2,))
-
-    pre_equations = Tuple(SymbolicUtils.substitute.(eq, [snn => eval]) for eq in new_eqs)
-
-    pre_equations = Tuple(Symbolics.scalarize.(eq) for eq in pre_equations)
-
-    pre_equations = Tuple(expand_derivatives.(eq) for eq in pre_equations)
-
-    equations = merge(NamedTuple{keys(new_eqs)}(pre_equations),(eval = eval,))
-
-    # Generation of the code
-
-    pre_code = Tuple((build_function(eq, sinput, sparams...), infos[keq]) for (keq,eq) in pairs(equations))
-
-    code = Tuple(typeof(c) <: Tuple ? c[i] : c for (c,i) in pre_code)
-
-    # Rewrite of the codes
-    rewrite_codes = Tuple(rewrite_neuralnetwork(c, (sinput,), sparams) for c in code)
-
-    # Optimization of the code
-
-    code_opti = optimize_code!.(rewrite_codes)
-
-    code_corr = Meta.parse.(replace.(string.(code_opti), "SymbolicUtils.Code.create_array(Array, nothing, Val{1}(), Val{(2,)}()," => "(" ))
-    
-    # Creation of NamedTuple code
-
-    nt_code = NamedTuple{keys(equations)}(code_corr)
-
-    # Generations of the functions
-    functions = NamedTuple{keys(nt_code)}(Tuple(@RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(c)) for c in nt_code))
-
-    SymbolicNeuralNetwork(arch, model, sparams, code, functions.eval, equations, functions)
+    SymbolicNeuralNetwork(arch, model, sparams, sinput)
 end
 
-function SymbolicNeuralNetwork(model::Model; kwargs...)
-    SymbolicNeuralNetwork(UnknownArchitecture(), model; kwargs...)
+function SymbolicNeuralNetwork(model::Chain)
+    SymbolicNeuralNetwork(UnknownArchitecture(), model)
 end
 
-function SymbolicNeuralNetwork(arch::Architecture; kwargs...)
-    SymbolicNeuralNetwork(arch, Chain(arch); kwargs...)
+function SymbolicNeuralNetwork(arch::Architecture)
+    SymbolicNeuralNetwork(arch, Chain(arch))
 end
 
-function SymbolicNeuralNetwork(arch::Architecture, model::Model, dim::Int)
-    @variables x[1:dim], nn
-    SymbolicNeuralNetwork(arch, model; eqs = (x = x, nn = nn))
+function SymbolicNeuralNetwork(d::AbstractExplicitLayer)
+    SymbolicNeuralNetwork(UnknownArchitecture(), d)
 end
 
-function SymbolicNeuralNetwork(arch::Architecture, dim::Int)
-    SymbolicNeuralNetwork(arch, Chain(arch), dim)
-end
+apply(snn::AbstractSymbolicNeuralNetwork, x, args...) = snn(x, args...)
 
-function SymbolicNeuralNetwork(model::Model, dim::Int)
-    SymbolicNeuralNetwork(UnknownArchitecture(), model, dim)
-end
-
-(snn::SymbolicNeuralNetwork)(x, params) = snn.functions.eval(x, params)
-apply(snn::SymbolicNeuralNetwork, x, args...) = snn(x, args...)
-
+input_dimension(::AbstractExplicitLayer{M}) where M = M 
+input_dimension(c::Chain) = input_dimension(c.layers[1])
+output_dimension(::AbstractExplicitLayer{M, N}) where {M, N} = N
+output_dimension(c::Chain) = output_dimension(c.layers[end])
 
 function Base.show(io::IO, snn::SymbolicNeuralNetwork)
     print(io, "\nSymbolicNeuralNetwork with\n")
     print(io, "\nArchitecture = ")
-    print(io, architecture(snn))
+    print(io, snn.architecture)
     print(io, "\nModel = ")
-    print(io, model(snn))
+    print(io, snn.model)
     print(io, "\nSymbolic Params = ")
-    print(io, params(snn))
-    print(io, "\n\nand equations of motion\n\n")
-    for eq in equations(snn)
-        print(io, eq)
-        print(io, "\n")
-    end
+    print(io, snn.params)
 end
-
-

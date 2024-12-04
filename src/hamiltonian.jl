@@ -1,32 +1,96 @@
 """
-    symbolic_hamitonian is a functions that creates a symbolic hamiltonian from any hamiltonian.
-    The output of the function is 
-        - the symbolics parameters used to build the hamiltonian (i.e t, q, p),
-        - the symbolic expression of the hamiltonian,
-        - the function generated from the symbolic hamiltonian. 
+    HamiltonianSymbolicNeuralNetwork <: AbstractSymbolicNeuralNetwork
+
+A struct that inherits properties from the abstract type `AbstractSymbolicNeuralNetwork`.
+
+# Constructor
+
+    HamiltonianSymbolicNeuralNetwork(model)
+
+Make an instance of `HamiltonianSymbolicNeuralNetwork` based on a `Chain` or an `Architecture`.
+This is similar to the constructor for [`SymbolicNeuralNetwork`](@ref) but also checks if the input dimension is even-dimensional and the output dimension is one.
 """
-function symbolic_hamiltonian(H::Base.Callable, dim::Int, params::Union{Tuple, NamedTuple, AbstractArray})
+struct HamiltonianSymbolicNeuralNetwork{AT, MT, PT} <: AbstractSymbolicNeuralNetwork{AT}
+    architecture::AT
+    model::MT
+    params::PT
+end
 
-    RuntimeGeneratedFunctions.init(@__MODULE__)
+function HamiltonianSymbolicNeuralNetwork(arch::Architecture, model::Model)
+    @assert iseven(input_dimension(model)) "Input dimension has to be an even number."
+    @assert output_dimension(model) == 1 "Output dimension of network has to be scalar."
 
-    # creates variables 
-    @variables st                         # for the time
-    @variables q(st)[1:dim]               # for the position
-    @variables p(st)[1:dim]               # for the momentum
-    
-    sparams = symbolize(params; redundancy = false)[1]        # for the parameters
+    sparams = symbolicparameters(model)
+    HamiltonianSymbolicNeuralNetwork(arch, model, sparams)
+end
 
-    # create the symbolic hamiltonian
-    sH = H(st, q, p, sparams)
-    
-    # create the related code  
-    code_H = build_function(sH, st, q, p, develop(sparams)...)
+HamiltonianSymbolicNeuralNetwork(model::Model) = HamiltonianSymbolicNeuralNetwork(UnknownArchitecture(), model)
+HamiltonianSymbolicNeuralNetwork(arch::Architecture) = HamiltonianSymbolicNeuralNetwork(arch, Chain(model))
 
-    # rewrite the code to take directly paramters
-    rewrite_code_H = rewrite_hamiltonian(code_H, (q, p, st), sparams)
+"""
+    vector_field(nn::HamiltonianSymbolicNeuralNetwork)
 
-    # create the related function
-    gH = @RuntimeGeneratedFunction(rewrite_code_H)
+Get the symbolic expression for the vector field belonging to the HNN `nn`.
 
-    return st, q, p, sparams, sH, gH
+# Implementation 
+
+This is calling [`SymbolicNeuralNetworks.Jacobian`](@ref) and then multiplies the result with a Poisson tensor.
+"""
+function vector_field(nn::HamiltonianSymbolicNeuralNetwork)
+    gradient_output = gradient(nn)
+    sinput, soutput, ∇nn = gradient_output.x, gradient_output.soutput, gradient_output.s∇output
+    input_dim = input_dimension(nn.model)
+    n = input_dim ÷ 2
+    # placeholder for one
+    @variables o
+    o_vec = repeat([o], n)
+    𝕀 = Diagonal(o_vec)
+    𝕆 = zero(𝕀)
+    𝕁 = hcat(vcat(𝕆, -𝕀), vcat(𝕀, 𝕆))
+    (x = sinput, nn = soutput, ∇nn = ∇nn, hvf = substitute(𝕁 * ∇nn, Dict(o => 1, )))
+end
+
+"""
+    HNNLoss <: NetworkLoss
+
+The loss for a Hamiltonian neural network.
+
+# Constructor
+
+This can be called with an instance of [`HamiltonianSymbolicNeuralNetwork`](@ref) as the only input arguemtn, i.e.:
+```julia
+HNNLoss(nn)
+```
+where `nn` is a [`HamiltonianSymbolicNeuralNetwork`](@ref) gives the corresponding Hamiltonian loss.
+
+# Funktor
+
+```julia
+loss(c, ps, input, output)
+loss(ps, input, output) # equivalent to the above
+```
+"""
+struct HNNLoss{FT} <: NetworkLoss
+    hvf::FT
+end
+
+function HNNLoss(nn::HamiltonianSymbolicNeuralNetwork)
+    x_hvf = vector_field(nn)
+    x = x_hvf.x
+    hvf = x_hvf.hvf
+    hvf_function = build_nn_function(hvf, x, nn)
+    HNNLoss(hvf_function)
+end
+
+function (loss::HNNLoss)(   ::Union{Chain, AbstractExplicitLayer}, 
+                            ps::Union{NeuralNetworkParameters, NamedTuple}, 
+                            input::QPTOAT, 
+                            output::QPTOAT)
+    loss(ps, input, output)
+end
+
+function (loss::HNNLoss)(   ps::Union{NeuralNetworkParameters, NamedTuple},
+                            input::QPTOAT,
+                            output::QPTOAT)
+    norm(loss.hvf(input, ps) - output) / norm(output)
 end

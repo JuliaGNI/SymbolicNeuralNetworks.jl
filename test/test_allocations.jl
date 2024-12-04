@@ -91,7 +91,7 @@ end
 
 expr = optimize_code!(expr)
 
-expr = Meta.parse(replace(string(expr), "SymbolicUtils.Code.create_array(Array, nothing, Val{1}(), Val{(2,)}()," => "(" ))
+expr = Meta.parse(replace(string(expr), "SymbolicUtils.Code.create_array(typeof(sinput), nothing, Val{1}(), Val{(2,)}()," => "(" ))
 
 
 func = @RuntimeGeneratedFunction(Symbolics.inject_registered_module_functions(expr))
