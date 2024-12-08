@@ -27,7 +27,7 @@ function test_for_input_and_output()
     input = rand(2, 5)
     output = rand(3, 5)
     input2 = reshape((@view input[:, 1:2]), 2, 1, 2)
-    output2 = reshape((@view input[:, 1:3]), 3, 1, 2)
+    output2 = reshape((@view output[:, 1:2]), 3, 1, 2)
     @variables soutput[1:3]
     built_function = build_nn_function((soutput - soutput2).^2, nn.params, nn.input, soutput)
     outputs = built_function(input2, output2, nn_cpu.params)
