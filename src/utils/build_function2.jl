@@ -18,7 +18,7 @@ end
 
 function build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr, soutput::Symbolics.Arr)
     gen_fun = _build_nn_function(eq, sparams, sinput, soutput)
-    gen_fun_returned(input, output, ps) = mapreduce(k -> gen_fun(input, output, ps, k), +, axes(input, 2))
+    gen_fun_returned(input, output, ps) = mapreduce(k -> gen_fun(input, output, ps, k), hcat, axes(input, 2))
     function gen_fun_returned(x::AT, y::AT, ps) where {AT <: Union{AbstractVector, Symbolics.Arr}}
         output_not_reshaped = gen_fun_returned(reshape(x, length(x), 1), reshape(y, length(y), 1), ps)
         # for vectors we do not reshape, as the output may be a matrix
