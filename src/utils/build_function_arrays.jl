@@ -29,8 +29,8 @@ funcs_evaluated = funcs(input, ps)
 (true, true, true)
 ```
 """
-function build_nn_function(eqs::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...)
-    ps_semi = [function_valued_parameters(eq, sparams, sinput...) for eq in eqs]
+function build_nn_function(eqs::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat)
+    ps_semi = [function_valued_parameters(eq, sparams, sinput...; reduce = reduce) for eq in eqs]
     
     _pbs_executable(ps_functions, params, input...) = apply_element_wise(ps_functions, params, input...)
     __pbs_executable(input, params) = _pbs_executable(ps_semi, params, input)
@@ -72,8 +72,8 @@ funcs_evaluated = funcs(input, ps)
 
 Internally this is using [`function_valued_parameters`](@ref) and [`apply_element_wise`](@ref).
 """
-function build_nn_function(eqs::Union{NamedTuple, NeuralNetworkParameters}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...)
-    ps = function_valued_parameters(eqs, sparams, sinput...)
+function build_nn_function(eqs::Union{NamedTuple, NeuralNetworkParameters}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat)
+    ps = function_valued_parameters(eqs, sparams, sinput...; reduce = reduce)
     _pbs_executable(ps::Union{NamedTuple, NeuralNetworkParameters}, params::NeuralNetworkParameters, input::AbstractArray...) = apply_element_wise(ps, params, input...)
     __pbs_executable(input::AbstractArray, params::NeuralNetworkParameters) = _pbs_executable(ps, params, input)
     # return this one if sinput & soutput are supplied
@@ -110,13 +110,13 @@ b = c(input, ps).^2
 (true, true)
 ```
 """
-function function_valued_parameters(eqs::NeuralNetworkParameters, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...)
-    vals = Tuple(build_nn_function(eqs[key], sparams, sinput...) for key in keys(eqs))
+function function_valued_parameters(eqs::NeuralNetworkParameters, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat)
+    vals = Tuple(build_nn_function(eqs[key], sparams, sinput...; reduce = reduce) for key in keys(eqs))
     NeuralNetworkParameters{keys(eqs)}(vals)
 end
 
-function function_valued_parameters(eqs::NamedTuple, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...)
-    vals = Tuple(build_nn_function(eqs[key], sparams, sinput...) for key in keys(eqs))
+function function_valued_parameters(eqs::NamedTuple, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat)
+    vals = Tuple(build_nn_function(eqs[key], sparams, sinput...; reduce = reduce) for key in keys(eqs))
     NamedTuple{keys(eqs)}(vals)
 end
 

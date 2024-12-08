@@ -93,7 +93,7 @@ function SymbolicPullback(nn::SymbolicNeuralNetwork, loss::NetworkLoss)
     @variables soutput[1:output_dimension(nn.model)]
     symbolic_loss = loss(nn.model, nn.params, nn.input, soutput)
     symbolic_pullbacks = symbolic_pullback(symbolic_loss, nn)
-    pbs_executable = build_nn_function(symbolic_pullbacks, nn.params, nn.input, soutput)
+    pbs_executable = build_nn_function(symbolic_pullbacks, nn.params, nn.input, soutput; reduce = +)
     function pbs(input, output, params)
         pullback(::Union{Real, AbstractArray{<:Real}}) = _get_contents(_get_params(pbs_executable(input, output, params)))
         pullback

@@ -22,9 +22,9 @@ function build_nn_function(eq::EqT, nn::AbstractSymbolicNeuralNetwork)
     build_nn_function(eq, nn.params, nn.input)
 end
 
-function build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr)
+function build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr; reduce = hcat)
     gen_fun = _build_nn_function(eq, sparams, sinput)
-    gen_fun_returned(x, ps) = mapreduce(k -> gen_fun(x, ps, k), hcat, axes(x, 2))
+    gen_fun_returned(x, ps) = mapreduce(k -> gen_fun(x, ps, k), reduce, axes(x, 2))
     function gen_fun_returned(x::Union{AbstractVector, Symbolics.Arr}, ps) 
         output_not_reshaped = gen_fun_returned(reshape(x, length(x), 1), ps)
         # for vectors we do not reshape, as the output may be a matrix
