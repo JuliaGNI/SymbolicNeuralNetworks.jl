@@ -22,12 +22,19 @@ function build_nn_function(eq::EqT, nn::AbstractSymbolicNeuralNetwork)
     build_nn_function(eq, nn.params, nn.input)
 end
 
-function build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr)
+function build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr; reduce = hcat)
     gen_fun = _build_nn_function(eq, sparams, sinput)
-    gen_fun_returned(x, ps) = mapreduce(k -> gen_fun(x, ps, k), hcat, axes(x, 2))
-    gen_fun_returned(x::Union{AbstractVector, Symbolics.Arr}, ps) = gen_fun_returned(reshape(x, length(x), 1), ps)
+    gen_fun_returned(x, ps) = mapreduce(k -> gen_fun(x, ps, k), reduce, axes(x, 2))
+    function gen_fun_returned(x::Union{AbstractVector, Symbolics.Arr}, ps) 
+        output_not_reshaped = gen_fun_returned(reshape(x, length(x), 1), ps)
+        # for vectors we do not reshape, as the output may be a matrix
+        output_not_reshaped
+    end
     # check this! (definitely not correct in all cases!)
-    gen_fun_returned(x::AbstractArray{<:Number, 3}, ps) = reshape(gen_fun_returned(reshape(x, size(x, 1), size(x, 2) * size(x, 3)), ps), size(x, 1), size(x, 2), size(x, 3))
+    function gen_fun_returned(x::AbstractArray{<:Number, 3}, ps) 
+        output_not_reshaped = gen_fun_returned(reshape(x, size(x, 1), size(x, 2) * size(x, 3)), ps)
+        reshape(output_not_reshaped, size(output_not_reshaped, 1), size(x, 2), size(x, 3))
+    end
     gen_fun_returned
 end
 

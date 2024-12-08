@@ -16,12 +16,29 @@ function build_nn_function(eqs, nn::AbstractSymbolicNeuralNetwork, soutput)
     build_nn_function(eqs, nn.params, nn.input, soutput)
 end
 
-function build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr, soutput::Symbolics.Arr)
+function build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr, soutput::Symbolics.Arr; reduce = hcat)
     gen_fun = _build_nn_function(eq, sparams, sinput, soutput)
-    gen_fun_returned(input, output, ps) = mapreduce(k -> gen_fun(input, output, ps, k), +, axes(input, 2))
-    gen_fun_returned(input::AT, output::AT, ps) where {AT <: Union{AbstractVector, Symbolics.Arr}} = gen_fun_returned(reshape(input, length(input), 1), reshape(output, length(output), 1), ps)
-    gen_fun_returned(input::AT, output::AT, ps) where {T, AT <: AbstractArray{T, 3}} = gen_fun_returned(reshape(input, size(input, 1), size(input, 2) * size(input, 3)), reshape(output, size(output, 1), size(output, 2) * size(output, 3)), ps)
+    gen_fun_returned(input, output, ps) = mapreduce(k -> gen_fun(input, output, ps, k), reduce, axes(input, 2))
+    function gen_fun_returned(x::AT, y::AT, ps) where {AT <: Union{AbstractVector, Symbolics.Arr}}
+        output_not_reshaped = gen_fun_returned(reshape(x, length(x), 1), reshape(y, length(y), 1), ps)
+        # for vectors we do not reshape, as the output may be a matrix
+        output_not_reshaped
+    end
+    # check this! (definitely not correct in all cases!)
+    function gen_fun_returned(x::AT, y::AT, ps) where {AT <: AbstractArray{<:Number, 3}} 
+        output_not_reshaped = gen_fun_returned(reshape(x, size(x, 1), size(x, 2) * size(x, 3)), reshape(y, size(y, 1), size(y, 2) * size(y, 3)), ps)
+        # if arrays are added together then don't reshape!
+        optional_reshape(output_not_reshaped, reduce, x)
+    end
     gen_fun_returned
+end
+
+function optional_reshape(output_not_reshaped::AbstractVecOrMat, ::typeof(+), ::AbstractArray{<:Number, 3})
+    output_not_reshaped
+end
+
+function optional_reshape(output_not_reshaped::AbstractVecOrMat, ::typeof(hcat), input::AbstractArray{<:Number, 3})
+    reshape(output_not_reshaped, size(output_not_reshaped, 1), size(input, 2), size(input, 3))
 end
 
 """
