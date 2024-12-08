@@ -20,6 +20,8 @@ module SymbolicNeuralNetworks
     export symbolize
     include("utils/symbolize.jl")
 
+    include("utils/create_array.jl")
+
     export AbstractSymbolicNeuralNetwork
     export SymbolicNeuralNetwork, SymbolicModel
     export HamiltonianSymbolicNeuralNetwork, HNNLoss
