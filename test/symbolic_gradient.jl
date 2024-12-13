@@ -15,7 +15,7 @@ function test_symbolic_gradient(input_dim::Integer = 3, output_dim::Integer = 1,
     @assert second_dim > 1 "second_dim must be greater than 1!"
     c = Chain(Dense(input_dim, hidden_dim, tanh), Dense(hidden_dim, output_dim, tanh))
     sparams = symbolicparameters(c)
-    ps = initialparameters(c, T) |> NeuralNetworkParameters
+    ps = NeuralNetwork(c, T).params
     @variables sinput[1:input_dim]
     sout = norm(c(sinput, sparams)) ^ 2
     sdparams = symbolic_differentials(sparams)
@@ -40,7 +40,7 @@ Also checks the parallelization, but for the full function.
 function test_symbolic_gradient2(input_dim::Integer = 3, output_dim::Integer = 1, hidden_dim::Integer = 2, T::DataType = Float64, second_dim::Integer = 1, third_dim::Integer = 1)
     c = Chain(Dense(input_dim, hidden_dim, tanh), Dense(hidden_dim, output_dim, tanh))
     sparams = symbolicparameters(c)
-    ps = initialparameters(c, T) |> NeuralNetworkParameters
+    ps = NeuralNetwork(c, T).params
     @variables sinput[1:input_dim]
     sout = norm(c(sinput, sparams)) ^ 2
     input = rand(T, input_dim, second_dim, third_dim)

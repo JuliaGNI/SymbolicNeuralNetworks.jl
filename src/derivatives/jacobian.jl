@@ -45,7 +45,7 @@ We can use `Jacobian` together with [`build_nn_function`](@ref):
 ```jldoctest
 using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: Jacobian, derivative
-using AbstractNeuralNetworks: Dense, Chain, initialparameters
+using AbstractNeuralNetworks: Dense, Chain, NeuralNetwork
 using Symbolics
 import Random
 
@@ -59,7 +59,7 @@ nn = SymbolicNeuralNetwork(c)
 □ = SymbolicNeuralNetworks.Jacobian(nn)
 # here we need to access the derivative and convert it into a function
 jacobian1 = build_nn_function(derivative(□), nn)
-ps = initialparameters(c, Float64)
+ps = NeuralNetwork(c, Float64).params
 input = rand(input_dim)
 #derivative
 Dtanh(x::Real) = 4 * exp(2 * x) / (1 + exp(2x)) ^ 2

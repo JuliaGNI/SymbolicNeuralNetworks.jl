@@ -15,7 +15,7 @@ c = Chain(Dense(2, 1, tanh))
 nn = SymbolicNeuralNetwork(c)
 loss = FeedForwardLoss()
 pb = SymbolicPullback(nn, loss)
-ps = initialparameters(c) |> NeuralNetworkParameters
+ps = NeuralNetwork(c).params
 pv_values = pb(ps, nn.model, (rand(2), rand(1)))[2](1) |> typeof
 
 # output
@@ -50,7 +50,7 @@ c = Chain(Dense(2, 1, tanh))
 nn = SymbolicNeuralNetwork(c)
 loss = FeedForwardLoss()
 pb = SymbolicPullback(nn, loss)
-ps = initialparameters(c) |> NeuralNetworkParameters
+ps = NeuralNetwork(c).params
 input_output = (rand(2), rand(1))
 loss_and_pullback = pb(ps, nn.model, input_output)
 pv_values = loss_and_pullback[2](1)

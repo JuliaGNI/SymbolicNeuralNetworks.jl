@@ -7,7 +7,7 @@ Build an executable function based on `eqs` that potentially also has a symbolic
 
 ```jldoctest
 using SymbolicNeuralNetworks: build_nn_function, SymbolicNeuralNetwork
-using AbstractNeuralNetworks: Chain, Dense, initialparameters, NeuralNetworkParameters
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork
 import Random
 Random.seed!(123)
 
@@ -16,7 +16,7 @@ nn = SymbolicNeuralNetwork(ch)
 eqs = [(a = ch(nn.input, nn.params), b = ch(nn.input, nn.params).^2), (c = ch(nn.input, nn.params).^3, )]
 funcs = build_nn_function(eqs, nn.params, nn.input)
 input = [1., 2.]
-ps = initialparameters(ch) |> NeuralNetworkParameters
+ps = NeuralNetwork(ch).params
 a = ch(input, ps)
 b = ch(input, ps).^2
 c = ch(input, ps).^3
@@ -47,7 +47,7 @@ Return a function that takes an input, (optionally) an output and neural network
 
 ```jldoctest
 using SymbolicNeuralNetworks: build_nn_function, SymbolicNeuralNetwork
-using AbstractNeuralNetworks: Chain, Dense, initialparameters, NeuralNetworkParameters
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork
 import Random
 Random.seed!(123)
 
@@ -56,7 +56,7 @@ nn = SymbolicNeuralNetwork(c)
 eqs = (a = c(nn.input, nn.params), b = c(nn.input, nn.params).^2)
 funcs = build_nn_function(eqs, nn.params, nn.input)
 input = [1., 2.]
-ps = initialparameters(c) |> NeuralNetworkParameters
+ps = NeuralNetwork(c).params
 a = c(input, ps)
 b = c(input, ps).^2
 funcs_evaluated = funcs(input, ps)
@@ -90,7 +90,7 @@ Return an executable function for each entry in `eqs`. This still has to be proc
 
 ```jldoctest
 using SymbolicNeuralNetworks: function_valued_parameters, SymbolicNeuralNetwork
-using AbstractNeuralNetworks: Chain, Dense, initialparameters, NeuralNetworkParameters
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork
 import Random
 Random.seed!(123)
 
@@ -99,7 +99,7 @@ nn = SymbolicNeuralNetwork(c)
 eqs = (a = c(nn.input, nn.params), b = c(nn.input, nn.params).^2)
 funcs = function_valued_parameters(eqs, nn.params, nn.input)
 input = [1., 2.]
-ps = initialparameters(c) |> NeuralNetworkParameters
+ps = NeuralNetwork(c).params
 a = c(input, ps)
 b = c(input, ps).^2
 
