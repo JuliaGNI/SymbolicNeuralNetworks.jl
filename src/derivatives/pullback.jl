@@ -85,10 +85,6 @@ struct SymbolicPullback{NNLT, FT} <: AbstractPullback{NNLT}
     fun::FT
 end
 
-function SymbolicPullback(nn::HamiltonianSymbolicNeuralNetwork)
-    SymbolicPullback(nn, HNNLoss(nn))
-end
-
 function SymbolicPullback(nn::SymbolicNeuralNetwork, loss::NetworkLoss)
     @variables soutput[1:output_dimension(nn.model)]
     symbolic_loss = loss(nn.model, nn.params, nn.input, soutput)
