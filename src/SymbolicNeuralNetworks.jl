@@ -30,7 +30,7 @@ module SymbolicNeuralNetworks
     include("layers/abstract.jl")
     include("layers/dense.jl")
     include("layers/linear.jl")
-    include("chain.jl")
+    include("chain/chain.jl")
 
     export evaluate_equations
     include("symbolic_neuralnet/symbolic_neuralnet.jl")
