@@ -50,7 +50,7 @@ end
 apply(snn::AbstractSymbolicNeuralNetwork, x, args...) = snn(x, args...)
 
 input_dimension(::AbstractExplicitLayer{M}) where M = M 
-input_dimension(c::Chain) = input_dimension(c.layers[1])
+input_dimension(c::Chain) = input_dimension(c.layers[begin])
 output_dimension(::AbstractExplicitLayer{M, N}) where {M, N} = N
 output_dimension(c::Chain) = output_dimension(c.layers[end])
 
