@@ -39,12 +39,12 @@ module SymbolicNeuralNetworks
     include("hamiltonian.jl")
 
     export build_nn_function
-    include("utils/build_function.jl")
-    include("utils/build_function2.jl")
-    include("utils/build_function_arrays.jl")
+    include("build_function/build_function.jl")
+    include("build_function/build_function2.jl")
+    include("build_function/build_function_arrays.jl")
 
     export SymbolicPullback
-    include("pullback.jl")
+    include("derivatives/pullback.jl")
 
     include("derivatives/derivative.jl")
     include("derivatives/jacobian.jl")
