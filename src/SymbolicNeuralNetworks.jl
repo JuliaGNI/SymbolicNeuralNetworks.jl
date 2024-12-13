@@ -15,7 +15,7 @@ module SymbolicNeuralNetworks
     
     RuntimeGeneratedFunctions.init(@__MODULE__)
 
-    include("equation_types.jl")
+    include("custom_definitions_and_extensions/equation_types.jl")
 
     export symbolize
     include("symbolic_neuralnet/symbolize.jl")
@@ -35,9 +35,6 @@ module SymbolicNeuralNetworks
     export evaluate_equations
     include("symbolic_neuralnet/symbolic_neuralnet.jl")
 
-    export symbolic_hamiltonian
-    include("hamiltonian.jl")
-
     export build_nn_function
     include("build_function/build_function.jl")
     include("build_function/build_function2.jl")
@@ -50,7 +47,5 @@ module SymbolicNeuralNetworks
     include("derivatives/jacobian.jl")
     include("derivatives/gradient.jl")
 
-    include("custom_equation.jl")
-
-    include("utils/latexraw.jl")
+    include("custom_definitions_and_extensions/latexraw.jl")
 end
