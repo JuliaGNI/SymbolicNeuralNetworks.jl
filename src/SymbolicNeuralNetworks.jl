@@ -18,7 +18,7 @@ module SymbolicNeuralNetworks
     include("equation_types.jl")
 
     export symbolize
-    include("utils/symbolize.jl")
+    include("symbolic_neuralnet/symbolize.jl")
 
     export AbstractSymbolicNeuralNetwork
     export SymbolicNeuralNetwork, SymbolicModel
@@ -33,7 +33,7 @@ module SymbolicNeuralNetworks
     include("chain.jl")
 
     export evaluate_equations
-    include("symbolic_neuralnet.jl")
+    include("symbolic_neuralnet/symbolic_neuralnet.jl")
 
     export symbolic_hamiltonian
     include("hamiltonian.jl")
