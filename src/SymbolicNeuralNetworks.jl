@@ -22,12 +22,6 @@ module SymbolicNeuralNetworks
     export AbstractSymbolicNeuralNetwork
     export SymbolicNeuralNetwork
 
-    # make symbolic parameters (`NeuralNetworkParameters`)
-    include("layers/abstract.jl")
-    include("layers/dense.jl")
-    include("layers/linear.jl")
-    include("chain/chain.jl")
-
     include("symbolic_neuralnet/symbolic_neuralnet.jl")
 
     export build_nn_function

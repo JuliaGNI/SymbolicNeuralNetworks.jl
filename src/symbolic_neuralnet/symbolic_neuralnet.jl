@@ -5,6 +5,8 @@ abstract type AbstractSymbolicNeuralNetwork{AT} <: AbstractNeuralNetwork{AT} end
 
 A symbolic neural network realizes a symbolic represenation (of small neural networks).
 
+# Fields
+
 The `struct` has the following fields:
 - `architecture`: the neural network architecture,
 - `model`: the model (typically a Chain that is the realization of the architecture),
@@ -13,9 +15,9 @@ The `struct` has the following fields:
 
 # Constructors
 
-    SymbolicNeuralNetwork(arch)
+    SymbolicNeuralNetwork(nn)
 
-Make a `SymbolicNeuralNetwork` based on an architecture and a set of equations.
+Make a `SymbolicNeuralNetwork` based on a `AbstractNeuralNetworks.Network`.
 """
 struct SymbolicNeuralNetwork{   AT, 
                                 MT, 
