@@ -17,22 +17,17 @@ module SymbolicNeuralNetworks
 
     include("custom_definitions_and_extensions/equation_types.jl")
 
-    export symbolize
     include("symbolic_neuralnet/symbolize.jl")
 
     export AbstractSymbolicNeuralNetwork
-    export SymbolicNeuralNetwork, SymbolicModel
-    export HamiltonianSymbolicNeuralNetwork, HNNLoss
-    export architecture, model, params, equations, functions
+    export SymbolicNeuralNetwork
 
     # make symbolic parameters (`NeuralNetworkParameters`)
-    export symbolicparameters
     include("layers/abstract.jl")
     include("layers/dense.jl")
     include("layers/linear.jl")
     include("chain/chain.jl")
 
-    export evaluate_equations
     include("symbolic_neuralnet/symbolic_neuralnet.jl")
 
     export build_nn_function

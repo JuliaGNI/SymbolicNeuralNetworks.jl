@@ -1,48 +1,132 @@
-#=
-    This files contains recursive functions to create a preserving shape symbolic params which can be the form of any combinaition of Tuple, namedTuple, Array and Real. 
-=#
+"""
+    symboliccounter!(cache, arg; redundancy)
 
-function SymbolicName(arg, storage; redundancy = true)
+Add a specific argument to the cache.
+
+# Examples
+
+```jldoctest
+using SymbolicNeuralNetworks: symboliccounter!
+
+cache = Dict()
+var = symboliccounter!(cache, :var)
+(cache, var)
+
+# output
+(Dict{Any, Any}(:var => 1), :var_1)
+
+```
+"""
+function symboliccounter!(cache::Dict, arg::Symbol; redundancy::Bool = true)
     if redundancy
-        arg ∈ keys(storage) ? storage[arg] += 1 : storage[arg] = 1
-        nam = string(arg)*"_"*string(storage[arg])
-        return Symbol(nam)
+        arg ∈ keys(cache) ? cache[arg] += 1 : cache[arg] = 1
+        nam = string(arg) * "_" * string(cache[arg])
+        Symbol(nam)
     else
-        nam = string(arg)
-        return Symbol(nam)
+        arg
     end
 end
 
-function symbolize(::Real, var_name::Union{Missing, Symbol} = missing, storage = Dict(); redundancy = true)
-    sname = ismissing(var_name) ?  SymbolicName(:X, storage; redundancy = redundancy) : SymbolicName(var_name, storage; redundancy = redundancy)
-    ((@variables $sname)[1], storage)
+"""
+    symbolize!(cache, nt, var_name)
+
+Symbolize all the arguments in `nt`.
+
+# Examples
+
+```jldoctest
+using SymbolicNeuralNetworks: symbolize!
+
+cache = Dict()
+sym = symbolize!(cache, .1, :X)
+(sym, cache)
+
+# output
+
+(X_1, Dict{Any, Any}(:X => 1))
+```
+
+```jldoctest
+using SymbolicNeuralNetworks: symbolize!
+
+cache = Dict()
+arr = rand(2, 1)
+sym_scalar = symbolize!(cache, .1, :X)
+sym_array = symbolize!(cache, arr, :Y)
+(sym_array, cache)
+
+# output
+
+(Y_1[Base.OneTo(2),Base.OneTo(1)], Dict{Any, Any}(:X => 1, :Y => 1))
+```
+
+Note that the for the second case the cache is storing a scalar under `:X` and an array under `:Y`. If we use the same label for both we get:
+
+```jldoctest
+using SymbolicNeuralNetworks: symbolize!
+
+cache = Dict()
+arr = rand(2, 1)
+sym_scalar = symbolize!(cache, .1, :X)
+sym_array = symbolize!(cache, arr, :X)
+(sym_array, cache)
+
+# output
+
+(X_2[Base.OneTo(2),Base.OneTo(1)], Dict{Any, Any}(:X => 2))
+```
+
+We can also use `symbolize!` with `NamedTuple`s:
+
+```jldoctest
+using SymbolicNeuralNetworks: symbolize!
+
+cache = Dict()
+nt = (a = 1, b = [1, 2])
+sym = symbolize!(cache, nt, :X)
+(sym, cache)
+
+# output
+
+((a = X_1, b = X_2[Base.OneTo(2)]), Dict{Any, Any}(:X => 2))
+```
+
+And for neural network parameters:
+
+```jldoctest
+using SymbolicNeuralNetworks: symbolize!
+using AbstractNeuralNetworks
+
+nn = NeuralNetwork(Chain(Dense(1, 2; use_bias = false), Dense(2, 1; use_bias = false)))
+cache = Dict()
+sym = symbolize!(cache, nn.params, :X) |> typeof
+
+# output
+
+NeuralNetworkParameters{(:L1, :L2), Tuple{@NamedTuple{W::Symbolics.Arr{Symbolics.Num, 2}}, @NamedTuple{W::Symbolics.Arr{Symbolics.Num, 2}}}}
+```
+
+# Implementation
+
+Internally this is using [`symboliccounter!`](@ref). This function is also adjusting/altering the `cache` (that is optionally supplied as an input argument).
+"""
+symbolize!
+
+function symbolize!(cache::Dict, ::Real, var_name::Symbol; redundancy::Bool = true)::Symbolics.Num
+    sname = symboliccounter!(cache, var_name; redundancy = redundancy)
+    (@variables $sname)[1]
 end
 
-function symbolize(M::AbstractArray, var_name::Union{Missing, Symbol} = missing, storage = Dict(); redundancy = true)
-    sname = ismissing(var_name) ?  SymbolicName(:M, storage; redundancy = redundancy) : SymbolicName(var_name, storage; redundancy = redundancy)
-    ((@variables $sname[Tuple([1:s for s in size(M)])...])[1], storage)
+function symbolize!(cache::Dict, M::AbstractArray, var_name::Symbol; redundancy::Bool = true)
+    sname = symboliccounter!(cache, var_name; redundancy = redundancy)
+    (@variables $sname[axes(M)...])[1]
 end
 
-function symbolize(nt::NamedTuple, var_name::Union{Missing, Symbol} = missing, storage = Dict(); redundancy = true)
-    if length(nt) == 1
-        symb, storage= symbolize(values(nt)[1], keys(nt)[1], storage; redundancy = redundancy)
-        return NamedTuple{keys(nt)}((symb,)), storage
-    else
-        symb, storage = symbolize(values(nt)[1], keys(nt)[1], storage; redundancy = redundancy)
-        symbs, storage = symbolize(NamedTuple{keys(nt)[2:end]}(values(nt)[2:end]), var_name, storage; redundancy = redundancy)
-        return  (NamedTuple{keys(nt)}(Tuple([symb, symbs...])), storage)
-    end
+function symbolize!(cache::Dict, nt::NamedTuple, var_name::Symbol; redundancy::Bool = true)
+    values = Tuple(symbolize!(cache, nt[key], var_name; redundancy = redundancy) for key in keys(nt))
+    NamedTuple{keys(nt)}(values)
 end
 
-function symbolize(t::Tuple, var_name::Union{Missing, Symbol} = missing, storage = Dict(); redundancy = true)
-    if length(t) == 1
-        symb, storage = symbolize(t[1], var_name, storage; redundancy = redundancy)
-        return (symb,), storage
-    else
-        symb, storage = symbolize(t[1], var_name, storage; redundancy = redundancy)
-        symbs, storage = symbolize(t[2:end], var_name, storage; redundancy = redundancy)
-        return (Tuple([symb, symbs...]), storage)
-    end
+function symbolize!(cache::Dict, nt::NeuralNetworkParameters, var_name::Symbol; redundancy::Bool = true)
+    NeuralNetworkParameters(symbolize!(cache, nt.params, var_name; redundancy = redundancy))
 end
-
-#symbolize(nn::NeuralNetwork) = symbolize(nn.params, missing, Dict())[1]

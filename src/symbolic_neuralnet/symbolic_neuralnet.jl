@@ -27,12 +27,17 @@ struct SymbolicNeuralNetwork{   AT,
     input::IT
 end
 
-function SymbolicNeuralNetwork(arch::Architecture, model::Model)
-    # Generation of symbolic paramters
-    sparams = symbolicparameters(model)
-    @variables sinput[1:input_dimension(model)]
+function SymbolicNeuralNetwork(nn::NeuralNetwork)
+    cache = Dict()
+    sparams = symbolize!(cache, nn.params, :W)
+    @variables sinput[1:input_dimension(nn.model)]
 
-    SymbolicNeuralNetwork(arch, model, sparams, sinput)
+    SymbolicNeuralNetwork(nn.architecture, nn.model, sparams, sinput)
+end
+
+function SymbolicNeuralNetwork(arch::Architecture, model::Model)
+    nn = NeuralNetwork(arch, model, CPU(), Float64)
+    SymbolicNeuralNetwork(nn)
 end
 
 function SymbolicNeuralNetwork(model::Chain)

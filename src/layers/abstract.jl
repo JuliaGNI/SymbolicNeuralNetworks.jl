@@ -6,11 +6,13 @@ Obtain the symbolic parameters of a neural network model.
 # Examples
 
 ```jldoctest
-using SymbolicNeuralNetworks
+using SymbolicNeuralNetworks: symbolize!
 using AbstractNeuralNetworks
 
+cache = Dict()
 d = Dense(4, 5, tanh)
-symbolicparameters(d) |> typeof
+params = NeuralNetwork(Chain(d)).params.L1
+symbolize!(cache, params, :X) |> typeof
 
 # output
 

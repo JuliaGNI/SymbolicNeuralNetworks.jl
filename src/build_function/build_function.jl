@@ -39,19 +39,18 @@ Build a function that can process a matrix. This is used as a starting point for
 # Examples
 
 ```jldoctest
-using SymbolicNeuralNetworks: _build_nn_function, symbolicparameters
-using Symbolics
+using SymbolicNeuralNetworks: _build_nn_function
+using SymbolicNeuralNetworks
 using AbstractNeuralNetworks
 
 c = Chain(Dense(2, 1, tanh))
-params = symbolicparameters(c)
-@variables sinput[1:2]
-eq = c(sinput, params)
-built_function = _build_nn_function(eq, params, sinput)
-ps = initialparameters(c)
+nn = NeuralNetwork(c)
+snn = SymbolicNeuralNetwork(nn)
+eq = c(snn.input, snn.params)
+built_function = _build_nn_function(eq, snn.params, snn.input)
 input = rand(2, 2)
 
-(built_function(input, ps, 1), built_function(input, ps, 2)) .≈ (c(input[:, 1], ps), c(input[:, 2], ps))
+(built_function(input, nn.params, 1), built_function(input, nn.params, 2)) .≈ (c(input[:, 1], nn.params), c(input[:, 2], nn.params))
 
 # output
 

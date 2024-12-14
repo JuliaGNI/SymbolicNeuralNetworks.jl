@@ -29,7 +29,7 @@ nn = SymbolicNeuralNetwork(c)
 L"\begin{equation}
 \left[
 \begin{array}{c}
-1 - \tanh^{2}\left( \mathtt{b\_1}_{1} + \mathtt{W\_1}_{1,1} \mathtt{sinput}_{1} + \mathtt{W\_1}_{1,2} \mathtt{sinput}_{2} \right) \\
+1 - \tanh^{2}\left( \mathtt{W\_2}_{1} + \mathtt{W\_1}_{1,1} \mathtt{sinput}_{1} + \mathtt{W\_1}_{1,2} \mathtt{sinput}_{2} \right) \\
 \end{array}
 \right]
 \end{equation}
@@ -105,7 +105,7 @@ spb[1].L1.b |> latexify
 L"\begin{equation}
 \left[
 \begin{array}{c}
-1 - \tanh^{2}\left( \mathtt{b\_1}_{1} + \mathtt{W\_1}_{1,1} \mathtt{sinput}_{1} + \mathtt{W\_1}_{1,2} \mathtt{sinput}_{2} \right) \\
+1 - \tanh^{2}\left( \mathtt{W\_2}_{1} + \mathtt{W\_1}_{1,1} \mathtt{sinput}_{1} + \mathtt{W\_1}_{1,2} \mathtt{sinput}_{2} \right) \\
 \end{array}
 \right]
 \end{equation}
