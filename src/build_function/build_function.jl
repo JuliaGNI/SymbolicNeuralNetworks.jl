@@ -39,23 +39,25 @@ Build a function that can process a matrix. This is used as a starting point for
 # Examples
 
 ```jldoctest
-using SymbolicNeuralNetworks: _build_nn_function
-using SymbolicNeuralNetworks
+using SymbolicNeuralNetworks: _build_nn_function, SymbolicNeuralNetwork
 using AbstractNeuralNetworks
+import Random
+Random.seed!(123)
 
 c = Chain(Dense(2, 1, tanh))
 nn = NeuralNetwork(c)
 snn = SymbolicNeuralNetwork(nn)
 eq = c(snn.input, snn.params)
 built_function = _build_nn_function(eq, snn.params, snn.input)
-input = rand(2, 2)
-
-(built_function(input, nn.params, 1), built_function(input, nn.params, 2)) .≈ (c(input[:, 1], nn.params), c(input[:, 2], nn.params))
+built_function([1. 2.; 3. 4.], nn.params, 1)
 
 # output
 
-(true, true)
+1-element Vector{Float64}:
+ -0.9999967113439513
 ```
+
+Note that we have to supply an extra argument (index) to `_build_nn_function` that we do not have to supply to [`build_nn_function`](@ref).
 
 # Implementation
 
