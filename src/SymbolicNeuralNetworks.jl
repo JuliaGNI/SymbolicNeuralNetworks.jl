@@ -26,7 +26,7 @@ module SymbolicNeuralNetworks
 
     export build_nn_function
     include("build_function/build_function.jl")
-    include("build_function/build_function2.jl")
+    include("build_function/build_function_double_input.jl")
     include("build_function/build_function_arrays.jl")
 
     export SymbolicPullback
