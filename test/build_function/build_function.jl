@@ -4,7 +4,7 @@ using AbstractNeuralNetworks
 using Test
 
 # this tests the function '_build_nn_function' (not 'build_nn_function')
-function apply_build_function(input_dim::Integer=2, output_dim::Inetger=1, num_examples::Integer=3)
+function apply_build_function(input_dim::Integer=2, output_dim::Integer=1, num_examples::Integer=3)
     c = Chain(Dense(input_dim, output_dim, tanh))
     nn = NeuralNetwork(c)
     snn = SymbolicNeuralNetwork(nn)
@@ -16,7 +16,7 @@ function apply_build_function(input_dim::Integer=2, output_dim::Inetger=1, num_e
 end
 
 for input_dim ∈ (2, 3)
-    for ouput_dim ∈ (1, 2)
+    for output_dim ∈ (1, 2)
         for num_examples ∈ (1, 2, 3)
             apply_build_function(input_dim, output_dim, num_examples)
         end
