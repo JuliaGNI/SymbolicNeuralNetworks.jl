@@ -57,10 +57,10 @@ loss_and_pullback = pb(nn.params, nn.model, input_output)
 pb_values = loss_and_pullback[2](1)
 
 @variables soutput[1:SymbolicNeuralNetworks.output_dimension(nn.model)]
-symbolic_pullbacks = SymbolicNeuralNetworks.symbolic_pullback(loss(nn.model, nn.params, nn.input, soutput), nn)
-pb_values2 = build_nn_function(symbolic_pullbacks, nn.params, nn.input, soutput)(input_output[1], input_output[2], ps)
+symbolic_pullbacks = SymbolicNeuralNetworks.symbolic_pullback(loss(nn.model, snn.params, snn.input, soutput), snn)
+pb_values2 = build_nn_function(symbolic_pullbacks, snn.params, snn.input, soutput)(input_output[1], input_output[2], nn.params)
 
-pb_values == (pb_values2 |> SymbolicNeuralNetworks._get_params |> SymbolicNeuralNetworks._get_contents)
+pb_values == (pb_values2 |> SymbolicNeuralNetworks._get_contents |> SymbolicNeuralNetworks._get_params)
 
 # output
 
@@ -128,15 +128,15 @@ _get_contents([(a = "element_contained_in_vector", )])
 ```
 """
 _get_contents(nt::NamedTuple) = nt
-function _get_contents(nt::AbstractVector{<:NamedTuple})
+function _get_contents(nt::AbstractVector{<:Union{NamedTuple, NeuralNetworkParameters}})
     length(nt) == 1 ? nt[1] : __get_contents(nt)
 end
-function __get_contents(nt::AbstractArray{<:NamedTuple})
+function __get_contents(nt::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}})
     @warn "The pullback returns an array expression. There is probably a bug in the code somewhere."
     nt
 end
-_get_contents(nt::AbstractArray{<:NamedTuple}) = __get_contents(nt)
-_get_contents(nt::Tuple{<:NamedTuple}) = nt[1]
+_get_contents(nt::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}) = __get_contents(nt)
+_get_contents(nt::Tuple{<:Union{NamedTuple, NeuralNetworkParameters}}) = nt[1]
 
 # (_pullback::SymbolicPullback)(ps, model, input_nt::QPTOAT)::Tuple = Zygote.pullback(ps -> _pullback.loss(model, ps, input_nt), ps)
 function (_pullback::SymbolicPullback)(ps, model, input_nt_output_nt::Tuple{<:QPTOAT, <:QPTOAT})::Tuple
