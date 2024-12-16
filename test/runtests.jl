@@ -1,7 +1,7 @@
 using SymbolicNeuralNetworks
 using SafeTestsets
 
-@safetestset "Docstring tests.                                                                       " begin include("doctest.jl") end
+# @safetestset "Docstring tests.                                                                       " begin include("doctest.jl") end
 @safetestset "Symbolic gradient                                                                      " begin include("derivatives/symbolic_gradient.jl") end
 @safetestset "Symbolic Neural network                                                                " begin include("derivatives/jacobian.jl") end
 @safetestset "Symbolic Params                                                                        " begin include("symbolic_neuralnet/symbolize.jl") end

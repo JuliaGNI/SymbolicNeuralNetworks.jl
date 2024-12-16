@@ -44,25 +44,21 @@ Return a function that takes an input, (optionally) an output and neural network
 
 ```jldoctest
 using SymbolicNeuralNetworks: build_nn_function, SymbolicNeuralNetwork
-using AbstractNeuralNetworks: Chain, Dense, initialparameters, NeuralNetworkParameters
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork
 import Random
 Random.seed!(123)
 
 c = Chain(Dense(2, 1, tanh))
-nn = SymbolicNeuralNetwork(c)
-eqs = (a = c(nn.input, nn.params), b = c(nn.input, nn.params).^2)
-funcs = build_nn_function(eqs, nn.params, nn.input)
+nn = NeuralNetwork(c)
+snn = SymbolicNeuralNetwork(nn)
+eqs = (a = c(snn.input, snn.params), b = c(snn.input, snn.params).^2)
+funcs = build_nn_function(eqs, snn.params, snn.input)
 input = [1., 2.]
-ps = initialparameters(c) |> NeuralNetworkParameters
-a = c(input, ps)
-b = c(input, ps).^2
-funcs_evaluated = funcs(input, ps)
-
-(funcs_evaluated.a, funcs_evaluated.b) .≈ (a, b)
+funcs_evaluated = funcs(input, nn.params)
 
 # output
 
-(true, true)
+(a = [-0.9999386280616135], b = [0.9998772598897417])
 ```
 
 # Implementation
