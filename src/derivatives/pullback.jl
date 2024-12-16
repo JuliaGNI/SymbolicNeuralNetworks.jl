@@ -16,7 +16,7 @@ nn = SymbolicNeuralNetwork(c)
 loss = FeedForwardLoss()
 pb = SymbolicPullback(nn, loss)
 ps = initialparameters(c) |> NeuralNetworkParameters
-pv_values = pb(ps, nn.model, (rand(2), rand(1)))[2](1) |> typeof
+pb_values = pb(ps, nn.model, (rand(2), rand(1)))[2](1) |> typeof
 
 # output
 
@@ -47,19 +47,20 @@ import Random
 Random.seed!(123)
 
 c = Chain(Dense(2, 1, tanh))
-nn = SymbolicNeuralNetwork(c)
+nn = NeuralNetwork(c)
+snn = SymbolicNeuralNetwork(nn)
 loss = FeedForwardLoss()
-pb = SymbolicPullback(nn, loss)
-ps = initialparameters(c) |> NeuralNetworkParameters
+pb = SymbolicPullback(snn, loss)
 input_output = (rand(2), rand(1))
-loss_and_pullback = pb(ps, nn.model, input_output)
-pv_values = loss_and_pullback[2](1)
+loss_and_pullback = pb(nn.params, nn.model, input_output)
+# note that we apply the second argument to another input `1`
+pb_values = loss_and_pullback[2](1)
 
 @variables soutput[1:SymbolicNeuralNetworks.output_dimension(nn.model)]
 symbolic_pullbacks = SymbolicNeuralNetworks.symbolic_pullback(loss(nn.model, nn.params, nn.input, soutput), nn)
-pv_values2 = build_nn_function(symbolic_pullbacks, nn.params, nn.input, soutput)(input_output[1], input_output[2], ps)
+pb_values2 = build_nn_function(symbolic_pullbacks, nn.params, nn.input, soutput)(input_output[1], input_output[2], ps)
 
-pv_values == (pv_values2 |> SymbolicNeuralNetworks._get_params |> SymbolicNeuralNetworks._get_contents)
+pb_values == (pb_values2 |> SymbolicNeuralNetworks._get_params |> SymbolicNeuralNetworks._get_contents)
 
 # output
 
@@ -106,6 +107,7 @@ Return the `NamedTuple` that's equivalent to the `NeuralNetworkParameters`.
 """
 _get_params(nt::NamedTuple) = nt
 _get_params(ps::NeuralNetworkParameters) = ps.params
+_get_params(ps::NamedTuple{(:params,), Tuple{NT}}) where {NT<:NamedTuple} = ps.params
 _get_params(ps::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}) = [_get_params(nt) for nt in ps]
 
 """
@@ -134,6 +136,7 @@ function __get_contents(nt::AbstractArray{<:NamedTuple})
     nt
 end
 _get_contents(nt::AbstractArray{<:NamedTuple}) = __get_contents(nt)
+_get_contents(nt::Tuple{<:NamedTuple}) = nt[1]
 
 # (_pullback::SymbolicPullback)(ps, model, input_nt::QPTOAT)::Tuple = Zygote.pullback(ps -> _pullback.loss(model, ps, input_nt), ps)
 function (_pullback::SymbolicPullback)(ps, model, input_nt_output_nt::Tuple{<:QPTOAT, <:QPTOAT})::Tuple
