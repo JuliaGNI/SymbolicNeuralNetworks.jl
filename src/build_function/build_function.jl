@@ -19,7 +19,7 @@ The functions mentioned in the implementation section were adjusted ad-hoc to de
 Other problems may occur. In case you bump into one please [open an issue on github](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues).
 """
 function build_nn_function(eq::EqT, nn::AbstractSymbolicNeuralNetwork)
-    build_nn_function(eq, nn.params, nn.input)
+    build_nn_function(eq, params(nn), nn.input)
 end
 
 function build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr)
@@ -40,16 +40,16 @@ Build a function that can process a matrix. This is used as a starting point for
 
 ```jldoctest
 using SymbolicNeuralNetworks: _build_nn_function, SymbolicNeuralNetwork
-using AbstractNeuralNetworks
+using AbstractNeuralNetworks: params, Chain, Dense, NeuralNetwork
 import Random
 Random.seed!(123)
 
 c = Chain(Dense(2, 1, tanh))
 nn = NeuralNetwork(c)
 snn = SymbolicNeuralNetwork(nn)
-eq = c(snn.input, snn.params)
-built_function = _build_nn_function(eq, snn.params, snn.input)
-built_function([1. 2.; 3. 4.], nn.params, 1)
+eq = c(snn.input, params(snn))
+built_function = _build_nn_function(eq, params(snn), snn.input)
+built_function([1. 2.; 3. 4.], params(nn), 1)
 
 # output
 

@@ -1,6 +1,7 @@
 using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: _get_params, _get_contents
 using AbstractNeuralNetworks
+using AbstractNeuralNetworks: params
 using Symbolics
 using GeometricMachineLearning: ZygotePullback
 using Test
@@ -20,12 +21,12 @@ function compare_symbolic_pullback_to_zygote_pullback(input_dim::Integer, output
     loss = FeedForwardLoss()
     spb = SymbolicPullback(snn, loss)
     input_output = (rand(input_dim, second_dim), rand(output_dim, second_dim))
-    loss_and_pullback = spb(nn.params, nn.model, input_output)
+    loss_and_pullback = spb(params(nn), nn.model, input_output)
     # note that we apply the second argument to another input `1`
     pb_values = loss_and_pullback[2](1)
 
     zpb = ZygotePullback(loss)
-    loss_and_pullback_zygote = zpb(nn.params, nn.model, input_output)
+    loss_and_pullback_zygote = zpb(params(nn), nn.model, input_output)
     pb_values_zygote = loss_and_pullback_zygote[2](1) |> _get_contents |> _get_params
 
     compare_values(pb_values, pb_values_zygote)

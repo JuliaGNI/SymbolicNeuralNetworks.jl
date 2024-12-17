@@ -41,7 +41,7 @@ We note the following seeming peculiarity:
 
 ```jldoctest
 using SymbolicNeuralNetworks
-using AbstractNeuralNetworks
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, FeedForwardLoss, params
 using Symbolics
 import Random
 Random.seed!(123)
@@ -52,13 +52,13 @@ snn = SymbolicNeuralNetwork(nn)
 loss = FeedForwardLoss()
 pb = SymbolicPullback(snn, loss)
 input_output = (rand(2), rand(1))
-loss_and_pullback = pb(nn.params, nn.model, input_output)
+loss_and_pullback = pb(params(nn), nn.model, input_output)
 # note that we apply the second argument to another input `1`
 pb_values = loss_and_pullback[2](1)
 
 @variables soutput[1:SymbolicNeuralNetworks.output_dimension(nn.model)]
-symbolic_pullbacks = SymbolicNeuralNetworks.symbolic_pullback(loss(nn.model, snn.params, snn.input, soutput), snn)
-pb_values2 = build_nn_function(symbolic_pullbacks, snn.params, snn.input, soutput)(input_output[1], input_output[2], nn.params)
+symbolic_pullbacks = SymbolicNeuralNetworks.symbolic_pullback(loss(nn.model, params(snn), snn.input, soutput), snn)
+pb_values2 = build_nn_function(symbolic_pullbacks, params(snn), snn.input, soutput)(input_output[1], input_output[2], params(nn))
 
 pb_values == (pb_values2 |> SymbolicNeuralNetworks._get_contents |> SymbolicNeuralNetworks._get_params)
 
@@ -88,9 +88,9 @@ end
 
 function SymbolicPullback(nn::SymbolicNeuralNetwork, loss::NetworkLoss)
     @variables soutput[1:output_dimension(nn.model)]
-    symbolic_loss = loss(nn.model, nn.params, nn.input, soutput)
+    symbolic_loss = loss(nn.model, params(nn), nn.input, soutput)
     symbolic_pullbacks = symbolic_pullback(symbolic_loss, nn)
-    pbs_executable = build_nn_function(symbolic_pullbacks, nn.params, nn.input, soutput)
+    pbs_executable = build_nn_function(symbolic_pullbacks, params(nn), nn.input, soutput)
     function pbs(input, output, params)
         pullback(::Union{Real, AbstractArray{<:Real}}) = _get_contents(_get_params(pbs_executable(input, output, params)))
         pullback
@@ -106,7 +106,7 @@ SymbolicPullback(nn::SymbolicNeuralNetwork) = SymbolicPullback(nn, AbstractNeura
 Return the `NamedTuple` that's equivalent to the `NeuralNetworkParameters`.
 """
 _get_params(nt::NamedTuple) = nt
-_get_params(ps::NeuralNetworkParameters) = ps.params
+_get_params(ps::NeuralNetworkParameters) = params(ps)
 _get_params(ps::NamedTuple{(:params,), Tuple{NT}}) where {NT<:NamedTuple} = ps.params
 _get_params(ps::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}) = [_get_params(nt) for nt in ps]
 

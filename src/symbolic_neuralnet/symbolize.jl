@@ -95,15 +95,15 @@ And for neural network parameters:
 
 ```jldoctest
 using SymbolicNeuralNetworks: symbolize!
-using AbstractNeuralNetworks
+using AbstractNeuralNetworks: NeuralNetwork, params, Chain, Dense
 
 nn = NeuralNetwork(Chain(Dense(1, 2; use_bias = false), Dense(2, 1; use_bias = false)))
 cache = Dict()
-sym = symbolize!(cache, nn.params, :X) |> typeof
+sym = symbolize!(cache, params(nn), :X) |> typeof
 
 # output
 
-NeuralNetworkParameters{(:L1, :L2), Tuple{@NamedTuple{W::Symbolics.Arr{Symbolics.Num, 2}}, @NamedTuple{W::Symbolics.Arr{Symbolics.Num, 2}}}}
+AbstractNeuralNetworks.NeuralNetworkParameters{(:L1, :L2), Tuple{@NamedTuple{W::Symbolics.Arr{Symbolics.Num, 2}}, @NamedTuple{W::Symbolics.Arr{Symbolics.Num, 2}}}}
 ```
 
 # Implementation
@@ -128,5 +128,5 @@ function symbolize!(cache::Dict, nt::NamedTuple, var_name::Symbol; redundancy::B
 end
 
 function symbolize!(cache::Dict, nt::NeuralNetworkParameters, var_name::Symbol; redundancy::Bool = true)
-    NeuralNetworkParameters(symbolize!(cache, nt.params, var_name; redundancy = redundancy))
+    NeuralNetworkParameters(symbolize!(cache, params(nt), var_name; redundancy = redundancy))
 end

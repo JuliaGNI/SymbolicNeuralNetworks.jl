@@ -31,7 +31,7 @@ end
 
 function SymbolicNeuralNetwork(nn::NeuralNetwork)
     cache = Dict()
-    sparams = symbolize!(cache, nn.params, :W)
+    sparams = symbolize!(cache, params(nn), :W)
     @variables sinput[1:input_dimension(nn.model)]
 
     SymbolicNeuralNetwork(nn.architecture, nn.model, sparams, sinput)
@@ -54,6 +54,8 @@ function SymbolicNeuralNetwork(d::AbstractExplicitLayer)
     SymbolicNeuralNetwork(UnknownArchitecture(), d)
 end
 
+params(snn::AbstractSymbolicNeuralNetwork) = snn.params
+
 apply(snn::AbstractSymbolicNeuralNetwork, x, args...) = snn(x, args...)
 
 input_dimension(::AbstractExplicitLayer{M}) where M = M 
@@ -68,5 +70,5 @@ function Base.show(io::IO, snn::SymbolicNeuralNetwork)
     print(io, "\nModel = ")
     print(io, snn.model)
     print(io, "\nSymbolic Params = ")
-    print(io, snn.params)
+    print(io, params(snn))
 end
