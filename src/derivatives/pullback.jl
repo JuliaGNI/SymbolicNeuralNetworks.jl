@@ -8,15 +8,17 @@
 ```jldoctest
 using SymbolicNeuralNetworks
 using AbstractNeuralNetworks
+using AbstractNeuralNetworks: params
 import Random
 Random.seed!(123)
 
 c = Chain(Dense(2, 1, tanh))
-nn = SymbolicNeuralNetwork(c)
+nn = NeuralNetwork(c)
+snn = SymbolicNeuralNetwork(nn)
 loss = FeedForwardLoss()
-pb = SymbolicPullback(nn, loss)
-ps = initialparameters(c) |> NeuralNetworkParameters
-pb_values = pb(ps, nn.model, (rand(2), rand(1)))[2](1) |> typeof
+pb = SymbolicPullback(snn, loss)
+ps = params(nn)
+typeof(pb(ps, nn.model, (rand(2), rand(1)))[2](1))
 
 # output
 

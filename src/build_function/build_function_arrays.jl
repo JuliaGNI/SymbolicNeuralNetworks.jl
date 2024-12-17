@@ -83,7 +83,7 @@ Return an executable function for each entry in `eqs`. This still has to be proc
 
 ```jldoctest
 using SymbolicNeuralNetworks: function_valued_parameters, SymbolicNeuralNetwork
-using AbstractNeuralNetworks: Chain, Dense, initialparameters, NeuralNetworkParameters, params
+using AbstractNeuralNetworks: Chain, Dense,fffff, NeuralNetworkParameters, params
 import Random
 Random.seed!(123)
 

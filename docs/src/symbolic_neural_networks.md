@@ -6,7 +6,7 @@ We first call the symbolic neural network that only consists of one layer:
 
 ```@example snn
 using SymbolicNeuralNetworks
-using AbstractNeuralNetworks: Chain, Dense, initialparameters, params
+using AbstractNeuralNetworks: Chain, Dense, params
 
 input_dim = 2
 output_dim = 1
