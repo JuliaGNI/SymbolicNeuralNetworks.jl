@@ -48,7 +48,7 @@ params = symbolicparameters(c)
 @variables sinput[1:2]
 eq = c(sinput, params)
 built_function = _build_nn_function(eq, params, sinput)
-ps = initialparameters(c)
+ps = NeuralNetwork(c).params
 input = rand(2, 2)
 
 (built_function(input, ps, 1), built_function(input, ps, 2)) .≈ (c(input[:, 1], ps), c(input[:, 2], ps))

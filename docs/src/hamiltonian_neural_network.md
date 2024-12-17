@@ -5,7 +5,7 @@ Here we build a Hamiltonian neural network as a symbolic neural network.
 ```julia hnn
 using SymbolicNeuralNetworks
 using GeometricMachineLearning
-using AbstractNeuralNetworks: Dense, initialparameters, UnknownArchitecture, Model
+using AbstractNeuralNetworks: Dense, UnknownArchitecture, Model
 using LinearAlgebra: norm
 using ChainRulesCore
 using KernelAbstractions
@@ -45,7 +45,7 @@ nothing # hide
 We can now train the network:
 
 ```julia hnn
-ps = NeuralNetworkParameters(initialparameters(c, T))
+ps = NeuralNetwork(c, T).params
 dl = DataLoader(z_data, hvf_analytic(z_data))
 o = Optimizer(AdamOptimizer(.01), ps)
 batch = Batch(200)

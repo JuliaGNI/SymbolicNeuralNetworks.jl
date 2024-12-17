@@ -1,6 +1,6 @@
 using Test, SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: Jacobian, derivative
-using AbstractNeuralNetworks: Chain, Dense, initialparameters, NeuralNetworkParameters
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork
 using LinearAlgebra: norm
 import Symbolics, Random, ForwardDiff
 
@@ -26,7 +26,7 @@ function test_jacobian(n::Integer, T = Float32)
     nn = SymbolicNeuralNetwork(c)
     g = Jacobian(nn)
 
-    params = initialparameters(c, T) |> NeuralNetworkParameters
+    params = NeuralNetwork(c, T).params
     input = rand(T, n)
     @test build_nn_function(g.output, nn)(input, params) ≈ c(input, params)
     @test build_nn_function(derivative(g), nn)(input, params) ≈ ForwardDiff.jacobian(input -> c(input, params), input)
