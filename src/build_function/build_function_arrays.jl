@@ -83,16 +83,17 @@ Return an executable function for each entry in `eqs`. This still has to be proc
 
 ```jldoctest
 using SymbolicNeuralNetworks: function_valued_parameters, SymbolicNeuralNetwork
-using AbstractNeuralNetworks: Chain, Dense,fffff, NeuralNetworkParameters, params
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
 import Random
 Random.seed!(123)
 
 c = Chain(Dense(2, 1, tanh))
-nn = SymbolicNeuralNetwork(c)
-eqs = (a = c(nn.input, params(nn)), b = c(nn.input, params(nn)).^2)
-funcs = function_valued_parameters(eqs, params(nn), nn.input)
+nn = NeuralNetwork(c)
+snn = SymbolicNeuralNetwork(nn)
+eqs = (a = c(snn.input, params(snn)), b = c(snn.input, params(snn)).^2)
+funcs = function_valued_parameters(eqs, params(snn), snn.input)
 input = [1., 2.]
-ps = initialparameters(c) |> NeuralNetworkParameters
+ps = params(nn)
 a = c(input, ps)
 b = c(input, ps).^2
 
