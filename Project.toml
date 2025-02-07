@@ -11,7 +11,7 @@ RuntimeGeneratedFunctions = "7e49a35a-f44a-4d26-94aa-eba1b4ca6b47"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
-AbstractNeuralNetworks = "0.3, 0.4, 0.5"
+AbstractNeuralNetworks = "0.3, 0.4, 0.5, 0.6"
 Documenter = "1.8.0"
 ForwardDiff = "0.10.38"
 Latexify = "0.16.5"
