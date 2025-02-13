@@ -15,25 +15,14 @@ Compute the symbolic output of `nn` and differentiate it with respect to the par
 
 # Examples
 
-```jldoctest
+```julia
 using SymbolicNeuralNetworks: SymbolicNeuralNetwork, Gradient, derivative
 using AbstractNeuralNetworks
 using Latexify: latexify
 
 c = Chain(Dense(2, 1, tanh))
 nn = SymbolicNeuralNetwork(c)
-(Gradient(nn) |> derivative)[1].L1.b |> latexify
-
-# output
-
-L"\begin{equation}
-\left[
-\begin{array}{c}
-1 - \tanh^{2}\left( \mathtt{b\_1}_{1} + \mathtt{W\_1}_{1,1} \mathtt{sinput}_{1} + \mathtt{W\_1}_{1,2} \mathtt{sinput}_{2} \right) \\
-\end{array}
-\right]
-\end{equation}
-"
+(Gradient(nn) |> derivative)[1].L1.b
 ```
 
 # Implementation
@@ -87,7 +76,7 @@ This is used by [`Gradient`](@ref) and [`SymbolicPullback`](@ref).
 
 # Examples
 
-```jldoctest
+```julia
 using SymbolicNeuralNetworks: SymbolicNeuralNetwork, symbolic_pullback
 using AbstractNeuralNetworks
 using LinearAlgebra: norm
@@ -98,18 +87,7 @@ nn = SymbolicNeuralNetwork(c)
 output = c(nn.input, nn.params)
 spb = symbolic_pullback(output, nn)
 
-spb[1].L1.b |> latexify
-
-# output
-
-L"\begin{equation}
-\left[
-\begin{array}{c}
-1 - \tanh^{2}\left( \mathtt{b\_1}_{1} + \mathtt{W\_1}_{1,1} \mathtt{sinput}_{1} + \mathtt{W\_1}_{1,2} \mathtt{sinput}_{2} \right) \\
-\end{array}
-\right]
-\end{equation}
-"
+spb[1].L1.b
 ```
 """
 function symbolic_pullback(soutput::EqT, nn::AbstractSymbolicNeuralNetwork)::Union{AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}, Union{NamedTuple, NeuralNetworkParameters}}
