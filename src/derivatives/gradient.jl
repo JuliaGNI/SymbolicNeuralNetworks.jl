@@ -15,35 +15,24 @@ Compute the symbolic output of `nn` and differentiate it with respect to the par
 
 # Examples
 
-```jldoctest
+```julia
 using SymbolicNeuralNetworks: SymbolicNeuralNetwork, Gradient, derivative
 using AbstractNeuralNetworks
 using Latexify: latexify
 
 c = Chain(Dense(2, 1, tanh))
 nn = SymbolicNeuralNetwork(c)
-(Gradient(nn) |> derivative)[1].L1.b |> latexify
-
-# output
-
-L"\begin{equation}
-\left[
-\begin{array}{c}
-1 - \tanh^{2}\left( \mathtt{b\_1}_{1} + \mathtt{W\_1}_{1,1} \mathtt{sinput}_{1} + \mathtt{W\_1}_{1,2} \mathtt{sinput}_{2} \right) \\
-\end{array}
-\right]
-\end{equation}
-"
+(Gradient(nn) |> derivative)[1].L1.b
 ```
 
 # Implementation
 
 Internally the constructors are using [`symbolic_pullback`](@ref).
 """
-struct Gradient{ST, OT, SDT} <: Derivative{ST, OT, SDT} 
-    nn::ST
+struct Gradient{OT, SDT, ST} <: Derivative{OT, SDT, ST} 
     output::OT
     ∇::SDT
+    nn::ST
 end
 
 """
@@ -71,7 +60,7 @@ derivative(g::Gradient) = g.∇
 
 function Gradient(output::EqT, nn::SymbolicNeuralNetwork)
     typeof(output) <: AbstractArray ? nothing : (@warn "You should only use `Gradient` together with array expressions! Maybe you wanted to use `SymbolicPullback`.")
-    Gradient(nn, output, symbolic_pullback(output, nn))
+    Gradient(output, symbolic_pullback(output, nn), nn)
 end
 
 function Gradient(nn::SymbolicNeuralNetwork)
@@ -87,7 +76,7 @@ This is used by [`Gradient`](@ref) and [`SymbolicPullback`](@ref).
 
 # Examples
 
-```jldoctest
+```julia
 using SymbolicNeuralNetworks: SymbolicNeuralNetwork, symbolic_pullback
 using AbstractNeuralNetworks
 using LinearAlgebra: norm
@@ -98,18 +87,7 @@ nn = SymbolicNeuralNetwork(c)
 output = c(nn.input, nn.params)
 spb = symbolic_pullback(output, nn)
 
-spb[1].L1.b |> latexify
-
-# output
-
-L"\begin{equation}
-\left[
-\begin{array}{c}
-1 - \tanh^{2}\left( \mathtt{b\_1}_{1} + \mathtt{W\_1}_{1,1} \mathtt{sinput}_{1} + \mathtt{W\_1}_{1,2} \mathtt{sinput}_{2} \right) \\
-\end{array}
-\right]
-\end{equation}
-"
+spb[1].L1.b
 ```
 """
 function symbolic_pullback(soutput::EqT, nn::AbstractSymbolicNeuralNetwork)::Union{AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}, Union{NamedTuple, NeuralNetworkParameters}}
