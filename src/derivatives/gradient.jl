@@ -29,7 +29,7 @@ nn = SymbolicNeuralNetwork(c)
 L"\begin{equation}
 \left[
 \begin{array}{c}
-1 - \tanh^{2}\left( \mathtt{b\_1}_{1} + \mathtt{W\_1}_{1,1} \mathtt{sinput}_{1} + \mathtt{W\_1}_{1,2} \mathtt{sinput}_{2} \right) \\
+1 - \tanh^{2}\left( \mathtt{W\_2}_{1} + \mathtt{W\_1}_{1,1} \mathtt{sinput}_{1} + \mathtt{W\_1}_{1,2} \mathtt{sinput}_{2} \right) \\
 \end{array}
 \right]
 \end{equation}
@@ -75,7 +75,7 @@ function Gradient(output::EqT, nn::SymbolicNeuralNetwork)
 end
 
 function Gradient(nn::SymbolicNeuralNetwork)
-    Gradient(nn.model(nn.input, nn.params), nn)
+    Gradient(nn.model(nn.input, params(nn)), nn)
 end
 
 @doc raw"""
@@ -90,12 +90,13 @@ This is used by [`Gradient`](@ref) and [`SymbolicPullback`](@ref).
 ```jldoctest
 using SymbolicNeuralNetworks: SymbolicNeuralNetwork, symbolic_pullback
 using AbstractNeuralNetworks
+using AbstractNeuralNetworks: params
 using LinearAlgebra: norm
 using Latexify: latexify
 
 c = Chain(Dense(2, 1, tanh))
 nn = SymbolicNeuralNetwork(c)
-output = c(nn.input, nn.params)
+output = c(nn.input, params(nn))
 spb = symbolic_pullback(output, nn)
 
 spb[1].L1.b |> latexify
@@ -105,7 +106,7 @@ spb[1].L1.b |> latexify
 L"\begin{equation}
 \left[
 \begin{array}{c}
-1 - \tanh^{2}\left( \mathtt{b\_1}_{1} + \mathtt{W\_1}_{1,1} \mathtt{sinput}_{1} + \mathtt{W\_1}_{1,2} \mathtt{sinput}_{2} \right) \\
+1 - \tanh^{2}\left( \mathtt{W\_2}_{1} + \mathtt{W\_1}_{1,1} \mathtt{sinput}_{1} + \mathtt{W\_1}_{1,2} \mathtt{sinput}_{2} \right) \\
 \end{array}
 \right]
 \end{equation}
@@ -113,6 +114,6 @@ L"\begin{equation}
 ```
 """
 function symbolic_pullback(soutput::EqT, nn::AbstractSymbolicNeuralNetwork)::Union{AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}, Union{NamedTuple, NeuralNetworkParameters}}
-    symbolic_diffs = symbolic_differentials(nn.params)
+    symbolic_diffs = symbolic_differentials(params(nn))
     [symbolic_derivative(soutput_single, symbolic_diffs) for soutput_single ∈ soutput]
 end
