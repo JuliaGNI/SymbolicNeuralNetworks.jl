@@ -35,7 +35,7 @@ z_data = randn(T, 2, n_points)
 nothing # hide
 ```
 
-We now specify a pullback [`HamiltonianSymbolicNeuralNetwork`](@ref):
+We now specify a pullback `HamiltonianSymbolicNeuralNetwork`
 
 ```julia hnn
 _pullback = SymbolicPullback(nn)

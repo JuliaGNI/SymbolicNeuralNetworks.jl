@@ -19,7 +19,7 @@ The functions mentioned in the implementation section were adjusted ad-hoc to de
 Other problems may occur. In case you bump into one please [open an issue on github](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues).
 """
 function build_nn_function(eq::EqT, nn::AbstractSymbolicNeuralNetwork)
-    build_nn_function(eq, nn.params, nn.input)
+    build_nn_function(eq, params(nn), nn.input)
 end
 
 function build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr)
@@ -39,24 +39,25 @@ Build a function that can process a matrix. This is used as a starting point for
 # Examples
 
 ```jldoctest
-using SymbolicNeuralNetworks: _build_nn_function, symbolicparameters
-using Symbolics
-using AbstractNeuralNetworks
+using SymbolicNeuralNetworks: _build_nn_function, SymbolicNeuralNetwork
+using AbstractNeuralNetworks: params, Chain, Dense, NeuralNetwork
+import Random
+Random.seed!(123)
 
 c = Chain(Dense(2, 1, tanh))
-params = symbolicparameters(c)
-@variables sinput[1:2]
-eq = c(sinput, params)
-built_function = _build_nn_function(eq, params, sinput)
-ps = NeuralNetwork(c).params
-input = rand(2, 2)
-
-(built_function(input, ps, 1), built_function(input, ps, 2)) .≈ (c(input[:, 1], ps), c(input[:, 2], ps))
+nn = NeuralNetwork(c)
+snn = SymbolicNeuralNetwork(nn)
+eq = c(snn.input, params(snn))
+built_function = _build_nn_function(eq, params(snn), snn.input)
+built_function([1. 2.; 3. 4.], params(nn), 1)
 
 # output
 
-(true, true)
+1-element Vector{Float64}:
+ -0.9999967113439513
 ```
+
+Note that we have to supply an extra argument (index) to `_build_nn_function` that we do not have to supply to [`build_nn_function`](@ref).
 
 # Implementation
 
