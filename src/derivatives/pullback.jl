@@ -8,15 +8,17 @@
 ```jldoctest
 using SymbolicNeuralNetworks
 using AbstractNeuralNetworks
+using AbstractNeuralNetworks: params
 import Random
 Random.seed!(123)
 
 c = Chain(Dense(2, 1, tanh))
-nn = SymbolicNeuralNetwork(c)
+nn = NeuralNetwork(c)
+snn = SymbolicNeuralNetwork(nn)
 loss = FeedForwardLoss()
-pb = SymbolicPullback(nn, loss)
-ps = NeuralNetwork(c).params
-pv_values = pb(ps, nn.model, (rand(2), rand(1)))[2](1) |> typeof
+pb = SymbolicPullback(snn, loss)
+ps = params(nn)
+typeof(pb(ps, nn.model, (rand(2), rand(1)))[2](1))
 
 # output
 
@@ -41,25 +43,27 @@ We note the following seeming peculiarity:
 
 ```jldoctest
 using SymbolicNeuralNetworks
-using AbstractNeuralNetworks
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, FeedForwardLoss, params
 using Symbolics
 import Random
 Random.seed!(123)
 
 c = Chain(Dense(2, 1, tanh))
-nn = SymbolicNeuralNetwork(c)
+nn = NeuralNetwork(c)
+snn = SymbolicNeuralNetwork(nn)
 loss = FeedForwardLoss()
 pb = SymbolicPullback(nn, loss)
 ps = AbstractNeuralNetworks.params(NeuralNetwork(c))
 input_output = (rand(2), rand(1))
-loss_and_pullback = pb(ps, nn.model, input_output)
-pv_values = loss_and_pullback[2](1)
+loss_and_pullback = pb(params(nn), nn.model, input_output)
+# note that we apply the second argument to another input `1`
+pb_values = loss_and_pullback[2](1)
 
 @variables soutput[1:SymbolicNeuralNetworks.output_dimension(nn.model)]
 symbolic_pullbacks = SymbolicNeuralNetworks.symbolic_pullback(loss(nn.model, SymbolicNeuralNetworks.params(nn), nn.input, soutput), nn)
 pv_values2 = build_nn_function(symbolic_pullbacks, SymbolicNeuralNetworks.params(nn), nn.input, soutput)(input_output[1], input_output[2], ps)
 
-pv_values == (pv_values2 |> SymbolicNeuralNetworks._get_params |> SymbolicNeuralNetworks._get_contents)
+pb_values == (pb_values2 |> SymbolicNeuralNetworks._get_contents |> SymbolicNeuralNetworks._get_params)
 
 # output
 
@@ -83,10 +87,6 @@ It is however customary for a pullback to return a callable function (that depen
 struct SymbolicPullback{NNLT, FT} <: AbstractPullback{NNLT}
     loss::NNLT
     fun::FT
-end
-
-function SymbolicPullback(nn::HamiltonianSymbolicNeuralNetwork)
-    SymbolicPullback(nn, HNNLoss(nn))
 end
 
 function SymbolicPullback(nn::SymbolicNeuralNetwork, loss::NetworkLoss)
@@ -130,14 +130,15 @@ _get_contents([(a = "element_contained_in_vector", )])
 ```
 """
 _get_contents(nt::NamedTuple) = nt
-function _get_contents(nt::AbstractVector{<:NamedTuple})
+function _get_contents(nt::AbstractVector{<:Union{NamedTuple, NeuralNetworkParameters}})
     length(nt) == 1 ? nt[1] : __get_contents(nt)
 end
-function __get_contents(nt::AbstractArray{<:NamedTuple})
+function __get_contents(nt::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}})
     @warn "The pullback returns an array expression. There is probably a bug in the code somewhere."
     nt
 end
-_get_contents(nt::AbstractArray{<:NamedTuple}) = __get_contents(nt)
+_get_contents(nt::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}) = __get_contents(nt)
+_get_contents(nt::Tuple{<:Union{NamedTuple, NeuralNetworkParameters}}) = nt[1]
 
 # (_pullback::SymbolicPullback)(ps, model, input_nt::QPTOAT)::Tuple = Zygote.pullback(ps -> _pullback.loss(model, ps, input_nt), ps)
 function (_pullback::SymbolicPullback)(ps, model, input_nt_output_nt::Tuple{<:QPTOAT, <:QPTOAT})::Tuple

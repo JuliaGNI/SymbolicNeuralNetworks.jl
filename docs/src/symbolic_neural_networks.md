@@ -101,7 +101,7 @@ We now compare the neural network-approximated curve to the original one:
 fig = Figure()
 ax = Axis3(fig[1, 1])
 
-surface!(x_vec, y_vec, [c([x, y], nn_cpu.params)[1] for x in x_vec, y in y_vec]; alpha = .8, colormap = :darkterrain, transparency = true)
+surface!(x_vec, y_vec, [c([x, y], params(nn_cpu))[1] for x in x_vec, y in y_vec]; alpha = .8, colormap = :darkterrain, transparency = true)
 fig
 ```
 

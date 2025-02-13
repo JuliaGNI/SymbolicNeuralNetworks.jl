@@ -15,42 +15,26 @@ module SymbolicNeuralNetworks
     
     RuntimeGeneratedFunctions.init(@__MODULE__)
 
-    include("equation_types.jl")
+    include("custom_definitions_and_extensions/equation_types.jl")
 
-    export symbolize
-    include("utils/symbolize.jl")
+    include("symbolic_neuralnet/symbolize.jl")
 
     export AbstractSymbolicNeuralNetwork
-    export SymbolicNeuralNetwork, SymbolicModel
-    export HamiltonianSymbolicNeuralNetwork, HNNLoss
-    export architecture, model, params, equations, functions
+    export SymbolicNeuralNetwork
 
-    # make symbolic parameters (`NeuralNetworkParameters`)
-    export symbolicparameters
-    include("layers/abstract.jl")
-    include("layers/dense.jl")
-    include("layers/linear.jl")
-    include("chain.jl")
-
-    export evaluate_equations
-    include("symbolic_neuralnet.jl")
-
-    export symbolic_hamiltonian
-    include("hamiltonian.jl")
+    include("symbolic_neuralnet/symbolic_neuralnet.jl")
 
     export build_nn_function
-    include("utils/build_function.jl")
-    include("utils/build_function2.jl")
-    include("utils/build_function_arrays.jl")
+    include("build_function/build_function.jl")
+    include("build_function/build_function_double_input.jl")
+    include("build_function/build_function_arrays.jl")
 
     export SymbolicPullback
-    include("pullback.jl")
+    include("derivatives/pullback.jl")
 
     include("derivatives/derivative.jl")
     include("derivatives/jacobian.jl")
     include("derivatives/gradient.jl")
 
-    include("custom_equation.jl")
-
-    include("utils/latexraw.jl")
+    include("custom_definitions_and_extensions/latexraw.jl")
 end

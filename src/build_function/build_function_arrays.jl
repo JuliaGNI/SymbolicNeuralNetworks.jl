@@ -1,32 +1,29 @@
 """
     build_nn_function(eqs::AbstractArray{<:NeuralNetworkParameters}, sparams, sinput...)
 
-Build an executable function based on `eqs` that potentially also has a symbolic output.
+Build an executable function based on an array of symbolic equations `eqs`.
 
 # Examples
 
 ```jldoctest
-using SymbolicNeuralNetworks: build_nn_function, SymbolicNeuralNetwork, params
-using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork
+using SymbolicNeuralNetworks: build_nn_function, SymbolicNeuralNetwork
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
 import Random
 Random.seed!(123)
 
 ch = Chain(Dense(2, 1, tanh))
-nn = SymbolicNeuralNetwork(ch)
-eqs = [(a = ch(nn.input, params(nn)), b = ch(nn.input, params(nn)).^2), (c = ch(nn.input, params(nn)).^3, )]
-funcs = build_nn_function(eqs, params(nn), nn.input)
+nn = NeuralNetwork(ch)
+snn = SymbolicNeuralNetwork(nn)
+eqs = [(a = ch(snn.input, params(snn)), b = ch(snn.input, params(snn)).^2), (c = ch(snn.input, params(snn)).^3, )]
+funcs = build_nn_function(eqs, params(snn), snn.input)
 input = [1., 2.]
-ps = params(NeuralNetwork(ch))
-a = ch(input, ps)
-b = ch(input, ps).^2
-c = ch(input, ps).^3
-funcs_evaluated = funcs(input, ps)
-
-(funcs_evaluated[1].a, funcs_evaluated[1].b, funcs_evaluated[2].c) .≈ (a, b, c)
+funcs_evaluated = funcs(input, params(nn))
 
 # output
 
-(true, true, true)
+2-element Vector{NamedTuple}:
+ (a = [-0.9999386280616135], b = [0.9998772598897417])
+ (c = [-0.9998158954841537],)
 ```
 """
 function build_nn_function(eqs::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...)
@@ -46,26 +43,22 @@ Return a function that takes an input, (optionally) an output and neural network
 # Examples
 
 ```jldoctest
-using SymbolicNeuralNetworks: build_nn_function, SymbolicNeuralNetwork, params
-using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork
+using SymbolicNeuralNetworks: build_nn_function, SymbolicNeuralNetwork
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
 import Random
 Random.seed!(123)
 
 c = Chain(Dense(2, 1, tanh))
-nn = SymbolicNeuralNetwork(c)
-eqs = (a = c(nn.input, params(nn)), b = c(nn.input, params(nn)).^2)
-funcs = build_nn_function(eqs, params(nn), nn.input)
+nn = NeuralNetwork(c)
+snn = SymbolicNeuralNetwork(nn)
+eqs = (a = c(snn.input, params(snn)), b = c(snn.input, params(snn)).^2)
+funcs = build_nn_function(eqs, params(snn), snn.input)
 input = [1., 2.]
-ps = params(NeuralNetwork(c))
-a = c(input, ps)
-b = c(input, ps).^2
-funcs_evaluated = funcs(input, ps)
-
-(funcs_evaluated.a, funcs_evaluated.b) .≈ (a, b)
+funcs_evaluated = funcs(input, params(nn))
 
 # output
 
-(true, true)
+(a = [-0.9999386280616135], b = [0.9998772598897417])
 ```
 
 # Implementation
@@ -89,17 +82,18 @@ Return an executable function for each entry in `eqs`. This still has to be proc
 # Examples
 
 ```jldoctest
-using SymbolicNeuralNetworks: function_valued_parameters, SymbolicNeuralNetwork, params
-using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork
+using SymbolicNeuralNetworks: function_valued_parameters, SymbolicNeuralNetwork
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
 import Random
 Random.seed!(123)
 
 c = Chain(Dense(2, 1, tanh))
-nn = SymbolicNeuralNetwork(c)
-eqs = (a = c(nn.input, params(nn)), b = c(nn.input, params(nn)).^2)
-funcs = function_valued_parameters(eqs, params(nn), nn.input)
+nn = NeuralNetwork(c)
+snn = SymbolicNeuralNetwork(nn)
+eqs = (a = c(snn.input, params(snn)), b = c(snn.input, params(snn)).^2)
+funcs = function_valued_parameters(eqs, params(snn), snn.input)
 input = [1., 2.]
-ps = params(NeuralNetwork(c))
+ps = params(nn)
 a = c(input, ps)
 b = c(input, ps).^2
 
