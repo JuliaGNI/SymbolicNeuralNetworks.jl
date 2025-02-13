@@ -18,7 +18,7 @@ The output of `Jacobian` consists of a `NamedTuple` that has the following keys:
 If `output` is not supplied as an input argument than it is taken to be:
 
 ```julia 
-soutput = nn.model(nn.input, nn.params)
+soutput = nn.model(nn.input, params(nn))
 ```
 
 # Implementation
@@ -59,7 +59,7 @@ nn = SymbolicNeuralNetwork(c)
 □ = SymbolicNeuralNetworks.Jacobian(nn)
 # here we need to access the derivative and convert it into a function
 jacobian1 = build_nn_function(derivative(□), nn)
-ps = NeuralNetwork(c, Float64).params
+ps = params(NeuralNetwork(c, Float64))
 input = rand(input_dim)
 #derivative
 Dtanh(x::Real) = 4 * exp(2 * x) / (1 + exp(2x)) ^ 2
@@ -82,7 +82,7 @@ derivative(j::Jacobian) = j.□
 function Jacobian(nn::AbstractSymbolicNeuralNetwork)
     
     # Evaluation of the symbolic output
-    soutput = nn.model(nn.input, nn.params)
+    soutput = nn.model(nn.input, params(nn))
 
     Jacobian(soutput, nn)
 end

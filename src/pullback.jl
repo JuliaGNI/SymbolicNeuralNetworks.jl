@@ -50,14 +50,14 @@ c = Chain(Dense(2, 1, tanh))
 nn = SymbolicNeuralNetwork(c)
 loss = FeedForwardLoss()
 pb = SymbolicPullback(nn, loss)
-ps = NeuralNetwork(c).params
+ps = AbstractNeuralNetworks.params(NeuralNetwork(c))
 input_output = (rand(2), rand(1))
 loss_and_pullback = pb(ps, nn.model, input_output)
 pv_values = loss_and_pullback[2](1)
 
 @variables soutput[1:SymbolicNeuralNetworks.output_dimension(nn.model)]
-symbolic_pullbacks = SymbolicNeuralNetworks.symbolic_pullback(loss(nn.model, nn.params, nn.input, soutput), nn)
-pv_values2 = build_nn_function(symbolic_pullbacks, nn.params, nn.input, soutput)(input_output[1], input_output[2], ps)
+symbolic_pullbacks = SymbolicNeuralNetworks.symbolic_pullback(loss(nn.model, SymbolicNeuralNetworks.params(nn), nn.input, soutput), nn)
+pv_values2 = build_nn_function(symbolic_pullbacks, SymbolicNeuralNetworks.params(nn), nn.input, soutput)(input_output[1], input_output[2], ps)
 
 pv_values == (pv_values2 |> SymbolicNeuralNetworks._get_params |> SymbolicNeuralNetworks._get_contents)
 
@@ -91,9 +91,9 @@ end
 
 function SymbolicPullback(nn::SymbolicNeuralNetwork, loss::NetworkLoss)
     @variables soutput[1:output_dimension(nn.model)]
-    symbolic_loss = loss(nn.model, nn.params, nn.input, soutput)
+    symbolic_loss = loss(nn.model, params(nn), nn.input, soutput)
     symbolic_pullbacks = symbolic_pullback(symbolic_loss, nn)
-    pbs_executable = build_nn_function(symbolic_pullbacks, nn.params, nn.input, soutput)
+    pbs_executable = build_nn_function(symbolic_pullbacks, params(nn), nn.input, soutput)
     function pbs(input, output, params)
         pullback(::Union{Real, AbstractArray{<:Real}}) = _get_contents(_get_params(pbs_executable(input, output, params)))
         pullback
@@ -109,7 +109,7 @@ SymbolicPullback(nn::SymbolicNeuralNetwork) = SymbolicPullback(nn, AbstractNeura
 Return the `NamedTuple` that's equivalent to the `NeuralNetworkParameters`.
 """
 _get_params(nt::NamedTuple) = nt
-_get_params(ps::NeuralNetworkParameters) = ps.params
+_get_params(ps::NeuralNetworkParameters) = params(ps)
 _get_params(ps::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}) = [_get_params(nt) for nt in ps]
 
 """

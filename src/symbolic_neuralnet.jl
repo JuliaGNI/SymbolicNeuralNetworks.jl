@@ -47,6 +47,8 @@ function SymbolicNeuralNetwork(d::AbstractExplicitLayer)
     SymbolicNeuralNetwork(UnknownArchitecture(), d)
 end
 
+AbstractNeuralNetworks.params(nn::SymbolicNeuralNetwork) = nn.params
+
 apply(snn::AbstractSymbolicNeuralNetwork, x, args...) = snn(x, args...)
 
 input_dimension(::AbstractExplicitLayer{M}) where M = M 
@@ -61,5 +63,5 @@ function Base.show(io::IO, snn::SymbolicNeuralNetwork)
     print(io, "\nModel = ")
     print(io, snn.model)
     print(io, "\nSymbolic Params = ")
-    print(io, snn.params)
+    print(io, params(snn))
 end

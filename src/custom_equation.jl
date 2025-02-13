@@ -77,7 +77,7 @@ function evaluate_equations(eqs::NamedTuple, nn::AbstractSymbolicNeuralNetwork; 
     remaining_eqs = NamedTuple([p for p in pairs(eqs) if p[1] ∉ [:x, :nn, :∇nn]])
 
     # Evaluation of the symbolic output
-    soutput = _scalarize(nn.model(sinput, nn.params))
+    soutput = _scalarize(nn.model(sinput, params(nn)))
 
     # make differential 
     Dx = symbolic_differentials(sinput)

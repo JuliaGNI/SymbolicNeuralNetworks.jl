@@ -6,17 +6,17 @@ Build an executable function based on `eqs` that potentially also has a symbolic
 # Examples
 
 ```jldoctest
-using SymbolicNeuralNetworks: build_nn_function, SymbolicNeuralNetwork
+using SymbolicNeuralNetworks: build_nn_function, SymbolicNeuralNetwork, params
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork
 import Random
 Random.seed!(123)
 
 ch = Chain(Dense(2, 1, tanh))
 nn = SymbolicNeuralNetwork(ch)
-eqs = [(a = ch(nn.input, nn.params), b = ch(nn.input, nn.params).^2), (c = ch(nn.input, nn.params).^3, )]
-funcs = build_nn_function(eqs, nn.params, nn.input)
+eqs = [(a = ch(nn.input, params(nn)), b = ch(nn.input, params(nn)).^2), (c = ch(nn.input, params(nn)).^3, )]
+funcs = build_nn_function(eqs, params(nn), nn.input)
 input = [1., 2.]
-ps = NeuralNetwork(ch).params
+ps = params(NeuralNetwork(ch))
 a = ch(input, ps)
 b = ch(input, ps).^2
 c = ch(input, ps).^3
@@ -46,17 +46,17 @@ Return a function that takes an input, (optionally) an output and neural network
 # Examples
 
 ```jldoctest
-using SymbolicNeuralNetworks: build_nn_function, SymbolicNeuralNetwork
+using SymbolicNeuralNetworks: build_nn_function, SymbolicNeuralNetwork, params
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork
 import Random
 Random.seed!(123)
 
 c = Chain(Dense(2, 1, tanh))
 nn = SymbolicNeuralNetwork(c)
-eqs = (a = c(nn.input, nn.params), b = c(nn.input, nn.params).^2)
-funcs = build_nn_function(eqs, nn.params, nn.input)
+eqs = (a = c(nn.input, params(nn)), b = c(nn.input, params(nn)).^2)
+funcs = build_nn_function(eqs, params(nn), nn.input)
 input = [1., 2.]
-ps = NeuralNetwork(c).params
+ps = params(NeuralNetwork(c))
 a = c(input, ps)
 b = c(input, ps).^2
 funcs_evaluated = funcs(input, ps)
@@ -89,17 +89,17 @@ Return an executable function for each entry in `eqs`. This still has to be proc
 # Examples
 
 ```jldoctest
-using SymbolicNeuralNetworks: function_valued_parameters, SymbolicNeuralNetwork
+using SymbolicNeuralNetworks: function_valued_parameters, SymbolicNeuralNetwork, params
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork
 import Random
 Random.seed!(123)
 
 c = Chain(Dense(2, 1, tanh))
 nn = SymbolicNeuralNetwork(c)
-eqs = (a = c(nn.input, nn.params), b = c(nn.input, nn.params).^2)
-funcs = function_valued_parameters(eqs, nn.params, nn.input)
+eqs = (a = c(nn.input, params(nn)), b = c(nn.input, params(nn)).^2)
+funcs = function_valued_parameters(eqs, params(nn), nn.input)
 input = [1., 2.]
-ps = NeuralNetwork(c).params
+ps = params(NeuralNetwork(c))
 a = c(input, ps)
 b = c(input, ps).^2
 
