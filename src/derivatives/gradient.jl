@@ -5,13 +5,17 @@ Computes and stores the gradient of a symbolic function with respect to the para
 
 # Constructors
 
-    Gradient(output, nn)
+    Gradient(f, nn)
 
-Differentiate the symbolic `output` with respect to the parameters of `nn`.
+Differentiate the symbolic `f` with respect to the parameters of `nn`.
 
     Gradient(nn)
 
-Compute the symbolic output of `nn` and differentiate it with respect to the parameters of `nn`.
+Compute the symbolic output of `nn` and differentiate it with respect to the parameters of `nn`. This does:
+
+```julia
+nn.model(nn.input, params(nn))
+```
 
 # Examples
 
@@ -40,9 +44,9 @@ L"\begin{equation}
 
 Internally the constructors are using [`symbolic_pullback`](@ref).
 """
-struct Gradient{ST, OT, SDT} <: Derivative{ST, OT, SDT} 
+struct Gradient{ST, FT, SDT} <: Derivative{ST, FT, SDT} 
     nn::ST
-    output::OT
+    f::FT
     ∇::SDT
 end
 
@@ -50,6 +54,8 @@ end
     derivative(g)
 
 # Examples
+
+We compare this to [`symbolic_pullback`](@ref) here:
 
 ```jldoctest
 using SymbolicNeuralNetworks: SymbolicNeuralNetwork, Gradient, derivative, symbolic_pullback
@@ -60,7 +66,7 @@ nn = SymbolicNeuralNetwork(c)
 g = Gradient(nn)
 ∇ = derivative(g)
 
-isequal(∇, symbolic_pullback(g.output, nn))
+isequal(∇, symbolic_pullback(g.f, nn))
 
 # output
 
@@ -79,9 +85,9 @@ function Gradient(nn::SymbolicNeuralNetwork)
 end
 
 @doc raw"""
-    symbolic_pullback(nn, output)
+    symbolic_pullback(nn, f)
 
-This takes a symbolic output that depends on the parameters in `nn` and returns the corresponding pullback (a symbolic expression).
+This takes a symbolic `f`` that depends on the parameters in `nn` and returns the corresponding pullback (a symbolic expression).
 
 This is used by [`Gradient`](@ref) and [`SymbolicPullback`](@ref).
 
@@ -113,7 +119,7 @@ L"\begin{equation}
 "
 ```
 """
-function symbolic_pullback(soutput::EqT, nn::AbstractSymbolicNeuralNetwork)::Union{AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}, Union{NamedTuple, NeuralNetworkParameters}}
+function symbolic_pullback(f::EqT, nn::AbstractSymbolicNeuralNetwork)::Union{AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}, Union{NamedTuple, NeuralNetworkParameters}}
     symbolic_diffs = symbolic_differentials(params(nn))
-    [symbolic_derivative(soutput_single, symbolic_diffs) for soutput_single ∈ soutput]
+    [symbolic_derivative(f_single, symbolic_diffs) for f_single ∈ f]
 end

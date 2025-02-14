@@ -28,7 +28,7 @@ function test_jacobian(n::Integer, T = Float32)
 
     params = NeuralNetwork(c, T).params
     input = rand(T, n)
-    @test build_nn_function(g.output, nn)(input, params) ≈ c(input, params)
+    @test build_nn_function(g.f, nn)(input, params) ≈ c(input, params)
     @test build_nn_function(derivative(g), nn)(input, params) ≈ ForwardDiff.jacobian(input -> c(input, params), input)
 end
 
