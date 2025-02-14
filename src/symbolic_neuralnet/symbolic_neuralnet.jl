@@ -54,7 +54,7 @@ function SymbolicNeuralNetwork(d::AbstractExplicitLayer)
     SymbolicNeuralNetwork(UnknownArchitecture(), d)
 end
 
-params(snn::AbstractSymbolicNeuralNetwork) = snn.params
+AbstractNeuralNetworks.params(nn::SymbolicNeuralNetwork) = nn.params
 
 apply(snn::AbstractSymbolicNeuralNetwork, x, args...) = snn(x, args...)
 

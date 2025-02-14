@@ -4,6 +4,7 @@ Here we build a Hamiltonian neural network as a symbolic neural network.
 
 ```julia hnn
 using SymbolicNeuralNetworks
+using SymbolicNeuralNetworks: params
 using GeometricMachineLearning
 using AbstractNeuralNetworks: Dense, UnknownArchitecture, Model
 using LinearAlgebra: norm
@@ -45,7 +46,7 @@ nothing # hide
 We can now train the network:
 
 ```julia hnn
-ps = NeuralNetwork(c, T).params
+ps = params(NeuralNetwork(c, T))
 dl = DataLoader(z_data, hvf_analytic(z_data))
 o = Optimizer(AdamOptimizer(.01), ps)
 batch = Batch(200)
@@ -59,7 +60,7 @@ We now integrate the vector field:
 
 ```julia hnn
 using GeometricIntegrators
-hvf_closure(input) = build_nn_function(hvf, x, nn)(input, nn_dummy.params)
+hvf_closure(input) = build_nn_function(hvf, x, nn)(input, params(nn_dummy))
 function v(v, t, q, params)
     v .= hvf_closure(q)
 end
