@@ -45,7 +45,7 @@ We can use `Jacobian` together with [`build_nn_function`](@ref):
 ```jldoctest
 using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: Jacobian, derivative
-using AbstractNeuralNetworks: Dense, Chain, NeuralNetwork
+using AbstractNeuralNetworks: Dense, Chain, NeuralNetwork, params
 using Symbolics
 import Random
 

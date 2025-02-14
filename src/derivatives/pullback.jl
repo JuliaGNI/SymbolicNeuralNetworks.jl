@@ -52,16 +52,15 @@ c = Chain(Dense(2, 1, tanh))
 nn = NeuralNetwork(c)
 snn = SymbolicNeuralNetwork(nn)
 loss = FeedForwardLoss()
-pb = SymbolicPullback(nn, loss)
-ps = AbstractNeuralNetworks.params(NeuralNetwork(c))
+pb = SymbolicPullback(snn, loss)
 input_output = (rand(2), rand(1))
 loss_and_pullback = pb(params(nn), nn.model, input_output)
 # note that we apply the second argument to another input `1`
 pb_values = loss_and_pullback[2](1)
 
 @variables soutput[1:SymbolicNeuralNetworks.output_dimension(nn.model)]
-symbolic_pullbacks = SymbolicNeuralNetworks.symbolic_pullback(loss(nn.model, SymbolicNeuralNetworks.params(nn), nn.input, soutput), nn)
-pv_values2 = build_nn_function(symbolic_pullbacks, SymbolicNeuralNetworks.params(nn), nn.input, soutput)(input_output[1], input_output[2], ps)
+symbolic_pullbacks = SymbolicNeuralNetworks.symbolic_pullback(loss(nn.model, params(snn), snn.input, soutput), snn)
+pb_values2 = build_nn_function(symbolic_pullbacks, params(snn), snn.input, soutput)(input_output[1], input_output[2], params(nn))
 
 pb_values == (pb_values2 |> SymbolicNeuralNetworks._get_contents |> SymbolicNeuralNetworks._get_params)
 

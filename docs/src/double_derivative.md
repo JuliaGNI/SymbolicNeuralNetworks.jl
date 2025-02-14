@@ -18,7 +18,7 @@
 ```@example jacobian_gradient
 using AbstractNeuralNetworks
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: Jacobian, Gradient, derivative, params
+using SymbolicNeuralNetworks: Jacobian, Gradient, derivative
 using Latexify: latexify
 
 c = Chain(Dense(2, 1, tanh; use_bias = false))
