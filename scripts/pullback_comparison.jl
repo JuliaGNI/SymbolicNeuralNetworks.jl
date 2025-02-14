@@ -1,7 +1,7 @@
 using SymbolicNeuralNetworks
 using AbstractNeuralNetworks
 using GeometricMachineLearning
-using AbstractNeuralNetworks: FeedForwardLoss
+using AbstractNeuralNetworks: FeedForwardLoss, params
 using GeometricMachineLearning: ZygotePullback
 import Random
 Random.seed!(123)
@@ -25,9 +25,9 @@ _do = 1.
 # @time zpb_evaluated = zpb(params(nn_cpu), nn.model, (input, output))[2](_do)[1].params
 # @assert values(spb_evaluated) .≈ values(zpb_evaluated)
 
-function timenn(pb, params, model, input, output, _do = 1.)
-    pb(params, model, (input, output))[2](_do)
-    @time pb(params, model, (input, output))[2](_do)
+function timenn(pb, _params, model, input, output, _do = 1.)
+    pb(_params, model, (input, output))[2](_do)
+    @time pb(_params, model, (input, output))[2](_do)
 end
 
 timenn(spb, params(nn_cpu), nn.model, input, output)

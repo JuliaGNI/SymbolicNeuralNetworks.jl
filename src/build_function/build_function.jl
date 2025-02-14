@@ -54,7 +54,7 @@ built_function([1. 2.; 3. 4.], params(nn), 1)
 # output
 
 1-element Vector{Float64}:
- -0.9999967113439513
+ 0.9912108161055604
 ```
 
 Note that we have to supply an extra argument (index) to `_build_nn_function` that we do not have to supply to [`build_nn_function`](@ref).

@@ -18,7 +18,7 @@
 ```@example jacobian_gradient
 using AbstractNeuralNetworks
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: Jacobian, Gradient, derivative, params
+using SymbolicNeuralNetworks: Jacobian, Gradient, derivative
 using Latexify: latexify
 
 c = Chain(Dense(2, 1, tanh; use_bias = false))
@@ -59,7 +59,7 @@ We can easily differentiate a neural network twice by using [`SymbolicNeuralNetw
 ```@example jacobian_gradient
 using AbstractNeuralNetworks
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: Jacobian, Gradient, derivative
+using SymbolicNeuralNetworks: Jacobian, Gradient, derivative, params
 using Latexify: latexify
 
 c = Chain(Dense(2, 1, tanh))
