@@ -22,8 +22,8 @@ funcs_evaluated = funcs(input, params(nn))
 # output
 
 2-element Vector{NamedTuple}:
- (a = [-0.9999386280616135], b = [0.9998772598897417])
- (c = [-0.9998158954841537],)
+ (a = [0.985678060655224], b = [0.9715612392570434])
+ (c = [0.9576465981186686],)
 ```
 """
 function build_nn_function(eqs::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...)
@@ -58,7 +58,7 @@ funcs_evaluated = funcs(input, params(nn))
 
 # output
 
-(a = [-0.9999386280616135], b = [0.9998772598897417])
+(a = [0.985678060655224], b = [0.9715612392570434])
 ```
 
 # Implementation

@@ -18,7 +18,6 @@ Compute the symbolic output of `nn` and differentiate it with respect to the par
 ```julia
 using SymbolicNeuralNetworks: SymbolicNeuralNetwork, Gradient, derivative
 using AbstractNeuralNetworks
-using Latexify: latexify
 
 c = Chain(Dense(2, 1, tanh))
 nn = SymbolicNeuralNetwork(c)
