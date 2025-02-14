@@ -18,7 +18,7 @@
 ```@example jacobian_gradient
 using AbstractNeuralNetworks
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: Jacobian, Gradient, derivative
+using SymbolicNeuralNetworks: Jacobian, Gradient, derivative, params
 using Latexify: latexify
 
 c = Chain(Dense(2, 1, tanh; use_bias = false))
@@ -92,7 +92,7 @@ x = \begin{pmatrix} 1 \\ 0 \end{pmatrix}, \quad W = \begin{bmatrix} 1 & 0 \\ 0 &
 ```
 
 ```@example jacobian_gradient
-built_function = build_nn_function(derivative(g), nn.params, nn.input)
+built_function = build_nn_function(derivative(g), params(nn), nn.input)
 
 x = [1., 0.]
 ps = NeuralNetworkParameters((L1 = (W = [1. 0.; 0. 1.], b = [0., 0.]), ))

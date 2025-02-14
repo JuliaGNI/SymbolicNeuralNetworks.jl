@@ -13,7 +13,7 @@ Also compare this to [`build_nn_function(::EqT, ::AbstractSymbolicNeuralNetwork)
 See the *extended help section* of [`build_nn_function(::EqT, ::AbstractSymbolicNeuralNetwork)`](@ref).
 """
 function build_nn_function(eqs, nn::AbstractSymbolicNeuralNetwork, soutput)
-    build_nn_function(eqs, nn.params, nn.input, soutput)
+    build_nn_function(eqs, params(nn), nn.input, soutput)
 end
 
 function build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr, soutput::Symbolics.Arr)

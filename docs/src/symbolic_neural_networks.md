@@ -6,7 +6,7 @@ We first call the symbolic neural network that only consists of one layer:
 
 ```@example snn
 using SymbolicNeuralNetworks
-using AbstractNeuralNetworks: Chain, Dense
+using AbstractNeuralNetworks: Chain, Dense, params
 
 input_dim = 2
 output_dim = 1
@@ -23,7 +23,7 @@ using Symbolics
 using Latexify: latexify
 
 @variables sinput[1:input_dim]
-soutput = nn.model(sinput, nn.params)
+soutput = nn.model(sinput, params(nn))
 
 soutput
 ```
@@ -101,7 +101,7 @@ We now compare the neural network-approximated curve to the original one:
 fig = Figure()
 ax = Axis3(fig[1, 1])
 
-surface!(x_vec, y_vec, [c([x, y], nn_cpu.params)[1] for x in x_vec, y in y_vec]; alpha = .8, colormap = :darkterrain, transparency = true)
+surface!(x_vec, y_vec, [c([x, y], params(nn_cpu))[1] for x in x_vec, y in y_vec]; alpha = .8, colormap = :darkterrain, transparency = true)
 fig
 ```
 
