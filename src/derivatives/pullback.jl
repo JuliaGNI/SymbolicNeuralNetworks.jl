@@ -108,8 +108,11 @@ SymbolicPullback(nn::SymbolicNeuralNetwork) = SymbolicPullback(nn, AbstractNeura
 Return the `NamedTuple` that's equivalent to the `NeuralNetworkParameters`.
 """
 _get_params(nt::NamedTuple) = nt
+function _get_params(nt::NamedTuple{(:params,), Tuple{AT}}) where {AT <: Any}
+    @warn "This function was most likely called because @adjoint for `NeuralNetworkParameters` hasn't been implemented."
+    nt.params
+end
 _get_params(ps::NeuralNetworkParameters) = params(ps)
-_get_params(ps::NamedTuple{(:params,), Tuple{NT}}) where {NT<:NamedTuple} = ps.params
 _get_params(ps::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}) = [_get_params(nt) for nt in ps]
 
 """
