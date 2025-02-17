@@ -28,10 +28,10 @@ nn = SymbolicNeuralNetwork(c)
 
 Internally the constructors are using [`symbolic_pullback`](@ref).
 """
-struct Gradient{ST, OT, SDT} <: Derivative{ST, OT, SDT} 
-    nn::ST
+struct Gradient{OT, SDT, ST} <: Derivative{OT, SDT, ST} 
     output::OT
     ∇::SDT
+    nn::ST
 end
 
 """
@@ -59,7 +59,7 @@ derivative(g::Gradient) = g.∇
 
 function Gradient(output::EqT, nn::SymbolicNeuralNetwork)
     typeof(output) <: AbstractArray ? nothing : (@warn "You should only use `Gradient` together with array expressions! Maybe you wanted to use `SymbolicPullback`.")
-    Gradient(nn, output, symbolic_pullback(output, nn))
+    Gradient(output, symbolic_pullback(output, nn), nn)
 end
 
 function Gradient(nn::SymbolicNeuralNetwork)
@@ -87,7 +87,7 @@ nn = SymbolicNeuralNetwork(c)
 output = c(nn.input, params(nn))
 spb = symbolic_pullback(output, nn)
 
-spb[1].L1.b |> latexify
+spb[1].L1.b
 ```
 """
 function symbolic_pullback(soutput::EqT, nn::AbstractSymbolicNeuralNetwork)::Union{AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}, Union{NamedTuple, NeuralNetworkParameters}}

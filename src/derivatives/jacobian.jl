@@ -71,21 +71,13 @@ jacobian1(input, ps) ≈ [analytic_jacobian(i, j) for j ∈ 1:output_dim, i ∈ 
 true
 ```
 """
-struct Jacobian{ST, OT, SDT} <: Derivative{ST, OT, SDT} 
-    nn::ST
+struct Jacobian{OT, SDT, ST} <: Derivative{OT, SDT, ST} 
     output::OT
     □::SDT
+    nn::ST
 end
 
 derivative(j::Jacobian) = j.□
-
-function Jacobian(nn::AbstractSymbolicNeuralNetwork)
-    
-    # Evaluation of the symbolic output
-    soutput = nn.model(nn.input, params(nn))
-
-    Jacobian(soutput, nn)
-end
 
 function Jacobian(soutput::EqT, nn::AbstractSymbolicNeuralNetwork)
     # make differential 
@@ -94,5 +86,13 @@ function Jacobian(soutput::EqT, nn::AbstractSymbolicNeuralNetwork)
     # Evaluation of gradient
     s∇output = hcat([expand_derivatives.(Symbolics.scalarize(dx(soutput))) for dx in Dx]...)
 
-    Jacobian(nn, soutput, s∇output)
+    Jacobian(soutput, s∇output, nn)
+end
+
+function Jacobian(nn::AbstractSymbolicNeuralNetwork)
+    
+    # Evaluation of the symbolic output
+    soutput = nn.model(nn.input, params(nn))
+
+    Jacobian(soutput, nn)
 end
