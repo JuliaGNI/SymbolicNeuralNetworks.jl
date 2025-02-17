@@ -32,7 +32,7 @@ function test_jacobian(n::Integer, T = Float32)
     @test build_nn_function(derivative(g), nn)(input, _params) ≈ ForwardDiff.jacobian(input -> c(input, _params), input)
 end
 
-for n ∈ 1:10
+for n ∈ 10:1
     for T ∈ (Float32, Float64)
         test_jacobian(n, T)
     end 

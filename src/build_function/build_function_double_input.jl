@@ -42,7 +42,7 @@ See the docstrings for those functions for details on how the code is modified.
 """
 function _build_nn_function(eq::EqT, params::NeuralNetworkParameters, sinput::Symbolics.Arr, soutput::Symbolics.Arr)
     sc_eq = Symbolics.scalarize(eq)
-    code = build_function(sc_eq, sinput, soutput, values(params)...; expression = Val{true}) |> _reduce_code
+    code = build_function(sc_eq, sinput, soutput, values(params)...; expression = Val{true}) |> _reduce
     rewritten_code = fix_map_reduce(modify_input_arguments2(rewrite_arguments2(fix_create_array(code))))
     parallelized_code = make_kernel2(rewritten_code)
     @RuntimeGeneratedFunction(parallelized_code)

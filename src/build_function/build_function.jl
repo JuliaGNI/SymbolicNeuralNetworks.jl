@@ -69,31 +69,16 @@ This first calls `Symbolics.build_function` with the keyword argument `expressio
 
 See the docstrings for those functions for details on how the code is modified. 
 """
-function _build_nn_function(eq::EqT, params::NeuralNetworkParameters, sinput::Symbolics.Arr)
+function _build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr)
     sc_eq = Symbolics.scalarize(eq)
-    code = build_function(sc_eq, sinput, values(params)...; expression = Val{true}) |> _reduce_code
+    code = build_function(sc_eq, sinput, values(sparams)...; expression = Val{true}) |> _reduce
     rewritten_code = fix_map_reduce(modify_input_arguments(rewrite_arguments(fix_create_array(code))))
     parallelized_code = make_kernel(rewritten_code)
     @RuntimeGeneratedFunction(parallelized_code)
 end
 
-"""
-    _reduce_code(code)
-
-Reduce the code.
-
-For some reason `Symbolics.build_function` sometimes returns a tuple and sometimes it doesn't.
-
-This function takes care of this. 
-If `build_function` returns a tuple `reduce_code` checks which of the expressions is in-place and then returns the other (not in-place) expression.
-"""
-function _reduce_code(code::Expr)
-    code
-end
-
-function _reduce_code(code::Tuple{Expr, Expr})
-    contains(string(code[1]), "ˍ₋out") ? code[2] : code[1]
-end
+_reduce(a) = a
+_reduce(a::Tuple) = a[1]
 
 """
     rewrite_arguments(s)

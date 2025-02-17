@@ -1,7 +1,7 @@
 """
     Derivative
 """
-abstract type Derivative{ST, FT, SDT} end
+abstract type Derivative{OT, SDT, ST <: AbstractSymbolicNeuralNetwork} end
 
 derivative(::DT) where {DT <: Derivative} = error("No method of function `derivative` defined for type $(DT).")
 
