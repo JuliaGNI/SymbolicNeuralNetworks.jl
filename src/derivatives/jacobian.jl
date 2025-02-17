@@ -75,7 +75,7 @@ true
 ```
 """
 struct Jacobian{OT, SDT, ST} <: Derivative{OT, SDT, ST} 
-    output::OT
+    f::OT
     □::SDT
     nn::ST
 end

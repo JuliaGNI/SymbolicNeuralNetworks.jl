@@ -33,7 +33,7 @@ nn = SymbolicNeuralNetwork(c)
 Internally the constructors are using [`symbolic_pullback`](@ref).
 """
 struct Gradient{OT, SDT, ST} <: Derivative{OT, SDT, ST} 
-    output::OT
+    f::OT
     ∇::SDT
     nn::ST
 end
@@ -73,7 +73,7 @@ function Gradient(nn::SymbolicNeuralNetwork)
 end
 
 @doc raw"""
-    symbolic_pullback(nn, f)
+    symbolic_pullback(f, nn)
 
 This takes a symbolic `f`` that depends on the parameters in `nn` and returns the corresponding pullback (a symbolic expression).
 
