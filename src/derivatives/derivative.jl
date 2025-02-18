@@ -19,16 +19,16 @@ function symbolic_differentials(sparams::NeuralNetworkParameters)
     NeuralNetworkParameters{keys(sparams)}(vals)
 end
 
-function symbolic_derivative(soutput, Dx::AbstractArray)
-    [expand_derivatives(Symbolics.scalarize(dx(soutput))) for dx in Dx]
+function symbolic_derivative(f, Dx::AbstractArray)
+    [expand_derivatives(Symbolics.scalarize(dx(f))) for dx in Dx]
 end
 
-function symbolic_derivative(soutput, dps::NamedTuple)
-    gradient_values = (symbolic_derivative(soutput, dps[key]) for key in keys(dps))
+function symbolic_derivative(f, dps::NamedTuple)
+    gradient_values = (symbolic_derivative(f, dps[key]) for key in keys(dps))
     NamedTuple{keys(dps)}(gradient_values)
 end
 
-function symbolic_derivative(soutput, dps::NeuralNetworkParameters)
-    vals = Tuple(symbolic_derivative(soutput, dp) for dp in values(dps))
+function symbolic_derivative(f, dps::NeuralNetworkParameters)
+    vals = Tuple(symbolic_derivative(f, dp) for dp in values(dps))
     NeuralNetworkParameters{keys(dps)}(vals)
 end
