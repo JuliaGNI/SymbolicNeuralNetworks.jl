@@ -1,7 +1,7 @@
 """
     build_nn_function(eqs, nn, soutput)
 
-Build an executable function that can also depend on an output. It is then called with:
+Build an executable function that can also depend on an output. The resulting `built_function` is then called with:
 ```julia
 built_function(input, output, ps)
 ```
@@ -17,6 +17,7 @@ function build_nn_function(eqs, nn::AbstractSymbolicNeuralNetwork, soutput)
 end
 
 function build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr, soutput::Symbolics.Arr; reduce = hcat)
+    @assert ( (reduce == hcat) || (reduce == +) ) "Keyword reduce either has to be + or hcat!"
     gen_fun = _build_nn_function(eq, sparams, sinput, soutput)
     gen_fun_returned(input, output, ps) = mapreduce(k -> gen_fun(input, output, ps, k), reduce, axes(input, 2))
     function gen_fun_returned(x::AT, y::AT, ps) where {AT <: Union{AbstractVector, Symbolics.Arr}}
