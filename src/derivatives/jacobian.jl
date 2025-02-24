@@ -1,24 +1,27 @@
 @doc raw"""
     Jacobian <: Derivative
 
-An instance of [`Derivative`](@ref). Computes the derivatives of a neural network with respect to its inputs.
+An subtype of [`Derivative`](@ref). Computes the derivatives of a neural network with respect to its inputs.
 
 # Constructors
 
-    Jacobian(output, nn)
+    Jacobian(f, nn)
     Jacobian(nn)
 
 Compute the jacobian of a [`SymbolicNeuralNetwork`](@ref) with respect to the input arguments.
 
-The output of `Jacobian` consists of a `NamedTuple` that has the following keys:
-1. a symbolic expression of the input (keyword `x`),
-2. a symbolic expression of the output (keyword `soutput`),
-3. a symbolic expression of the gradient (keyword `s∇output`).
 
-If `output` is not supplied as an input argument than it is taken to be:
+# Keys
+
+`Jacobian` has the following keys:
+1. `nn::`[`SymbolicNeuralNetwork`](@ref),
+2. `f`: a symbolic expression to be differentiated,
+3. `□`: a symbolic expression of the Jacobian.
+
+If `f` is not supplied as an input argument than it is taken to be:
 
 ```julia 
-soutput = nn.model(nn.input, nn.params)
+f = nn.model(nn.input, params(nn))
 ```
 
 # Implementation
@@ -45,7 +48,7 @@ We can use `Jacobian` together with [`build_nn_function`](@ref):
 ```jldoctest
 using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: Jacobian, derivative
-using AbstractNeuralNetworks: Dense, Chain, initialparameters
+using AbstractNeuralNetworks: Dense, Chain, NeuralNetwork, params
 using Symbolics
 import Random
 
@@ -59,7 +62,7 @@ nn = SymbolicNeuralNetwork(c)
 □ = SymbolicNeuralNetworks.Jacobian(nn)
 # here we need to access the derivative and convert it into a function
 jacobian1 = build_nn_function(derivative(□), nn)
-ps = initialparameters(c, Float64)
+ps = params(NeuralNetwork(c, Float64))
 input = rand(input_dim)
 #derivative
 Dtanh(x::Real) = 4 * exp(2 * x) / (1 + exp(2x)) ^ 2
@@ -71,28 +74,28 @@ jacobian1(input, ps) ≈ [analytic_jacobian(i, j) for j ∈ 1:output_dim, i ∈ 
 true
 ```
 """
-struct Jacobian{ST, OT, SDT} <: Derivative{ST, OT, SDT} 
-    nn::ST
-    output::OT
+struct Jacobian{OT, SDT, ST} <: Derivative{OT, SDT, ST} 
+    f::OT
     □::SDT
+    nn::ST
 end
 
 derivative(j::Jacobian) = j.□
 
-function Jacobian(nn::AbstractSymbolicNeuralNetwork)
-    
-    # Evaluation of the symbolic output
-    soutput = nn.model(nn.input, nn.params)
-
-    Jacobian(soutput, nn)
-end
-
-function Jacobian(soutput::EqT, nn::AbstractSymbolicNeuralNetwork)
+function Jacobian(f::EqT, nn::AbstractSymbolicNeuralNetwork)
     # make differential 
     Dx = symbolic_differentials(nn.input)
 
     # Evaluation of gradient
-    s∇output = hcat([expand_derivatives.(Symbolics.scalarize(dx(soutput))) for dx in Dx]...)
+    s∇f = hcat([expand_derivatives.(Symbolics.scalarize(dx(f))) for dx in Dx]...)
 
-    Jacobian(nn, soutput, s∇output)
+    Jacobian(f, s∇f, nn)
+end
+
+function Jacobian(nn::AbstractSymbolicNeuralNetwork)
+    
+    # Evaluation of the symbolic output
+    soutput = nn.model(nn.input, params(nn))
+
+    Jacobian(soutput, nn)
 end

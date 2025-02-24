@@ -13,7 +13,7 @@ Also compare this to [`build_nn_function(::EqT, ::AbstractSymbolicNeuralNetwork)
 See the *extended help section* of [`build_nn_function(::EqT, ::AbstractSymbolicNeuralNetwork)`](@ref).
 """
 function build_nn_function(eqs, nn::AbstractSymbolicNeuralNetwork, soutput)
-    build_nn_function(eqs, nn.params, nn.input, soutput)
+    build_nn_function(eqs, params(nn), nn.input, soutput)
 end
 
 function build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr, soutput::Symbolics.Arr; reduce = hcat)
@@ -59,7 +59,7 @@ See the docstrings for those functions for details on how the code is modified.
 """
 function _build_nn_function(eq::EqT, params::NeuralNetworkParameters, sinput::Symbolics.Arr, soutput::Symbolics.Arr)
     sc_eq = Symbolics.scalarize(eq)
-    code = build_function(sc_eq, sinput, soutput, values(params)...; expression = Val{true}) |> _reduce_code
+    code = build_function(sc_eq, sinput, soutput, values(params)...; expression = Val{true}) |> _reduce
     rewritten_code = fix_map_reduce(modify_input_arguments2(rewrite_arguments2(fix_create_array(code))))
     parallelized_code = make_kernel2(rewritten_code)
     @RuntimeGeneratedFunction(parallelized_code)

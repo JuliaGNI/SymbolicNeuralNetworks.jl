@@ -19,7 +19,7 @@ The functions mentioned in the implementation section were adjusted ad-hoc to de
 Other problems may occur. In case you bump into one please [open an issue on github](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues).
 """
 function build_nn_function(eq::EqT, nn::AbstractSymbolicNeuralNetwork)
-    build_nn_function(eq, nn.params, nn.input)
+    build_nn_function(eq, params(nn), nn.input)
 end
 
 function build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr; reduce = hcat)
@@ -46,24 +46,25 @@ Build a function that can process a matrix. This is used as a starting point for
 # Examples
 
 ```jldoctest
-using SymbolicNeuralNetworks: _build_nn_function, symbolicparameters
-using Symbolics
-using AbstractNeuralNetworks
+using SymbolicNeuralNetworks: _build_nn_function, SymbolicNeuralNetwork
+using AbstractNeuralNetworks: params, Chain, Dense, NeuralNetwork
+import Random
+Random.seed!(123)
 
 c = Chain(Dense(2, 1, tanh))
-params = symbolicparameters(c)
-@variables sinput[1:2]
-eq = c(sinput, params)
-built_function = _build_nn_function(eq, params, sinput)
-ps = initialparameters(c)
-input = rand(2, 2)
-
-(built_function(input, ps, 1), built_function(input, ps, 2)) .≈ (c(input[:, 1], ps), c(input[:, 2], ps))
+nn = NeuralNetwork(c)
+snn = SymbolicNeuralNetwork(nn)
+eq = c(snn.input, params(snn))
+built_function = _build_nn_function(eq, params(snn), snn.input)
+built_function([1. 2.; 3. 4.], params(nn), 1)
 
 # output
 
-(true, true)
+1-element Vector{Float64}:
+ 0.9912108161055604
 ```
+
+Note that we have to supply an extra argument (index) to `_build_nn_function` that we do not have to supply to [`build_nn_function`](@ref).
 
 # Implementation
 
@@ -75,31 +76,16 @@ This first calls `Symbolics.build_function` with the keyword argument `expressio
 
 See the docstrings for those functions for details on how the code is modified. 
 """
-function _build_nn_function(eq::EqT, params::NeuralNetworkParameters, sinput::Symbolics.Arr)
+function _build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr)
     sc_eq = Symbolics.scalarize(eq)
-    code = build_function(sc_eq, sinput, values(params)...; expression = Val{true}) |> _reduce_code
+    code = build_function(sc_eq, sinput, values(sparams)...; expression = Val{true}) |> _reduce
     rewritten_code = fix_map_reduce(modify_input_arguments(rewrite_arguments(fix_create_array(code))))
     parallelized_code = make_kernel(rewritten_code)
     @RuntimeGeneratedFunction(parallelized_code)
 end
 
-"""
-    _reduce_code(code)
-
-Reduce the code.
-
-For some reason `Symbolics.build_function` sometimes returns a tuple and sometimes it doesn't.
-
-This function takes care of this. 
-If `build_function` returns a tuple `reduce_code` checks which of the expressions is in-place and then returns the other (not in-place) expression.
-"""
-function _reduce_code(code::Expr)
-    code
-end
-
-function _reduce_code(code::Tuple{Expr, Expr})
-    contains(string(code[1]), "ˍ₋out") ? code[2] : code[1]
-end
+_reduce(a) = a
+_reduce(a::Tuple) = a[1]
 
 """
     rewrite_arguments(s)
