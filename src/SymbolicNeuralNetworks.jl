@@ -19,6 +19,8 @@ module SymbolicNeuralNetworks
 
     include("symbolic_neuralnet/symbolize.jl")
 
+    include("utils/create_array.jl")
+
     export AbstractSymbolicNeuralNetwork
     export SymbolicNeuralNetwork
 
