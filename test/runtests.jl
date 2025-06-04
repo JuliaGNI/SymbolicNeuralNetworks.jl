@@ -1,6 +1,7 @@
 using SymbolicNeuralNetworks
 using SafeTestsets
 
+@safetestset "Check if reshape works in the correct way with the generated functions.               " begin include("reshape_test.jl") end
 @safetestset "Symbolic gradient                                                                      " begin include("derivatives/symbolic_gradient.jl") end
 @safetestset "Symbolic Neural network                                                                " begin include("derivatives/jacobian.jl") end
 @safetestset "Symbolic Params                                                                        " begin include("symbolic_neuralnet/symbolize.jl") end

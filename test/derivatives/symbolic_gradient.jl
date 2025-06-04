@@ -21,7 +21,7 @@ function test_symbolic_gradient(input_dim::Integer = 3, output_dim::Integer = 1,
     _sgrad = symbolic_derivative(sout, sdparams)
     input = rand(T, input_dim, second_dim)
     for k in 1:second_dim
-        zgrad = Zygote.gradient(ps -> (norm(c(input[:, k], ps)) ^ 2), params(nn))[1].params
+        zgrad = Zygote.gradient(ps -> (norm(c(input[:, k], ps)) ^ 2), params(nn))[1]
         for key1 in keys(_sgrad)
             for key2 in keys(_sgrad[key1])
                 executable_gradient = _build_nn_function(_sgrad[key1][key2], params(snn), snn.input)
