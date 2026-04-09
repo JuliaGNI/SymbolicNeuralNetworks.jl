@@ -26,6 +26,8 @@ module SymbolicNeuralNetworks
 
     include("symbolic_neuralnet/symbolic_neuralnet.jl")
 
+    include("utils/loss_adjustment.jl")
+
     export build_nn_function
     include("build_function/build_function.jl")
     include("build_function/build_function_double_input.jl")
