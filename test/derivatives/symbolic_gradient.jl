@@ -16,7 +16,7 @@ function test_symbolic_gradient(input_dim::Integer=3, output_dim::Integer=1, hid
     c = Chain(Dense(input_dim, hidden_dim, tanh), Dense(hidden_dim, output_dim, tanh))
     nn = NeuralNetwork(c)
     snn = SymbolicNeuralNetwork(nn)
-    sout = norm(c(snn.input, params(snn))) ^ 2
+    sout = norm(c(snn.input, params(snn)) |> collect)^2
     sdparams = symbolic_differentials(params(snn))
     _sgrad = symbolic_derivative(sout, sdparams)
     input = rand(T, input_dim, second_dim)
