@@ -22,7 +22,7 @@ typeof(pb(ps, nn.model, (rand(2), rand(1)))[2](1))
 
 # output
 
-@NamedTuple{L1::@NamedTuple{W::Matrix{Int64}, b::Vector{Int64}}}
+@NamedTuple{L1::@NamedTuple{W::Matrix{Float64}, b::Vector{Float64}}}
 ```
 
 # Implementation
