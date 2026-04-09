@@ -26,6 +26,11 @@ using AbstractNeuralNetworks
 c = Chain(Dense(2, 1, tanh))
 nn = SymbolicNeuralNetwork(c)
 (Gradient(nn) |> derivative)[1].L1.b
+
+# output
+
+1-element Vector{Symbolics.Num}:
+ 1 - (tanh(W_2[1] + W_1[1, 1]*sinput[1] + W_1[1, 2]*sinput[2])^2)
 ```
 
 # Implementation
@@ -93,6 +98,11 @@ output = c(nn.input, params(nn))
 spb = symbolic_pullback(output, nn)
 
 spb[1].L1.b
+
+# output
+
+1-element Vector{Symbolics.Num}:
+ 1 - (tanh(W_2[1] + W_1[1, 1]*sinput[1] + W_1[1, 2]*sinput[2])^2)
 ```
 """
 function symbolic_pullback(f::EqT, nn::AbstractSymbolicNeuralNetwork)::Union{AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}, Union{NamedTuple, NeuralNetworkParameters}}
