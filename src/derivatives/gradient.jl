@@ -19,7 +19,7 @@ nn.model(nn.input, params(nn))
 
 # Examples
 
-```julia
+```jldoctest
 using SymbolicNeuralNetworks: SymbolicNeuralNetwork, Gradient, derivative
 using AbstractNeuralNetworks
 
@@ -81,7 +81,7 @@ This is used by [`Gradient`](@ref) and [`SymbolicPullback`](@ref).
 
 # Examples
 
-```julia
+```jldoctest
 using SymbolicNeuralNetworks: SymbolicNeuralNetwork, symbolic_pullback
 using AbstractNeuralNetworks
 using AbstractNeuralNetworks: params
