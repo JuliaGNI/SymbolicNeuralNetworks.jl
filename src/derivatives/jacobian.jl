@@ -80,8 +80,6 @@ struct Jacobian{OT, SDT, ST} <: Derivative{OT, SDT, ST}
     nn::ST
 end
 
-derivative(j::Jacobian) = j.□
-
 function Jacobian(f::EqT, nn::AbstractSymbolicNeuralNetwork)
     # make differential
     Dx = symbolic_differentials(nn.input)
@@ -99,3 +97,5 @@ function Jacobian(nn::AbstractSymbolicNeuralNetwork)
 
     Jacobian(soutput, nn)
 end
+
+derivative(j::Jacobian) = j.□
