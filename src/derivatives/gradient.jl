@@ -37,7 +37,7 @@ nn = SymbolicNeuralNetwork(c)
 
 Internally the constructors are using [`symbolic_pullback`](@ref).
 """
-struct Gradient{OT, SDT, ST} <: Derivative{OT, SDT, ST} 
+struct Gradient{OT, SDT, ST} <: Derivative{OT, SDT, ST}
     f::OT
     ∇::SDT
     nn::ST
