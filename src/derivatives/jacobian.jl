@@ -87,7 +87,7 @@ function Jacobian(f::EqT, nn::AbstractSymbolicNeuralNetwork)
     Dx = symbolic_differentials(nn.input)
 
     # Evaluation of gradient
-    s∇f = hcat([expand_derivatives.(Symbolics.scalarize(dx(f))) for dx in Dx]...)
+    s∇f = expand_derivatives.(hcat([Symbolics.scalarize(dx.(f |> collect)) for dx in Dx]...))
 
     Jacobian(f, s∇f, nn)
 end

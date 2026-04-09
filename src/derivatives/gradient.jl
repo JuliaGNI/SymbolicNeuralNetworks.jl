@@ -97,5 +97,5 @@ spb[1].L1.b
 """
 function symbolic_pullback(f::EqT, nn::AbstractSymbolicNeuralNetwork)::Union{AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}, Union{NamedTuple, NeuralNetworkParameters}}
     symbolic_diffs = symbolic_differentials(params(nn))
-    [symbolic_derivative(f_single, symbolic_diffs) for f_single ∈ f]
+    [symbolic_derivative(f_single, symbolic_diffs) for f_single ∈ collect(f)]
 end
