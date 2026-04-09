@@ -20,7 +20,7 @@ ForwardDiff = "1"
 Latexify = "0.16"
 RuntimeGeneratedFunctions = "0.5"
 SymbolicUtils = "3, 4"
-Symbolics = "6, 7"
+Symbolics = "7"
 Test = "1.11.0"
 Zygote = "0.6.73"
 
