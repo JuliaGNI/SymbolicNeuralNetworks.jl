@@ -3,10 +3,20 @@ using SymbolicNeuralNetworks: _get_params, _get_contents
 using AbstractNeuralNetworks
 using AbstractNeuralNetworks: params
 using Symbolics
-using GeometricMachineLearning: ZygotePullback
+using AbstractNeuralNetworks: AbstractPullback, QPTOAT
+import Zygote
 using Test
 import Random
 Random.seed!(123)
+
+####################################################################################################
+######################### this is copied from GeometricMachineLearning; will be again imported explicitly later.
+struct ZygotePullback{NNLT} <: AbstractPullback{NNLT}
+    loss::NNLT
+end
+(_pullback::ZygotePullback)(ps, model, input_nt::QPTOAT)::Tuple = Zygote.pullback(ps -> _pullback.loss(model, ps, input_nt), ps)
+(_pullback::ZygotePullback)(ps, model, input_nt_output_nt::Tuple{<:QPTOAT, <:QPTOAT})::Tuple = Zygote.pullback(ps -> _pullback.loss(model, ps, input_nt_output_nt...), ps)
+####################################################################################################
 
 compare_values(arr1::Array, arr2::Array) = @test arr1 ≈ arr2
 function compare_values(nt1::NamedTuple, nt2::NamedTuple)
