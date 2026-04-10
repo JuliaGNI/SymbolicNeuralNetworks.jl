@@ -1,0 +1,7 @@
+function (::FeedForwardLoss)(model::Union{AbstractNeuralNetworks.Chain,
+                                        AbstractNeuralNetworks.AbstractExplicitLayer},
+                                        params::NeuralNetworkParameters,
+                                        input::EqT,
+                                        output::EqT)
+        norm((model(input, params) |> collect) - output) / norm(output)
+end

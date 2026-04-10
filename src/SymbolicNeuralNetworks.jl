@@ -12,7 +12,7 @@ module SymbolicNeuralNetworks
     # these types will be shifted to `GeometricOptimizers` once this package is ready
     import AbstractNeuralNetworks: NetworkLoss, AbstractPullback
     import Symbolics: NaNMath
-    
+
     RuntimeGeneratedFunctions.init(@__MODULE__)
 
     include("custom_definitions_and_extensions/equation_types.jl")
@@ -25,6 +25,8 @@ module SymbolicNeuralNetworks
     export SymbolicNeuralNetwork
 
     include("symbolic_neuralnet/symbolic_neuralnet.jl")
+
+    include("utils/loss_adjustment.jl")
 
     export build_nn_function
     include("build_function/build_function.jl")

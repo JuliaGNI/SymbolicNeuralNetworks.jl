@@ -20,7 +20,7 @@ Compute the jacobian of a [`SymbolicNeuralNetwork`](@ref) with respect to the in
 
 If `f` is not supplied as an input argument than it is taken to be:
 
-```julia 
+```julia
 f = nn.model(nn.input, params(nn))
 ```
 
@@ -74,28 +74,28 @@ jacobian1(input, ps) ≈ [analytic_jacobian(i, j) for j ∈ 1:output_dim, i ∈ 
 true
 ```
 """
-struct Jacobian{OT, SDT, ST} <: Derivative{OT, SDT, ST} 
+struct Jacobian{OT, SDT, ST} <: Derivative{OT, SDT, ST}
     f::OT
     □::SDT
     nn::ST
 end
 
-derivative(j::Jacobian) = j.□
-
 function Jacobian(f::EqT, nn::AbstractSymbolicNeuralNetwork)
-    # make differential 
+    # make differential
     Dx = symbolic_differentials(nn.input)
 
     # Evaluation of gradient
-    s∇f = hcat([expand_derivatives.(Symbolics.scalarize(dx(f))) for dx in Dx]...)
+    s∇f = expand_derivatives.(hcat([Symbolics.scalarize(dx.(f |> collect)) for dx in Dx]...))
 
     Jacobian(f, s∇f, nn)
 end
 
 function Jacobian(nn::AbstractSymbolicNeuralNetwork)
-    
+
     # Evaluation of the symbolic output
     soutput = nn.model(nn.input, params(nn))
 
     Jacobian(soutput, nn)
 end
+
+derivative(j::Jacobian) = j.□

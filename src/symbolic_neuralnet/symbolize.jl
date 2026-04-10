@@ -57,7 +57,7 @@ sym_array = symbolize!(cache, arr, :Y)
 
 # output
 
-(Y_1[Base.OneTo(2),Base.OneTo(1)], Dict{Any, Any}(:X => 1, :Y => 1))
+(Y_1[1:2,1:1], Dict{Any, Any}(:X => 1, :Y => 1))
 ```
 
 Note that the for the second case the cache is storing a scalar under `:X` and an array under `:Y`. If we use the same label for both we get:
@@ -73,7 +73,7 @@ sym_array = symbolize!(cache, arr, :X)
 
 # output
 
-(X_2[Base.OneTo(2),Base.OneTo(1)], Dict{Any, Any}(:X => 2))
+(X_2[1:2,1:1], Dict{Any, Any}(:X => 2))
 ```
 
 We can also use `symbolize!` with `NamedTuple`s:
@@ -88,7 +88,7 @@ sym = symbolize!(cache, nt, :X)
 
 # output
 
-((a = X_1, b = X_2[Base.OneTo(2)]), Dict{Any, Any}(:X => 2))
+((a = X_1, b = X_2[1:2]), Dict{Any, Any}(:X => 2))
 ```
 
 And for neural network parameters:
