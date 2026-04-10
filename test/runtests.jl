@@ -22,4 +22,6 @@ end
 @safetestset "Tests associated with 'build_function_array.jl                                         " begin
     include("build_function/build_function_arrays.jl")
 end
-# @safetestset "Compare Zygote Pullback with Symbolic Pullback                                         " begin include("derivatives/pullback.jl") end
+@safetestset "Compare Zygote Pullback with Symbolic Pullback                                         " begin
+    include("derivatives/pullback.jl")
+end
