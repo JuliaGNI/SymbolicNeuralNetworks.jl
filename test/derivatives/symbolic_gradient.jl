@@ -57,6 +57,7 @@ for second_dim in (2, 3, 4)
     test_symbolic_gradient(3, 1, 2, Float64, second_dim)
 end
 
+###### in order for this to work we need to import functionality that allows for matrix-array and array-array multiplication
 # for (second_dim, third_dim) in ((1, 1), )
 #     test_symbolic_gradient2(3, 1, 2, Float64, second_dim, third_dim)
 # end
