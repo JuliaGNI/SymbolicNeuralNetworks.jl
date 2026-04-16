@@ -1,6 +1,13 @@
 using SymbolicNeuralNetworks
 using Documenter
 using Latexify: LaTeXString
+import GeometricMachineLearning
+using AbstractNeuralNetworks
+
+# this is necessary for compatibility. How derivatives are computed seems to have changed.
+function GeometricMachineLearning.optimization_step!(o::GeometricMachineLearning.Optimizer, nt::NamedTuple, params1::AbstractNeuralNetworks.NeuralNetworkParameters, params2::AbstractNeuralNetworks.NeuralNetworkParameters)
+    GeometricMachineLearning.optimization_step!(o, nt, params1, (params = AbstractNeuralNetworks.params(params2), ))
+end
 
 # taken from https://github.com/korsbo/Latexify.jl/blob/master/docs/make.jl
 Base.show(io::IO, ::MIME"text/html", l::LaTeXString) = l.s
