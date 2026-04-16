@@ -1,6 +1,6 @@
 name = "SymbolicNeuralNetworks"
 uuid = "aed23131-dcd0-47ca-8090-d21e605652e3"
-version = "0.3.3"
+version = "0.3.4"
 authors = ["Michael Kraus"]
 
 [deps]
