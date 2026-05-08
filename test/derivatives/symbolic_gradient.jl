@@ -3,6 +3,7 @@ using SymbolicNeuralNetworks: symbolic_differentials, symbolic_derivative, _buil
 using LinearAlgebra: norm
 using Symbolics, AbstractNeuralNetworks
 using AbstractNeuralNetworks: NeuralNetworkParameters, params
+using GeometricMachineLearning
 
 import Zygote
 import Random
@@ -42,10 +43,10 @@ function test_symbolic_gradient2(input_dim::Integer=3, output_dim::Integer=1, hi
     snn = SymbolicNeuralNetwork(nn)
     sout = norm(c(snn.input, params(snn)))^2
     input = rand(T, input_dim, second_dim, third_dim)
-    zgrad = Zygote.gradient(ps -> (norm(c(input, ps))^2), params(nn))[1].params
+    zgrad = Zygote.gradient(ps -> (norm(c(input, ps))^2), params(nn))[1]
     sdparams = symbolic_differentials(params(snn))
     _sgrad = symbolic_derivative(sout, sdparams)
-    sgrad = build_nn_function(_sgrad, sparams, sinput)(input, params(nn))
+    sgrad = build_nn_function(_sgrad, params(snn), snn.input)(input, params(nn))
     for key1 in keys(sgrad)
         for key2 in keys(sgrad[key1])
             @test zgrad[key1][key2] ≈ sgrad[key1][key2]
@@ -58,6 +59,6 @@ for second_dim in (2, 3, 4)
 end
 
 ###### in order for this to work we need to import functionality that allows for matrix-array and array-array multiplication
-# for (second_dim, third_dim) in ((1, 1), )
+# for (second_dim, third_dim) in ((1, 1),)
 #     test_symbolic_gradient2(3, 1, 2, Float64, second_dim, third_dim)
 # end
