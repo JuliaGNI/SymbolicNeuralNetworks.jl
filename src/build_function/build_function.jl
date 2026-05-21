@@ -27,8 +27,8 @@ function build_nn_function(
     gen_fun = _build_nn_function(eq, sparams, sinput)
     gen_fun_returned(x, ps) = mapreduce(k -> gen_fun(x, ps, k), reduce, axes(x, 2))
     function gen_fun_returned(x::Union{AbstractVector, Symbolics.Arr}, ps)
-        output_not_reshaped = gen_fun_returned(reshape(x, length(x), 1), ps)
-        # for vectors we do not reshape, as the output may be a matrix
+        output_not_reshaped = gen_fun(reshape(x, length(x), 1), ps, 1)
+        # for vectors we do not reshape the output, as it may be a matrix
         output_not_reshaped
     end
     # check this! (definitely not correct in all cases!)
