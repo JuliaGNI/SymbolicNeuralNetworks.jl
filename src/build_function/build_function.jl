@@ -15,24 +15,26 @@ Internally this is calling [`_build_nn_function`](@ref) and then *parallelizing*
 
 # Extended Help
 
-The functions mentioned in the implementation section were adjusted ad-hoc to deal with problems that emerged on the fly. 
+The functions mentioned in the implementation section were adjusted ad-hoc to deal with problems that emerged on the fly.
 Other problems may occur. In case you bump into one please [open an issue on github](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues).
 """
 function build_nn_function(eq::EqT, nn::AbstractSymbolicNeuralNetwork)
     build_nn_function(eq, params(nn), nn.input)
 end
 
-function build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr; reduce = hcat)
+function build_nn_function(
+        eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr; reduce = hcat)
     gen_fun = _build_nn_function(eq, sparams, sinput)
     gen_fun_returned(x, ps) = mapreduce(k -> gen_fun(x, ps, k), reduce, axes(x, 2))
-    function gen_fun_returned(x::Union{AbstractVector, Symbolics.Arr}, ps) 
+    function gen_fun_returned(x::Union{AbstractVector, Symbolics.Arr}, ps)
         output_not_reshaped = gen_fun_returned(reshape(x, length(x), 1), ps)
         # for vectors we do not reshape, as the output may be a matrix
         output_not_reshaped
     end
     # check this! (definitely not correct in all cases!)
-    function gen_fun_returned(x::AbstractArray{<:Number, 3}, ps) 
-        output_not_reshaped = gen_fun_returned(reshape(x, size(x, 1), size(x, 2) * size(x, 3)), ps)
+    function gen_fun_returned(x::AbstractArray{<:Number, 3}, ps)
+        output_not_reshaped = gen_fun_returned(
+            reshape(x, size(x, 1), size(x, 2) * size(x, 3)), ps)
         reshape(output_not_reshaped, size(output_not_reshaped, 1), size(x, 2), size(x, 3))
     end
     gen_fun_returned
@@ -74,11 +76,13 @@ This first calls `Symbolics.build_function` with the keyword argument `expressio
 3. [`modify_input_arguments`](@ref),
 4. [`fix_map_reduce`](@ref).
 
-See the docstrings for those functions for details on how the code is modified. 
+See the docstrings for those functions for details on how the code is modified.
 """
-function _build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr)
+function _build_nn_function(
+        eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr)
     sc_eq = Symbolics.scalarize(eq)
-    code = build_function(sc_eq, sinput, values(sparams)...; expression = Val{true}) |> _reduce
+    code = build_function(sc_eq, sinput, values(sparams)...; expression = Val{true}) |>
+           _reduce
     rewritten_code = fix_map_reduce(modify_input_arguments(rewrite_arguments(fix_create_array(code))))
     parallelized_code = make_kernel(rewritten_code)
     @RuntimeGeneratedFunction(parallelized_code)
@@ -93,7 +97,7 @@ _reduce(a::Tuple) = a[1]
 Replace `ˍ₋arg2`, `ˍ₋arg3`, ... with `ps.L1`, `ps.L2` etc.
 This is used after `Symbolics.build_function`.
 
-# Examples 
+# Examples
 
 ```jldoctest
 using SymbolicNeuralNetworks: rewrite_arguments
@@ -129,7 +133,7 @@ end
 
 If the input is a single integer, subtract 1 from it.
 
-# Examples 
+# Examples
 
 ```jldoctest
 using SymbolicNeuralNetworks: _modify_integer
@@ -182,9 +186,9 @@ end
 
 Fix a problem that occurs in connection with `create_array`.
 
-The function `create_array` from `SymbolicUtils.Code` takes as first input the type of a symbolic array. 
+The function `create_array` from `SymbolicUtils.Code` takes as first input the type of a symbolic array.
 For reasons that are not entirely clear yet the first argument of `create_array` ends up being `ˍ₋arg2`, which is a `NamedTuple` of symoblic arrays.
-We solve this problem by replacing `typeof(ˍ₋arg[0-9]+)` with `Array`, which seems to be the most generic possible input to `create_array`.
+We solve this problem by replacing `typeof(ˍ₋arg[0-9]+)` with `Array`, which is the most generic input to `create_array` and avoids `MethodError`s when `sinput` is a non-standard array type such as `ReshapedArray` or `SubArray`.
 
 # Examples
 
@@ -196,7 +200,7 @@ fix_create_array(s)
 
 # output
 
-"SymbolicUtils.Code.create_array(typeof(sinput)"
+"SymbolicUtils.Code.create_array(Array"
 ```
 
 # Implementation
@@ -206,7 +210,8 @@ This is used for [`_build_nn_function(::EqT, ::NeuralNetworkParameters, ::Symbol
 function fix_create_array(s::AbstractString)
     @assert contains(s, "ˍ₋arg") "Doesn't contain ˍ₋arg!"
     # replace(s, r"\(SymbolicUtils\.Code\.create_array\)\(typeof\(..arg[0-9]+\), nothing, Val\{1\}\(\), Val\{\(2,\)\}\(\)," => "(")
-    replace(s, r"[\(]*SymbolicUtils\.Code\.create_array[\)]*\(typeof\(..arg[0-9]+\)" => "SymbolicUtils.Code.create_array(typeof(sinput)")
+    replace(s,
+        r"[\(]*SymbolicUtils\.Code\.create_array[\)]*\(typeof\(..arg[0-9]+\)" => "SymbolicUtils.Code.create_array(Array")
 end
 
 function fix_create_array(expression::Expr)
@@ -218,13 +223,13 @@ end
 
 Replace `Symbolics._mapreduce` with `mapreduce` (from `Base`).
 
-When we generate a function with `Symbolics.build_function` it often contains `Symbolics._mapreduce` which cannot be differentiated with Zygote. 
+When we generate a function with `Symbolics.build_function` it often contains `Symbolics._mapreduce` which cannot be differentiated with Zygote.
 We get around this by replacing `Symbolics._mapreduce` with `mapreduce` and also doing:
 ```julia
 replace(s, ", Colon(), (:init => false,)" => ", dims = Colon()")
 ```
 
-# Implementation 
+# Implementation
 
 This is used for [`_build_nn_function(::EqT, ::NeuralNetworkParameters, ::Symbolics.Arr)`](@ref) and [`_build_nn_function(::EqT, ::NeuralNetworkParameters, ::Symbolics.Arr, ::Symbolics.Arr)`](@ref).
 """
