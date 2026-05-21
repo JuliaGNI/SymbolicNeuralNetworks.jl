@@ -10,7 +10,7 @@ function symbolic_differentials(sparams::Symbolics.Arr)
 end
 
 function symbolic_differentials(sparams::NamedTuple)
-    differential_values = (symbolic_differentials(sparams[key]) for key in keys(sparams))
+    differential_values = Tuple(symbolic_differentials(sparams[key]) for key in keys(sparams))
     NamedTuple{keys(sparams)}(differential_values)
 end
 
@@ -24,7 +24,7 @@ function symbolic_derivative(f, Dx::AbstractArray)
 end
 
 function symbolic_derivative(f, dps::NamedTuple)
-    gradient_values = (symbolic_derivative(f, dps[key]) for key in keys(dps))
+    gradient_values = Tuple(symbolic_derivative(f, dps[key]) for key in keys(dps))
     NamedTuple{keys(dps)}(gradient_values)
 end
 
