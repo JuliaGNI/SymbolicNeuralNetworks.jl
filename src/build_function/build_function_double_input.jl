@@ -19,7 +19,9 @@ end
 function build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr, soutput::Symbolics.Arr; reduce = hcat)
     @assert ( (reduce == hcat) || (reduce == +) ) "Keyword reduce either has to be + or hcat!"
     gen_fun = _build_nn_function(eq, sparams, sinput, soutput)
-    gen_fun_returned(input, output, ps) = mapreduce(k -> gen_fun(input, output, ps, k), reduce, axes(input, 2))
+    # Single-allocation combine over the batch dimension; see the note in `build_function.jl`
+    # on why `mapreduce(…, hcat, …)` is O(N²) and `Base.reduce(hcat, ::Vector)` is O(N).
+    gen_fun_returned(input, output, ps) = Base.reduce(reduce, [gen_fun(input, output, ps, k) for k in axes(input, 2)])
     function gen_fun_returned(x::AT, y::AT, ps) where {AT <: Union{AbstractVector, Symbolics.Arr}}
         output_not_reshaped = gen_fun_returned(reshape(x, length(x), 1), reshape(y, length(y), 1), ps)
         # for vectors we do not reshape, as the output may be a matrix
