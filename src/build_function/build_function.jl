@@ -24,8 +24,12 @@ end
 
 function build_nn_function(
         eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr; reduce = hcat)
+    @assert ( (reduce == hcat) || (reduce == +) ) "Keyword reduce either has to be + or hcat!"
     gen_fun = _build_nn_function(eq, sparams, sinput)
-    gen_fun_returned(x, ps) = mapreduce(k -> gen_fun(x, ps, k), reduce, axes(x, 2))
+    # Combine the per-column results in a single allocation. `mapreduce(…, hcat, …)` folds
+    # `hcat` left-to-right, recopying the growing accumulator once per column (O(N²) in the
+    # batch size); `Base.reduce(hcat, ::Vector)` sizes the result once instead (O(N)).
+    gen_fun_returned(x, ps) = Base.reduce(reduce, [gen_fun(x, ps, k) for k in axes(x, 2)])
     function gen_fun_returned(x::Union{AbstractVector, Symbolics.Arr}, ps)
         output_not_reshaped = gen_fun(reshape(x, length(x), 1), ps, 1)
         # for vectors we do not reshape the output, as it may be a matrix

@@ -60,7 +60,7 @@ pb_values = loss_and_pullback[2](1)
 
 @variables soutput[1:SymbolicNeuralNetworks.output_dimension(nn.model)]
 symbolic_pullbacks = SymbolicNeuralNetworks.symbolic_pullback(loss(nn.model, params(snn), snn.input, soutput), snn)
-pb_values2 = build_nn_function(symbolic_pullbacks, params(snn), snn.input, soutput)(input_output[1], input_output[2], params(nn))
+pb_values2 = build_nn_function(symbolic_pullbacks, params(snn), snn.input, soutput; reduce = +)(input_output[1], input_output[2], params(nn))
 
 pb_values == (pb_values2 |> SymbolicNeuralNetworks._get_contents |> SymbolicNeuralNetworks._get_params)
 
