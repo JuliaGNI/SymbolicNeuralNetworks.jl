@@ -195,6 +195,7 @@ function _rewrite_body(expression::Expr, data_names::Tuple, parameter_paths::Tup
                        output_name::Union{Symbol, Nothing})
     generated_names, body = function_arguments_and_body(expression)
     _assert_no_name_clash(generated_names)
+    _assert_no_reserved_names_in_body(body)
     body = substitute_symbols(body, argument_substitutions(generated_names, data_names, parameter_paths;
                                                            output_name = output_name))
     body = use_generic_array_constructor(body)
@@ -215,6 +216,37 @@ function _assert_no_name_clash(generated_names)
     isempty(clashing) || throw(ArgumentError(
         "the symbolic variables or parameters are named $(join(clashing, ", ")), which the " *
         "generated kernels use for their own arguments. Please rename them; " *
+        "$(join(RESERVED_NAMES, ", ")) are reserved."))
+    nothing
+end
+
+"""
+    _assert_no_reserved_names_in_body(body)
+
+Reject a generated body that already contains one of the names the kernels give their own arguments.
+
+A symbolic variable that is passed to `Symbolics.build_function` becomes an argument and is renamed
+to `ˍ₋argN`, but one that is *not* — a variable left free in the equation, i.e. neither a data
+variable nor a parameter — survives into the body under its own name. If that name happens to be
+`k`, the kernel's batch index binds it and the equation silently evaluates with the column number in
+place of the variable; if it is `ps`, it binds the parameter set. Neither is caught by
+`_assert_no_name_clash`, which only sees the argument names.
+
+The check has to run *before* the arguments are substituted, since afterwards the reserved names are
+all over the body legitimately. At that point the only symbols in the tree are `ˍ₋argN`,
+`var"##cse#N"` and literals — functions are embedded as objects — so a reserved name can only have
+come from a free variable.
+"""
+function _assert_no_reserved_names_in_body(body)
+    found = Symbol[]
+    postwalk(body) do node
+        node isa Symbol && node ∈ RESERVED_NAMES && node ∉ found && push!(found, node)
+        node
+    end
+    isempty(found) || throw(ArgumentError(
+        "the generated code refers to $(join(found, ", ")), which the generated kernels use for " *
+        "their own arguments. This means the equation contains a symbolic variable of that name " *
+        "that was passed neither as a data variable nor as a parameter. Please rename it; " *
         "$(join(RESERVED_NAMES, ", ")) are reserved."))
     nothing
 end

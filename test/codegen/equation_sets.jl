@@ -78,8 +78,12 @@ end
     @test size(unflatten(template, batched).scalar) == (1, 4)
 
     two_dimensional = repeat(collect(1.0:9.0), 1, 2, 3)
-    @test size(unflatten(template, two_dimensional).vector) == (2, 2, 3)
-    @test size(unflatten(template, two_dimensional).scalar) == (1, 2, 3)
+    vector_only = (vector = template.vector, scalar = template.scalar)
+    @test size(unflatten(vector_only, two_dimensional).vector) == (2, 2, 3)
+    @test size(unflatten(vector_only, two_dimensional).scalar) == (1, 2, 3)
+    # a matrix-valued entry has no room for a second batch dimension, exactly as when it is built on
+    # its own — the joint path used to return an (m·n, N₁, N₂) array instead
+    @test_throws ArgumentError unflatten(template, two_dimensional)
 end
 
 @testset "NamedTuple-valued equations agree with per-entry codegen, reduce = $reduction" for reduction in (hcat, +)

@@ -193,7 +193,12 @@ unflatten(template::NamedTuple, out::AbstractArray) =
 unflatten(slice::FlatSlice, out::AbstractVector) = _reshape_entry(out[slice.range], slice.size)
 unflatten(slice::FlatSlice, out::AbstractMatrix) =
     reshape(out[slice.range, :], _batched_size(slice.size, size(out, 2))...)
-unflatten(slice::FlatSlice, out::AbstractArray{<:Any, 3}) = out[slice.range, :, :]
+function unflatten(slice::FlatSlice, out::AbstractArray{<:Any, 3})
+    # the same restriction the single-equation path applies in `_restore_batch_dimensions`: an entry
+    # whose result is more than one column wide per sample has no room for a second batch dimension
+    trailing_dimensions(slice.size) == 1 || throw(ArgumentError(two_batch_dimension_message(slice.size)))
+    out[slice.range, :, :]
+end
 
 _reshape_entry(entries::AbstractVector, ::Tuple{}) = entries[begin]
 _reshape_entry(entries::AbstractVector, size::Tuple) = reshape(entries, size...)

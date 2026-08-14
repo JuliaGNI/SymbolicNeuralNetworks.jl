@@ -36,6 +36,20 @@ end
           ForwardDiff.jacobian(x -> c(x, ps), input)
 end
 
+# The rows are indexed by `vec(f)`, so a scalar `f` gives a 1×n Jacobian — its gradient with respect
+# to the input as a row. This used to be a `MethodError: no method matching vec(::Num)`.
+@testset "a scalar expression" begin
+    c = Chain(Dense(3, 2, tanh))
+    snn = SymbolicNeuralNetwork(c)
+    f = sum(c(snn.input, params(snn)))
+    ps = params(NeuralNetwork(c, Float64))
+    input = rand(3)
+
+    j = derivative(Jacobian(f, snn))
+    @test size(j) == (1, 3)
+    @test build_nn_function(j, snn)(input, ps) ≈ ForwardDiff.gradient(x -> sum(c(x, ps)), input)'
+end
+
 @testset "an explicitly supplied expression" begin
     c = Chain(Dense(2, 2, tanh))
     snn = SymbolicNeuralNetwork(c)

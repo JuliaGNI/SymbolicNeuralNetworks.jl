@@ -65,10 +65,13 @@ The same loss also divides by `norm(output)`, so a target that is identically ze
 
 ## Reserved names
 
-The generated kernels call their own arguments `out`, `x1`, `x2`, `ps` and `k`. A *scalar* symbolic
-variable carrying one of those names would collide with them, and is rejected with an error when the
-function is built. Symbolic arrays are unaffected, as `Symbolics.build_function` renames those
-anyway.
+The generated kernels call their own arguments `out`, `x1`, `x2`, `ps` and `k`.
+
+A symbolic variable that is *passed* to [`build_nn_function`](@ref) — as a data variable or as part of
+the parameters — may be named anything: `Symbolics.build_function` turns it into an argument and
+renames it. Only a variable left **free** in the equation, i.e. one that is neither, survives into the
+generated code under its own name. If that name is one of the five above it would be bound by the
+kernel's own argument, so it is rejected with an error when the function is built.
 
 ## Upstream code generation
 

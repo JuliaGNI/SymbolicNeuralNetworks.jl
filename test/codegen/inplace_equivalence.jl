@@ -50,6 +50,7 @@ end
 
     compare_or_both_fail(f_iip, f_oop, rand(3, 6), ps)       # batch
     compare_or_both_fail(f_iip, f_oop, rand(3, 1), ps)       # batch of one
+    compare_or_both_fail(f_iip, f_oop, rand(3, 0), ps)       # empty batch
     compare_or_both_fail(f_iip, f_oop, rand(3), ps)          # single vector
     compare_or_both_fail(f_iip, f_oop, rand(3, 2, 3), ps)    # two batch dimensions
 end
@@ -64,6 +65,7 @@ end
 
     compare_or_both_fail(f_iip, f_oop, rand(3, 6), rand(2, 6), ps)
     compare_or_both_fail(f_iip, f_oop, rand(3, 1), rand(2, 1), ps)
+    compare_or_both_fail(f_iip, f_oop, rand(3, 0), rand(2, 0), ps)
     compare_or_both_fail(f_iip, f_oop, rand(3), rand(2), ps)
     compare_or_both_fail(f_iip, f_oop, rand(3, 2, 3), rand(2, 2, 3), ps)
 end

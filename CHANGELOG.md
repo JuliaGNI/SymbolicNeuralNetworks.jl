@@ -56,9 +56,10 @@ Resolves [#14](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/14),
   and 0.4 are missing `GenericActivation`/`TanhActivation`, so the package never loaded against
   them; 0.6.4 is the first version providing `input_dimension`/`output_dimension`.
 
-- **The generated kernels reserve the argument names `out`, `x1`, `x2`, `ps` and `k`.** A *scalar*
-  symbolic variable or parameter carrying one of those names is rejected with an error when the
-  function is built. (Symbolic arrays are unaffected — `Symbolics.build_function` renames those.)
+- **The generated kernels reserve the argument names `out`, `x1`, `x2`, `ps` and `k`.** A symbolic
+  variable that is *passed* to `build_nn_function` may be named anything, as
+  `Symbolics.build_function` turns it into an argument and renames it; a variable left **free** in
+  the equation carrying one of those names is rejected with an error when the function is built.
 
 - **Renamed**
 
@@ -109,6 +110,29 @@ Resolves [#14](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/14),
   silently using the first argument's batch size.
 - A matrix-valued equation evaluated on a batch with two batch dimensions and `reduce = hcat` now
   raises an `ArgumentError` explaining the conflict, instead of a bare `DimensionMismatch`.
+- A *scalar*-valued equation evaluated on a batch with two batch dimensions and `reduce = hcat` threw
+  `ArgumentError: Cannot call tail on an empty tuple`, although the documented shape table lists the
+  combination as supported. It returns a ``1\times{}N_1\times{}N_2`` array now, like every other
+  ``m = 1`` case.
+- A symbolic variable left **free** in an equation — one passed neither as a data variable nor as a
+  parameter — and named `k`, `ps`, `out`, `x1` or `x2` was silently bound by the corresponding kernel
+  argument: an equation containing `k` evaluated with the *batch index* substituted for it, giving
+  wrong numbers with no error and the right answer for the first column. The check that was supposed
+  to catch this only inspected the generated argument names, which are always `ˍ₋argN`; it now runs
+  on the generated body.
+- `Jacobian(f, nn)` threw `MethodError: no method matching vec(::Num)` for a scalar `f`, although the
+  documented `vec(f)` row convention covers it. A scalar `f` now gives a ``1\times{}n`` Jacobian.
+- An empty batch (`rand(d, 0)`) threw `reducing over an empty collection is not allowed` on the
+  out-of-place path, where the in-place path returned an empty result. Both return the empty result
+  now.
+- Data arguments whose ranks are mixed, or greater than three, raised a `MethodError` naming an
+  internal function and the whole `RuntimeGeneratedFunction` type; they now raise an `ArgumentError`
+  naming the ranks that were given.
+- An equation set whose entry is matrix-valued accepted a batch with two batch dimensions and
+  returned an ``(m\cdot{}n)\times{}N_1\times{}N_2`` array, while the same entry built on its own
+  threw. Both throw now.
+- `docs/Project.toml` pointed `[sources]` at an absolute path on the author's machine, so
+  `Pkg.instantiate()` in the documentation environment failed on every other checkout.
 
 ### Changed
 

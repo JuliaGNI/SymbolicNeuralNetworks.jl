@@ -3,7 +3,7 @@
 
 using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: build_kernel, build_kernel!, parameter_arguments, generated_expression,
-                              _assert_no_name_clash
+                              _assert_no_name_clash, _assert_no_reserved_names_in_body
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, NeuralNetworkParameters
 using Symbolics
 using Test
@@ -78,6 +78,34 @@ end
     @test_throws ArgumentError _assert_no_name_clash([:ˍ₋arg1, :ps])
     @test_throws ArgumentError _assert_no_name_clash([:k])
     @test isnothing(_assert_no_name_clash([:ˍ₋arg1, :ˍ₋arg2, :W_5]))
+end
+
+# A variable that is passed to `Symbolics.build_function` becomes an argument and is renamed to
+# `ˍ₋argN`; one that is left *free* in the equation survives into the body under its own name. If
+# that name is `k` it used to be bound by the kernel's batch index, so the equation evaluated with
+# the column number in place of the variable — no error, wrong numbers, right answer for column 1.
+@testset "a free symbolic variable named like a kernel argument is rejected" begin
+    for name in (:k, :ps, :out, :x1, :x2)
+        free = Symbolics.variable(name)
+        @test_throws ArgumentError build_kernel(free .* eq, params(snn), snn.input)
+        @test_throws ArgumentError build_kernel!(free .* eq, params(snn), snn.input; reduction = hcat)
+        @test_throws ArgumentError build_nn_function(free .* eq, snn)
+    end
+end
+
+@testset "_assert_no_reserved_names_in_body" begin
+    @test isnothing(_assert_no_reserved_names_in_body(:((*)(ˍ₋arg1[1], ˍ₋arg2[1]))))
+    @test isnothing(_assert_no_reserved_names_in_body(Expr(:call, Base.getindex, :ˍ₋arg1, 1)))
+    @test_throws ArgumentError _assert_no_reserved_names_in_body(:((*)(k, ˍ₋arg1[1])))
+    @test_throws ArgumentError _assert_no_reserved_names_in_body(Expr(:call, Base.:*, :ps, 1))
+end
+
+# ... whereas a *data* variable of that name is fine: it becomes an argument and gets renamed.
+@testset "a data variable may be named like a kernel argument" begin
+    variables = Symbolics.variables(:k, 1:3)
+    f = build_nn_function(c(variables, params(snn)), params(snn), variables)
+    input = rand(3, 4)
+    @test f(input, ps) ≈ reduce(hcat, [c(input[:, i], ps) for i in axes(input, 2)])
 end
 
 @testset "at most two data arguments" begin

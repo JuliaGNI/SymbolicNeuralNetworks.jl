@@ -28,7 +28,8 @@ For a function ``f:\mathbb{R}^n\to\mathbb{R}^m`` we use the convention
 
 which is also the one [`Zygote`](https://github.com/FluxML/Zygote.jl) and
 [`ForwardDiff`](https://github.com/JuliaDiff/ForwardDiff.jl) use. An `f` that is not a vector is
-flattened with `vec` first, so the rows of `□` are indexed by `vec(f)`.
+flattened with `vec` first, so the rows of `□` are indexed by `vec(f)`; a *scalar* `f` gives a
+``1\times{}n`` Jacobian, i.e. its gradient with respect to the input as a row.
 
 # Examples
 
@@ -74,7 +75,7 @@ end
 
 function Jacobian(f, nn::AbstractSymbolicNeuralNetwork)
     differentials = symbolic_differentials(nn.input)
-    rows = vec(scalar_expressions(f))
+    rows = _flat_entries(scalar_expressions(f))
     □ = [expand_derivatives(D(row)) for row in rows, D in differentials]
     Jacobian(f, □, nn)
 end
