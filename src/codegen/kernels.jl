@@ -184,7 +184,7 @@ _in_place_half(::Any) = nothing
 _in_place_half(code::Tuple) = code[end]
 
 """
-    _rewrite_body(expression, data_names, parameter_keys, output_name)
+    _rewrite_body(expression, data_names, parameter_paths, output_name)
 
 Apply the rewrite rules of `src/codegen/expression_rewriting.jl` to the body of a generated
 function, in the order they depend on each other: the arguments are renamed first so that the later

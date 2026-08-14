@@ -64,7 +64,7 @@ funcs([1.0, 2.0], params(nn))
 
 # output
 
-2-element Vector{NamedTuple}:
+2-element Vector{NamedTuple{names, Tuple{Vector{Float64}}} where names}:
  (a = [0.985678060655224],)
  (b = [0.9576465981186686],)
 ```

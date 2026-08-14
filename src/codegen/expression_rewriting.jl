@@ -162,7 +162,7 @@ use_generic_array_constructor(:((SymbolicUtils.Code.create_array)(typeof(ps), no
 
 # output
 
-:((SymbolicUtils.Code.create_array)(Array, nothing, Val{1}(), a))
+:(SymbolicUtils.Code.create_array(Array, nothing, Val{1}(), a))
 ```
 """
 function use_generic_array_constructor(expr)
