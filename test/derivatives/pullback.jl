@@ -3,11 +3,16 @@ using SymbolicNeuralNetworks: _get_params, _get_contents
 using AbstractNeuralNetworks
 using AbstractNeuralNetworks: params
 using Symbolics
-using GeometricMachineLearning: ZygotePullback
 import Zygote
 using Test
 import Random
 Random.seed!(123)
+
+# This used to be `GeometricMachineLearning.ZygotePullback`, which is the one line below. It is
+# inlined here so that the test suite does not depend on `GeometricMachineLearning`: that package
+# has a compat bound on `SymbolicNeuralNetworks`, so depending on it in the other direction means
+# neither can be released without the other having been released first.
+zygote_pullback(loss, ps, model, input_output::Tuple) = Zygote.pullback(p -> loss(model, p, input_output...), ps)
 
 compare_values(arr1::Array, arr2::Array) = @test arr1 ≈ arr2
 function compare_values(nt1::NamedTuple, nt2::NamedTuple)
@@ -26,8 +31,7 @@ function compare_symbolic_pullback_to_zygote_pullback(input_dim::Integer, output
     # note that we apply the second argument to another input `1`
     pb_values = loss_and_pullback[2](1)
 
-    zpb = ZygotePullback(loss)
-    loss_and_pullback_zygote = zpb(params(nn), nn.model, input_output)
+    loss_and_pullback_zygote = zygote_pullback(loss, params(nn), nn.model, input_output)
     pb_values_zygote = loss_and_pullback_zygote[2](1) |> _get_contents |> _get_params
 
     compare_values(pb_values, pb_values_zygote)
