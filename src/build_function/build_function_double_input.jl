@@ -8,18 +8,27 @@ built_function(input, output, ps)
 
 Also compare this to [`build_nn_function(::EqT, ::AbstractSymbolicNeuralNetwork)`](@ref).
 
+# Keyword Arguments
+
+- `cse`: perform *common subexpression elimination* when generating code (default `true`).
+- `inplace`: evaluate a batch with an in-place kernel (default `true`). As for the single-input case
+  the default result mutates a preallocated array and can therefore not be differentiated with
+  `Zygote`; see [`build_nn_function(::EqT, ::AbstractSymbolicNeuralNetwork)`](@ref).
+
 # Extended Help
 
 See the *extended help section* of [`build_nn_function(::EqT, ::AbstractSymbolicNeuralNetwork)`](@ref).
 """
-function build_nn_function(eqs, nn::AbstractSymbolicNeuralNetwork, soutput; cse::Bool = true)
-    build_nn_function(eqs, params(nn), nn.input, soutput; cse = cse)
+function build_nn_function(eqs, nn::AbstractSymbolicNeuralNetwork, soutput; cse::Bool = true, inplace::Bool = true)
+    build_nn_function(eqs, params(nn), nn.input, soutput; cse = cse, inplace = inplace)
 end
 
-function build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr, soutput::Symbolics.Arr; reduce = hcat, cse::Bool = true)
+function build_nn_function(eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr, soutput::Symbolics.Arr; reduce = hcat, cse::Bool = true, inplace::Bool = true)
     @assert ( (reduce == hcat) || (reduce == +) ) "Keyword reduce either has to be + or hcat!"
     sc_eq = Symbolics.scalarize(eq)
-    kernel! = _build_nn_function_iip(sc_eq, sparams, sinput, soutput; reduce = reduce, cse = cse)
+    # see the single-input method on why scalar equations skip the in-place attempt entirely
+    kernel! = (inplace && sc_eq isa AbstractArray) ?
+              _build_nn_function_iip(sc_eq, sparams, sinput, soutput; reduce = reduce, cse = cse) : nothing
     isnothing(kernel!) && return _oop_batch_wrapper2(_build_nn_function(sc_eq, sparams, sinput, soutput; cse = cse), reduce)
     _iip_batch_wrapper2(kernel!, size(sc_eq), reduce)
 end
@@ -222,12 +231,12 @@ The two-input counterpart of [`make_kernel_iip`](@ref).
 ```jldoctest
 using SymbolicNeuralNetworks: make_kernel_iip2
 
-s = "function (ˍ₋out, sinput, soutput, ps)\n begin\n ˍ₋out[1] = getindex(sinput, 1) + getindex(soutput, 2) \n end\n end"
+s = "function (ˍ₋out, sinput, soutput, ps)\n begin\n ˍ₋out[1] = getindex(sinput, 1) + getindex(soutput, 2)\n ˍ₋out[2] = getindex(sinput, 2) \n end\n end"
 make_kernel_iip2(s, +, 2)
 
 # output
 
-"function (ˍ₋out, sinput, soutput, ps, k)\n begin\n ˍ₋out[1] += getindex(sinput, 1, k) + getindex(soutput, 2, k) \n end\n end"
+"function (ˍ₋out, sinput, soutput, ps, k)\n begin\n ˍ₋out[1] += getindex(sinput, 1, k) + getindex(soutput, 2, k)\n ˍ₋out[2] += getindex(sinput, 2, k) \n end\n end"
 ```
 """
 function make_kernel_iip2(s::AbstractString, reduce, eq_length::Integer)

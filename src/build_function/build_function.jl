@@ -12,6 +12,15 @@ built_function(input, ps)
 # Keyword Arguments
 
 - `cse`: perform *common subexpression elimination* when generating code (default `true`). See [`_build_nn_function`](@ref).
+- `inplace`: evaluate a batch with an in-place kernel (default `true`). See below.
+
+!!! warning "The default result cannot be differentiated with `Zygote`"
+    With `inplace = true` the returned function allocates its result and lets the generated kernel
+    *mutate* it, which `Zygote` does not support (`Mutating arrays is not supported`). Pass
+    `inplace = false` to get the out-of-place version, which evaluates the kernel once per batch
+    column and combines the results with `Base.reduce`; that one is differentiable, but allocates an
+    array per column. Forward-mode AD (`ForwardDiff`) works with either, as the element type of the
+    preallocated array is promoted over the inputs (see [`promoted_eltype`](@ref)).
 
 # Implementation
 
@@ -20,22 +29,25 @@ The kernel writes straight into a preallocated output array, so evaluating a bat
 instead of one array per column plus a `Base.reduce` fold.
 
 For scalar-valued equations `Symbolics.build_function` does not emit an in-place form; those fall back to the
-out-of-place [`_build_nn_function`](@ref).
+out-of-place [`_build_nn_function`](@ref), as does `inplace = false`.
 
 # Extended Help
 
 The functions mentioned in the implementation section were adjusted ad-hoc to deal with problems that emerged on the fly.
 Other problems may occur. In case you bump into one please [open an issue on github](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues).
 """
-function build_nn_function(eq::EqT, nn::AbstractSymbolicNeuralNetwork; cse::Bool = true)
-    build_nn_function(eq, params(nn), nn.input; cse = cse)
+function build_nn_function(eq::EqT, nn::AbstractSymbolicNeuralNetwork; cse::Bool = true, inplace::Bool = true)
+    build_nn_function(eq, params(nn), nn.input; cse = cse, inplace = inplace)
 end
 
 function build_nn_function(
-        eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr; reduce = hcat, cse::Bool = true)
+        eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr; reduce = hcat, cse::Bool = true, inplace::Bool = true)
     @assert ( (reduce == hcat) || (reduce == +) ) "Keyword reduce either has to be + or hcat!"
     sc_eq = Symbolics.scalarize(eq)
-    kernel! = _build_nn_function_iip(sc_eq, sparams, sinput; reduce = reduce, cse = cse)
+    # `Symbolics.build_function` emits no in-place form for a scalar equation, and generating the
+    # code only to throw it away is not free, so do not even ask for it in that case.
+    kernel! = (inplace && sc_eq isa AbstractArray) ?
+              _build_nn_function_iip(sc_eq, sparams, sinput; reduce = reduce, cse = cse) : nothing
     isnothing(kernel!) && return _oop_batch_wrapper(_build_nn_function(sc_eq, sparams, sinput; cse = cse), reduce)
     _iip_batch_wrapper(kernel!, size(sc_eq), reduce)
 end
@@ -104,6 +116,13 @@ This is needed because the in-place kernels write into an array that we have to 
 *before* calling them, so the element type cannot be inferred from a result. Promoting over
 the inputs keeps `Float32` parameters, symbolic (`Num`) inputs and `ForwardDiff.Dual` numbers
 working.
+
+Note that this derives the element type from the *inputs*, not from the expression, which the
+out-of-place path ([`_build_nn_function`](@ref)) does instead. The two can differ: an equation over
+integer inputs and integer parameters evaluates to a `Float64`, which no `Array{Int}` can hold. The
+allocators therefore widen an integer type with `float` (see [`allocate_batch_output`](@ref)). A
+`Float32` network whose generated code contains a `Float64` constant is rounded to `Float32` rather
+than widened, which is the behaviour one wants for the network but is worth being aware of.
 """
 promoted_eltype(args...) = promote_type(map(_eltype, args)...)
 
@@ -122,12 +141,19 @@ The shape matches what `Base.reduce(reduce, ::Vector)` over the per-column resul
 produce:
 - `reduce = +`: the per-column results are summed, so the result has the size of the equation.
 - `reduce = hcat`, vector-valued equation of length ``m``: an ``m\times{}N`` matrix.
-- `reduce = hcat`, equation of size ``(m, n, \ldots)``: the blocks are placed next to each
-  other, giving an ``m\times(n\cdot{}\ldots\cdot{}N)`` matrix.
+- `reduce = hcat`, matrix-valued equation of size ``(m, n)``: the blocks are placed next to each
+  other, giving an ``m\times(n\cdot{}N)`` matrix.
+
+Equations of rank three or higher are *not* covered by that correspondence — `hcat` concatenates
+those along their second dimension and keeps the third, whereas the linear indexing of the in-place
+kernel flattens everything past the first dimension. No such equation arises in this package.
+
+`T` is widened with `float` when it is an integer type: it comes from [`promoted_eltype`](@ref),
+i.e. from the inputs, and an equation over integer inputs generally does not evaluate to an integer.
 """
-allocate_batch_output(::Type{T}, eq_size::Tuple, ::Integer, ::typeof(+)) where {T} = zeros(T, eq_size...)
-allocate_batch_output(::Type{T}, eq_size::Tuple{<:Integer}, batch_size::Integer, ::typeof(hcat)) where {T} = Array{T}(undef, eq_size[1], batch_size)
-allocate_batch_output(::Type{T}, eq_size::Tuple, batch_size::Integer, ::typeof(hcat)) where {T} = Array{T}(undef, eq_size[1], prod(Base.tail(eq_size)) * batch_size)
+allocate_batch_output(::Type{T}, eq_size::Tuple, ::Integer, ::typeof(+)) where {T} = zeros(_float_if_integer(T), eq_size...)
+allocate_batch_output(::Type{T}, eq_size::Tuple{<:Integer}, batch_size::Integer, ::typeof(hcat)) where {T} = Array{_float_if_integer(T)}(undef, eq_size[1], batch_size)
+allocate_batch_output(::Type{T}, eq_size::Tuple, batch_size::Integer, ::typeof(hcat)) where {T} = Array{_float_if_integer(T)}(undef, eq_size[1], prod(Base.tail(eq_size)) * batch_size)
 
 """
     allocate_single_output(T, eq_size, reduce)
@@ -136,8 +162,17 @@ Allocate the result of evaluating an equation of size `eq_size` for a single (ve
 Unlike [`allocate_batch_output`](@ref) this keeps the shape of the equation, as the output may
 itself be a matrix.
 """
-allocate_single_output(::Type{T}, eq_size::Tuple, ::typeof(+)) where {T} = zeros(T, eq_size...)
-allocate_single_output(::Type{T}, eq_size::Tuple, ::typeof(hcat)) where {T} = Array{T}(undef, eq_size...)
+allocate_single_output(::Type{T}, eq_size::Tuple, ::typeof(+)) where {T} = zeros(_float_if_integer(T), eq_size...)
+allocate_single_output(::Type{T}, eq_size::Tuple, ::typeof(hcat)) where {T} = Array{_float_if_integer(T)}(undef, eq_size...)
+
+"""
+    _float_if_integer(T)
+
+`float(T)` for integer types, `T` for everything else. See [`allocate_batch_output`](@ref).
+`Bool` is included, as `float(Bool)` is `Float64`.
+"""
+_float_if_integer(::Type{T}) where {T <: Integer} = float(T)
+_float_if_integer(::Type{T}) where {T} = T
 
 """
     _build_nn_function(eq, params, sinput)
@@ -486,7 +521,8 @@ The in-place counterpart of [`make_kernel`](@ref): add the batch index `k` to th
 index `sinput` with it, and redirect the writes to `ˍ₋out` so that a single preallocated array
 can hold the result for the whole batch.
 
-`eq_length` is the number of entries of the (scalarized) equation.
+`eq_length` is the number of entries of the (scalarized) equation. The generated code assigns each
+of them exactly once, which [`redirect_output_writes`](@ref) checks.
 
 Which redirection is applied depends on how the per-column results are combined:
 - `reduce = +`: the writes become `+=` and every column accumulates into the same buffer (which
@@ -499,23 +535,23 @@ Which redirection is applied depends on how the per-column results are combined:
 ```jldoctest
 using SymbolicNeuralNetworks: make_kernel_iip
 
-s = "function (ˍ₋out, sinput, ps)\n begin\n ˍ₋out[1] = getindex(sinput, 2) \n end\n end"
-make_kernel_iip(s, hcat, 3)
+s = "function (ˍ₋out, sinput, ps)\n begin\n ˍ₋out[1] = getindex(sinput, 2)\n ˍ₋out[2] = getindex(sinput, 1) \n end\n end"
+make_kernel_iip(s, hcat, 2)
 
 # output
 
-"function (ˍ₋out, sinput, ps, k)\n begin\n ˍ₋out[1 + (k - 1) * 3] = getindex(sinput, 2, k) \n end\n end"
+"function (ˍ₋out, sinput, ps, k)\n begin\n ˍ₋out[1 + (k - 1) * 2] = getindex(sinput, 2, k)\n ˍ₋out[2 + (k - 1) * 2] = getindex(sinput, 1, k) \n end\n end"
 ```
 
 ```jldoctest
 using SymbolicNeuralNetworks: make_kernel_iip
 
-s = "function (ˍ₋out, sinput, ps)\n begin\n ˍ₋out[1] = getindex(sinput, 2) \n end\n end"
-make_kernel_iip(s, +, 3)
+s = "function (ˍ₋out, sinput, ps)\n begin\n ˍ₋out[1] = getindex(sinput, 2)\n ˍ₋out[2] = getindex(sinput, 1) \n end\n end"
+make_kernel_iip(s, +, 2)
 
 # output
 
-"function (ˍ₋out, sinput, ps, k)\n begin\n ˍ₋out[1] += getindex(sinput, 2, k) \n end\n end"
+"function (ˍ₋out, sinput, ps, k)\n begin\n ˍ₋out[1] += getindex(sinput, 2, k)\n ˍ₋out[2] += getindex(sinput, 1, k) \n end\n end"
 ```
 """
 function make_kernel_iip(s::AbstractString, reduce, eq_length::Integer)
@@ -530,15 +566,30 @@ function make_kernel_iip(expression::Expr, reduce, eq_length::Integer)
     Meta.parse(make_kernel_iip(string(expression), reduce, eq_length))
 end
 
+const OUTPUT_WRITE_REGEX = r"ˍ₋out\[([0-9]+)\] = "
+
 """
     redirect_output_writes(s, reduce, eq_length)
 
 Rewrite the `ˍ₋out[i] = …` assignments of in-place generated code. See [`make_kernel_iip`](@ref).
+
+# Implementation
+
+Unlike the other rewrites in the pipeline this one cannot fail loudly on its own: a `replace` that
+matches nothing returns the string unchanged, and the kernel then still compiles and runs. It would
+just write every batch column into the same place (`reduce = hcat`) or overwrite instead of
+accumulate (`reduce = +`), i.e. silently return wrong numbers. We therefore check that there is
+exactly one assignment per entry of the equation, which is the property
+`test/build_function/codegen_drift.jl` guards upstream.
 """
-function redirect_output_writes(s::AbstractString, ::typeof(+), ::Integer)
-    replace(s, r"ˍ₋out\[([0-9]+)\] = " => s"ˍ₋out[\1] += ")
+function redirect_output_writes(s::AbstractString, reduce, eq_length::Integer)
+    n = length(collect(eachmatch(OUTPUT_WRITE_REGEX, s)))
+    @assert n == eq_length "Expected $(eq_length) `ˍ₋out[i] = …` assignments in the generated code, found $(n). `Symbolics.build_function` has most likely changed how it emits in-place code; see test/build_function/codegen_drift.jl."
+    _redirect_output_writes(s, reduce, eq_length)
 end
 
-function redirect_output_writes(s::AbstractString, ::typeof(hcat), eq_length::Integer)
-    replace(s, r"ˍ₋out\[([0-9]+)\] = " => SubstitutionString("ˍ₋out[\\1 + (k - 1) * $(eq_length)] = "))
+_redirect_output_writes(s::AbstractString, ::typeof(+), ::Integer) = replace(s, OUTPUT_WRITE_REGEX => s"ˍ₋out[\1] += ")
+
+function _redirect_output_writes(s::AbstractString, ::typeof(hcat), eq_length::Integer)
+    replace(s, OUTPUT_WRITE_REGEX => SubstitutionString("ˍ₋out[\\1 + (k - 1) * $(eq_length)] = "))
 end

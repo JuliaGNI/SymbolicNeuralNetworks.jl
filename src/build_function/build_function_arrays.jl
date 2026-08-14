@@ -26,10 +26,10 @@ funcs_evaluated = funcs(input, params(nn))
  (c = [0.9576465981186686],)
 ```
 """
-function build_nn_function(eqs::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat, cse::Bool = true)
+function build_nn_function(eqs::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat, cse::Bool = true, inplace::Bool = true)
     # every element of `eqs` is generated jointly (see the `NamedTuple` method); the elements
     # themselves are independent, so they stay separate functions
-    funcs = [build_nn_function(eq, sparams, sinput...; reduce = reduce, cse = cse) for eq in eqs]
+    funcs = [build_nn_function(eq, sparams, sinput...; reduce = reduce, cse = cse, inplace = inplace) for eq in eqs]
 
     _pbs_executable(input, params) = _collect_results(funcs, input, params)
     _pbs_executable(input, output, params) = _collect_results(funcs, input, output, params)
@@ -79,12 +79,16 @@ that is the whole forward pass, once per parameter array — and would compile o
 Equation sets that contain a scalar-valued entry fall back to one function per entry
 (via [`function_valued_parameters`](@ref) and [`apply_element_wise`](@ref)), because
 `Symbolics.build_function` emits no in-place form for scalars.
+
+Joint code generation is independent of the `inplace` keyword: `inplace = false` still generates the
+whole set as one function, it just evaluates it out of place (and is then `Zygote`-differentiable;
+see [`build_nn_function(::EqT, ::AbstractSymbolicNeuralNetwork)`](@ref)).
 """
-function build_nn_function(eqs::Union{NamedTuple, NeuralNetworkParameters}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat, cse::Bool = true)
+function build_nn_function(eqs::Union{NamedTuple, NeuralNetworkParameters}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat, cse::Bool = true, inplace::Bool = true)
     flattened = flatten_eqs(eqs)
-    isnothing(flattened) && return _build_nn_function_per_leaf(eqs, sparams, sinput...; reduce = reduce, cse = cse)
+    isnothing(flattened) && return _build_nn_function_per_leaf(eqs, sparams, sinput...; reduce = reduce, cse = cse, inplace = inplace)
     flat, template = flattened
-    joint = build_nn_function(flat, sparams, sinput...; reduce = reduce, cse = cse)
+    joint = build_nn_function(flat, sparams, sinput...; reduce = reduce, cse = cse, inplace = inplace)
     _joint_executable(input::AbstractArray, params::NeuralNetworkParameters) = unflatten(template, joint(input, params))
     # return this one if sinput & soutput are supplied
     __joint_executable(input::AbstractArray, output::AbstractArray, params::NeuralNetworkParameters) = unflatten(template, joint(input, output, params))
@@ -100,8 +104,8 @@ cannot handle.
 
 Internally this is using [`function_valued_parameters`](@ref) and [`apply_element_wise`](@ref).
 """
-function _build_nn_function_per_leaf(eqs::Union{NamedTuple, NeuralNetworkParameters}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat, cse::Bool = true)
-    ps = function_valued_parameters(eqs, sparams, sinput...; reduce = reduce, cse = cse)
+function _build_nn_function_per_leaf(eqs::Union{NamedTuple, NeuralNetworkParameters}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat, cse::Bool = true, inplace::Bool = true)
+    ps = function_valued_parameters(eqs, sparams, sinput...; reduce = reduce, cse = cse, inplace = inplace)
     _pbs_executable(ps::Union{NamedTuple, NeuralNetworkParameters}, params::NeuralNetworkParameters, input::AbstractArray...) = apply_element_wise(ps, params, input...)
     __pbs_executable(input::AbstractArray, params::NeuralNetworkParameters) = _pbs_executable(ps, params, input)
     # return this one if sinput & soutput are supplied
@@ -228,13 +232,13 @@ b = c(input, ps).^2
 (true, true)
 ```
 """
-function function_valued_parameters(eqs::NeuralNetworkParameters, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat, cse::Bool = true)
-    vals = Tuple(build_nn_function(eqs[key], sparams, sinput...; reduce = reduce, cse = cse) for key in keys(eqs))
+function function_valued_parameters(eqs::NeuralNetworkParameters, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat, cse::Bool = true, inplace::Bool = true)
+    vals = Tuple(build_nn_function(eqs[key], sparams, sinput...; reduce = reduce, cse = cse, inplace = inplace) for key in keys(eqs))
     NeuralNetworkParameters{keys(eqs)}(vals)
 end
 
-function function_valued_parameters(eqs::NamedTuple, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat, cse::Bool = true)
-    vals = Tuple(build_nn_function(eqs[key], sparams, sinput...; reduce = reduce, cse = cse) for key in keys(eqs))
+function function_valued_parameters(eqs::NamedTuple, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat, cse::Bool = true, inplace::Bool = true)
+    vals = Tuple(build_nn_function(eqs[key], sparams, sinput...; reduce = reduce, cse = cse, inplace = inplace) for key in keys(eqs))
     NamedTuple{keys(eqs)}(vals)
 end
 

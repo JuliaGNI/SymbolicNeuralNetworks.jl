@@ -10,11 +10,14 @@
 # Some combinations are not supported by either path (a 3-D input is reshaped assuming a
 # vector-valued equation); those are expected to fail the same way, which is what
 # `compare_or_both_fail` checks.
+#
+# The out-of-place path is still reachable through `inplace = false`, which is what these tests use
+# as the reference — it is also the escape hatch for reverse-mode AD, see
+# `test/build_function/zygote_differentiability.jl`.
 
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: Jacobian, Gradient, derivative, _build_nn_function,
-                              _oop_batch_wrapper, _oop_batch_wrapper2
-using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
+using SymbolicNeuralNetworks: Jacobian, Gradient, derivative
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, NeuralNetworkParameters
 using Symbolics
 using Symbolics: @variables
 using Test
@@ -51,7 +54,7 @@ end
         reduce in (hcat, +)
 
     f_iip = build_nn_function(eq, params(snn), snn.input; reduce = reduce)
-    f_oop = _oop_batch_wrapper(_build_nn_function(eq, params(snn), snn.input), reduce)
+    f_oop = build_nn_function(eq, params(snn), snn.input; reduce = reduce, inplace = false)
 
     compare_or_both_fail(f_iip, f_oop, rand(3, 6), ps)       # batch
     compare_or_both_fail(f_iip, f_oop, rand(3, 1), ps)       # batch of one
@@ -67,7 +70,7 @@ end
         reduce in (hcat, +)
 
     f_iip = build_nn_function(eq, params(snn), snn.input, soutput; reduce = reduce)
-    f_oop = _oop_batch_wrapper2(_build_nn_function(eq, params(snn), snn.input, soutput), reduce)
+    f_oop = build_nn_function(eq, params(snn), snn.input, soutput; reduce = reduce, inplace = false)
 
     compare_or_both_fail(f_iip, f_oop, rand(3, 6), rand(2, 6), ps)
     compare_or_both_fail(f_iip, f_oop, rand(3, 1), rand(2, 1), ps)
@@ -85,4 +88,18 @@ end
     @test eltype(f(rand(3, 4), ps)) == Float64
     # mixed inputs promote
     @test eltype(f(rand(Float32, 3, 4), ps)) == Float64
+end
+
+# An equation over integer inputs does not evaluate to an integer, so the promoted type has to be
+# widened before the kernel writes into the array — otherwise this is an `InexactError`.
+@testset "integer inputs are widened, reduce = $reduce" for reduce in (hcat, +)
+    f_iip = build_nn_function(c(snn.input, params(snn)), params(snn), snn.input; reduce = reduce)
+    f_oop = build_nn_function(c(snn.input, params(snn)), params(snn), snn.input; reduce = reduce, inplace = false)
+    int_ps = NeuralNetworkParameters((L1 = (W = ones(Int, 4, 3), b = zeros(Int, 4)),
+                                      L2 = (W = ones(Int, 2, 4), b = zeros(Int, 2))))
+    int_input = [1 2; 3 4; 5 6]
+    @test f_iip(int_input, int_ps) ≈ f_oop(int_input, int_ps)
+    @test eltype(f_iip(int_input, int_ps)) == Float64
+    # a float input against integer parameters must not be widened past Float64 either
+    @test eltype(f_iip(rand(3, 2), int_ps)) == Float64
 end

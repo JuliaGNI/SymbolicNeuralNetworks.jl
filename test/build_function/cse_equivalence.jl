@@ -22,38 +22,48 @@ ps = params(nn)
 input = rand(3, 5)
 output = rand(2, 5)
 
+"Values, shape and concrete type must all be unaffected by how the code was printed."
+function compare(with_cse, without_cse)
+    @test with_cse ≈ without_cse
+    @test size(with_cse) == size(without_cse)
+    @test typeof(with_cse) == typeof(without_cse)
+end
+
 @testset "forward pass" begin
     eq = c(snn.input, params(snn))
-    @test build_nn_function(eq, snn)(input, ps) ≈
-          build_nn_function(eq, snn; cse = false)(input, ps)
+    compare(build_nn_function(eq, snn)(input, ps),
+            build_nn_function(eq, snn; cse = false)(input, ps))
 end
 
 @testset "Jacobian (derivative w.r.t. the input)" begin
     eq = derivative(Jacobian(snn))
-    @test build_nn_function(eq, snn)(input, ps) ≈
-          build_nn_function(eq, snn; cse = false)(input, ps)
+    compare(build_nn_function(eq, snn)(input, ps),
+            build_nn_function(eq, snn; cse = false)(input, ps))
 end
 
 @testset "Gradient (derivative w.r.t. the parameters)" begin
     eq = derivative(Gradient(snn))[1].L1.W
-    @test build_nn_function(eq, snn)(input, ps) ≈
-          build_nn_function(eq, snn; cse = false)(input, ps)
+    compare(build_nn_function(eq, snn)(input, ps),
+            build_nn_function(eq, snn; cse = false)(input, ps))
 end
 
 @testset "NamedTuple-valued equations" begin
     eqs = (a = c(snn.input, params(snn)), b = c(snn.input, params(snn)) .^ 2)
     with_cse = build_nn_function(eqs, params(snn), snn.input)(input, ps)
     without_cse = build_nn_function(eqs, params(snn), snn.input; cse = false)(input, ps)
-    @test with_cse.a ≈ without_cse.a
-    @test with_cse.b ≈ without_cse.b
+    @test keys(with_cse) == keys(without_cse)
+    for key in keys(with_cse)
+        compare(with_cse[key], without_cse[key])
+    end
 end
 
 @testset "SymbolicPullback" begin
     loss = FeedForwardLoss()
     with_cse = SymbolicPullback(snn, loss)(ps, c, (input, output))[2](1.0)
     without_cse = SymbolicPullback(snn, loss; cse = false)(ps, c, (input, output))[2](1.0)
+    @test keys(with_cse) == keys(without_cse)
     for layer in keys(with_cse)
-        @test with_cse[layer].W ≈ without_cse[layer].W
-        @test with_cse[layer].b ≈ without_cse[layer].b
+        compare(with_cse[layer].W, without_cse[layer].W)
+        compare(with_cse[layer].b, without_cse[layer].b)
     end
 end

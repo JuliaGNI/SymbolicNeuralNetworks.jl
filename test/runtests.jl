@@ -34,6 +34,9 @@ end
 @safetestset "Joint codegen agrees with per-entry codegen                                             " begin
     include("build_function/joint_codegen.jl")
 end
+@safetestset "Generated functions are differentiable                                                  " begin
+    include("build_function/zygote_differentiability.jl")
+end
 @safetestset "Compare Zygote Pullback with Symbolic Pullback                                         " begin
     include("derivatives/pullback.jl")
 end

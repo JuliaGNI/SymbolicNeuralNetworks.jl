@@ -28,6 +28,7 @@ typeof(pb(ps, nn.model, (rand(2), rand(1)))[2](1))
 # Keyword Arguments
 
 - `cse`: perform *common subexpression elimination* when generating code (default `true`). This matters a lot here: without it every one of the `2 * n_layers` generated blocks re-emits the entire forward pass, which makes the code for networks with more than one hidden layer intractably large. See [`_build_nn_function`](@ref).
+- `inplace`: evaluate a batch with an in-place kernel (default `true`). The pullback is the end of the differentiation chain, so nothing differentiates through it and the default is what you want here; `inplace = false` exists for symmetry with [`build_nn_function`](@ref).
 
 # Implementation
 
@@ -92,11 +93,11 @@ struct SymbolicPullback{NNLT, FT} <: AbstractPullback{NNLT}
     fun::FT
 end
 
-function SymbolicPullback(nn::SymbolicNeuralNetwork, loss::NetworkLoss; cse::Bool = true)
+function SymbolicPullback(nn::SymbolicNeuralNetwork, loss::NetworkLoss; cse::Bool = true, inplace::Bool = true)
     @variables soutput[1:output_dimension(nn.model)]
     symbolic_loss = loss(nn.model, params(nn), nn.input, soutput)
     symbolic_pullbacks = symbolic_pullback(symbolic_loss, nn)
-    pbs_executable = build_nn_function(symbolic_pullbacks, params(nn), nn.input, soutput; reduce = +, cse = cse)
+    pbs_executable = build_nn_function(symbolic_pullbacks, params(nn), nn.input, soutput; reduce = +, cse = cse, inplace = inplace)
     function pbs(input, output, params)
         pullback(::Union{Real, AbstractArray{<:Real}}) = _get_contents(_get_params(pbs_executable(input, output, params)))
         pullback
@@ -104,7 +105,7 @@ function SymbolicPullback(nn::SymbolicNeuralNetwork, loss::NetworkLoss; cse::Boo
     SymbolicPullback(loss, pbs)
 end
 
-SymbolicPullback(nn::SymbolicNeuralNetwork; cse::Bool = true) = SymbolicPullback(nn, AbstractNeuralNetworks.FeedForwardLoss(); cse = cse)
+SymbolicPullback(nn::SymbolicNeuralNetwork; cse::Bool = true, inplace::Bool = true) = SymbolicPullback(nn, AbstractNeuralNetworks.FeedForwardLoss(); cse = cse, inplace = inplace)
 
 """
     _get_params(ps::NeuralNetworkParameters)
