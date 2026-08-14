@@ -25,6 +25,18 @@ end
 @safetestset "Codegen-drift guard for the Symbolics string pipeline                                  " begin
     include("build_function/codegen_drift.jl")
 end
+@safetestset "CSE does not change the computed values                                                 " begin
+    include("build_function/cse_equivalence.jl")
+end
+@safetestset "In-place kernels agree with the out-of-place ones                                       " begin
+    include("build_function/inplace_equivalence.jl")
+end
+@safetestset "Joint codegen agrees with per-entry codegen                                             " begin
+    include("build_function/joint_codegen.jl")
+end
+@safetestset "Generated functions are differentiable                                                  " begin
+    include("build_function/zygote_differentiability.jl")
+end
 @safetestset "Compare Zygote Pullback with Symbolic Pullback                                         " begin
     include("derivatives/pullback.jl")
 end

@@ -26,14 +26,21 @@ funcs_evaluated = funcs(input, params(nn))
  (c = [0.9576465981186686],)
 ```
 """
-function build_nn_function(eqs::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat)
-    ps_semi = [function_valued_parameters(eq, sparams, sinput...; reduce = reduce) for eq in eqs]
-    
-    _pbs_executable(ps_functions, params, input...) = apply_element_wise(ps_functions, params, input...)
-    __pbs_executable(input, params) = _pbs_executable(ps_semi, params, input)
-    __pbs_executable(input, output, params) = _pbs_executable(ps_semi, params, input, output)
-    __pbs_executable
+function build_nn_function(eqs::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat, cse::Bool = true, inplace::Bool = true)
+    # every element of `eqs` is generated jointly (see the `NamedTuple` method); the elements
+    # themselves are independent, so they stay separate functions
+    funcs = [build_nn_function(eq, sparams, sinput...; reduce = reduce, cse = cse, inplace = inplace) for eq in eqs]
+
+    _pbs_executable(input, params) = _collect_results(funcs, input, params)
+    _pbs_executable(input, output, params) = _collect_results(funcs, input, output, params)
+    _pbs_executable
 end
+
+# `symbolic_pullback` produces a zero-dimensional array when it differentiates a scalar loss.
+# As in `apply_element_wise`, that is turned into a one-element vector, which is the shape
+# `_get_contents` expects. Arrays of any other dimensionality keep their shape.
+_collect_results(funcs::AbstractArray{<:Any, 0}, args...) = [funcs[](args...)]
+_collect_results(funcs::AbstractArray, args...) = [f(args...) for f in funcs]
 
 """
     build_nn_function(eqs::Union{NamedTuple, NeuralNetworkParameters}, sparams, sinput...)
@@ -63,16 +70,137 @@ funcs_evaluated = funcs(input, params(nn))
 
 # Implementation
 
+All the entries of `eqs` are generated as a *single* function, whose flat output is split up
+again afterwards; see [`flatten_eqs`](@ref) and [`unflatten`](@ref). Generating one function per
+entry instead would re-derive everything the entries have in common — for a symbolic pullback
+that is the whole forward pass, once per parameter array — and would compile one
+`RuntimeGeneratedFunction` per entry rather than one in total.
+
+Equation sets that contain a scalar-valued entry fall back to one function per entry
+(via [`function_valued_parameters`](@ref) and [`apply_element_wise`](@ref)), because
+`Symbolics.build_function` emits no in-place form for scalars.
+
+Joint code generation is independent of the `inplace` keyword: `inplace = false` still generates the
+whole set as one function, it just evaluates it out of place (and is then `Zygote`-differentiable;
+see [`build_nn_function(::EqT, ::AbstractSymbolicNeuralNetwork)`](@ref)).
+"""
+function build_nn_function(eqs::Union{NamedTuple, NeuralNetworkParameters}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat, cse::Bool = true, inplace::Bool = true)
+    flattened = flatten_eqs(eqs)
+    isnothing(flattened) && return _build_nn_function_per_leaf(eqs, sparams, sinput...; reduce = reduce, cse = cse, inplace = inplace)
+    flat, template = flattened
+    joint = build_nn_function(flat, sparams, sinput...; reduce = reduce, cse = cse, inplace = inplace)
+    _joint_executable(input::AbstractArray, params::NeuralNetworkParameters) = unflatten(template, joint(input, params))
+    # return this one if sinput & soutput are supplied
+    __joint_executable(input::AbstractArray, output::AbstractArray, params::NeuralNetworkParameters) = unflatten(template, joint(input, output, params))
+    typeof(sinput) <: Tuple{<:Any, <:Any} ? __joint_executable : _joint_executable
+end
+
+"""
+    _build_nn_function_per_leaf(eqs, sparams, sinput...)
+
+Build one function per entry of `eqs`. This is the fallback for equation sets that the joint
+code path of [`build_nn_function(::Union{NamedTuple, NeuralNetworkParameters}, ::NeuralNetworkParameters, ::Symbolics.Arr...)`](@ref)
+cannot handle.
+
 Internally this is using [`function_valued_parameters`](@ref) and [`apply_element_wise`](@ref).
 """
-function build_nn_function(eqs::Union{NamedTuple, NeuralNetworkParameters}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat)
-    ps = function_valued_parameters(eqs, sparams, sinput...; reduce = reduce)
+function _build_nn_function_per_leaf(eqs::Union{NamedTuple, NeuralNetworkParameters}, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat, cse::Bool = true, inplace::Bool = true)
+    ps = function_valued_parameters(eqs, sparams, sinput...; reduce = reduce, cse = cse, inplace = inplace)
     _pbs_executable(ps::Union{NamedTuple, NeuralNetworkParameters}, params::NeuralNetworkParameters, input::AbstractArray...) = apply_element_wise(ps, params, input...)
     __pbs_executable(input::AbstractArray, params::NeuralNetworkParameters) = _pbs_executable(ps, params, input)
     # return this one if sinput & soutput are supplied
     ___pbs_executable(input::AbstractArray, output::AbstractArray, params::NeuralNetworkParameters) = _pbs_executable(ps, params, input, output)
     typeof(sinput) <: Tuple{<:Any, <:Any} ? ___pbs_executable : __pbs_executable
 end
+
+@doc raw"""
+    FlatSlice(range, size)
+
+Where an entry of an equation set ended up in the flat vector that [`flatten_eqs`](@ref)
+produces, and which shape it has to be given again by [`unflatten`](@ref).
+"""
+struct FlatSlice{N}
+    range::UnitRange{Int}
+    size::NTuple{N, Int}
+end
+
+@doc raw"""
+    flatten_eqs(eqs)
+
+Concatenate every entry of `eqs` into one vector of scalar equations, together with a
+*template*: a copy of the nested structure of `eqs` in which each entry has been replaced by
+the [`FlatSlice`](@ref) describing where it went. [`unflatten`](@ref) reverses this.
+
+Returns `nothing` if any entry is scalar-valued, which the joint code path cannot handle.
+
+# Examples
+
+```jldoctest
+using SymbolicNeuralNetworks: flatten_eqs, SymbolicNeuralNetwork
+using AbstractNeuralNetworks: Chain, Dense, params
+
+c = Chain(Dense(2, 3, tanh))
+snn = SymbolicNeuralNetwork(c)
+flat, template = flatten_eqs((a = c(snn.input, params(snn)), b = c(snn.input, params(snn)).^2))
+(length(flat), template.a.range, template.b.range)
+
+# output
+
+(6, 1:3, 4:6)
+```
+"""
+function flatten_eqs(eqs::Union{NamedTuple, NeuralNetworkParameters})
+    flat = Num[]
+    template = _flatten_eqs!(flat, eqs)
+    isnothing(template) ? nothing : (flat, template)
+end
+
+_flatten_eqs!(flat::AbstractVector, eqs::NeuralNetworkParameters) = _flatten_children!(flat, eqs, NeuralNetworkParameters{keys(eqs)})
+_flatten_eqs!(flat::AbstractVector, eqs::NamedTuple) = _flatten_children!(flat, eqs, NamedTuple{keys(eqs)})
+
+function _flatten_children!(flat::AbstractVector, eqs, rewrap)
+    children = map(key -> _flatten_eqs!(flat, eqs[key]), keys(eqs))
+    any(isnothing, children) && return nothing
+    rewrap(children)
+end
+
+function _flatten_eqs!(flat::AbstractVector, eq)
+    scalarized = Symbolics.scalarize(eq)
+    # a scalar entry has no in-place kernel, so the whole set has to take the fallback path
+    scalarized isa AbstractArray || return nothing
+    offset = length(flat)
+    append!(flat, vec(collect(scalarized)))
+    FlatSlice((offset + 1):length(flat), size(scalarized))
+end
+
+@doc raw"""
+    unflatten(template, out)
+
+Split the flat result `out` of a jointly generated function back into the nested structure
+recorded in `template`. The inverse of [`flatten_eqs`](@ref).
+
+# Implementation
+
+Each entry is *copied* out of `out` rather than viewed into it, so that the entries are
+ordinary `Array`s (as they were when every entry had its own generated function) and cannot
+alias each other.
+
+`out` is indexed by its number of dimensions, which is how the layout of the batch is
+accounted for:
+- a vector when the per-column results were summed (`reduce = +`), in which case every entry
+  keeps the shape of its equation,
+- a ``P\times{}N`` matrix when they were concatenated (`reduce = hcat`), in which case an entry
+  of size ``(m, n, \ldots)`` becomes an ``m\times(n\cdot\ldots\cdot{}N)`` matrix, exactly as
+  `Base.reduce(hcat, …)` would have produced.
+"""
+unflatten(template::NeuralNetworkParameters, out::AbstractArray) = NeuralNetworkParameters{keys(template)}(map(t -> unflatten(t, out), values(template)))
+unflatten(template::NamedTuple, out::AbstractArray) = NamedTuple{keys(template)}(map(t -> unflatten(t, out), values(template)))
+
+unflatten(slice::FlatSlice, out::AbstractVector) = reshape(out[slice.range], slice.size...)
+function unflatten(slice::FlatSlice, out::AbstractMatrix)
+    reshape(out[slice.range, :], slice.size[1], prod(Base.tail(slice.size)) * size(out, 2))
+end
+unflatten(slice::FlatSlice, out::AbstractArray{<:Any, 3}) = out[slice.range, :, :]
 
 """
     function_valued_parameters(eqs::Union{NamedTuple, NeuralNetworkParameters}, sparams, sinput...)
@@ -104,13 +232,13 @@ b = c(input, ps).^2
 (true, true)
 ```
 """
-function function_valued_parameters(eqs::NeuralNetworkParameters, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat)
-    vals = Tuple(build_nn_function(eqs[key], sparams, sinput...; reduce = reduce) for key in keys(eqs))
+function function_valued_parameters(eqs::NeuralNetworkParameters, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat, cse::Bool = true, inplace::Bool = true)
+    vals = Tuple(build_nn_function(eqs[key], sparams, sinput...; reduce = reduce, cse = cse, inplace = inplace) for key in keys(eqs))
     NeuralNetworkParameters{keys(eqs)}(vals)
 end
 
-function function_valued_parameters(eqs::NamedTuple, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat)
-    vals = Tuple(build_nn_function(eqs[key], sparams, sinput...; reduce = reduce) for key in keys(eqs))
+function function_valued_parameters(eqs::NamedTuple, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr...; reduce = hcat, cse::Bool = true, inplace::Bool = true)
+    vals = Tuple(build_nn_function(eqs[key], sparams, sinput...; reduce = reduce, cse = cse, inplace = inplace) for key in keys(eqs))
     NamedTuple{keys(eqs)}(vals)
 end
 
