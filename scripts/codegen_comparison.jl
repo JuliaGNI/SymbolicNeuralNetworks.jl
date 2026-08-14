@@ -1,4 +1,4 @@
-# Reproduces the numbers that motivated the code-generation changes in `src/build_function/`.
+# Reproduces the numbers that motivated the code-generation choices in `src/codegen/`.
 #
 # Three things are measured, for networks of increasing depth:
 #
@@ -15,7 +15,8 @@
 # emits roughly 440 MB of code and takes minutes, which is exactly the point being made.
 
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: _reduce, symbolic_pullback, output_dimension
+using SymbolicNeuralNetworks: generated_expression, parameter_arguments, symbolic_parameter_gradient,
+                              output_dimension
 using AbstractNeuralNetworks
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, FeedForwardLoss, params
 using Symbolics
@@ -38,15 +39,16 @@ skip_without_cse(dims) = !RUN_EVERYTHING && length(dims) > MAX_LAYERS_WITHOUT_CS
 function measure_codegen(dims, cse::Bool)
     c = chain(dims)
     snn = SymbolicNeuralNetwork(c)
-    @variables soutput[1:dims[end]]
-    blocks = symbolic_pullback(FeedForwardLoss()(c, params(snn), snn.input, soutput), snn)
-    args = (snn.input, soutput, values(params(snn))...)
+    soutput = Symbolics.variables(:y, 1:dims[end])
+    gradient = symbolic_parameter_gradient(FeedForwardLoss()(c, params(snn), snn.input, soutput), snn)
+    _, arrays = parameter_arguments(params(snn))
 
     seconds = 0.0
     characters = 0
-    for block in blocks, layer in keys(block), array in keys(block[layer])
-        eq = Symbolics.scalarize(block[layer][array])
-        seconds += @elapsed code = _reduce(build_function(eq, args...; expression = Val{true}, cse = cse))
+    for layer in keys(gradient), array in keys(gradient[layer])
+        eq = gradient[layer][array]
+        seconds += @elapsed code = generated_expression(eq, (snn.input, soutput), arrays;
+                                                        inplace = false, cse = cse)
         characters += length(string(code))
     end
     (; seconds, characters)

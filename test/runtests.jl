@@ -1,43 +1,48 @@
-using SymbolicNeuralNetworks
 using SafeTestsets
 
-@safetestset "Check if reshape works in the correct way with the generated functions.               " begin
-    include("reshape_test.jl")
+@safetestset "Symbolic variables                                                                     " begin
+    include("symbolic_neuralnet/symbolic_variables.jl")
 end
-@safetestset "Symbolic gradient                                                                      " begin
-    include("derivatives/symbolic_gradient.jl")
+@safetestset "SymbolicNeuralNetwork                                                                  " begin
+    include("symbolic_neuralnet/symbolic_neuralnet.jl")
 end
-@safetestset "Symbolic Neural network                                                                " begin
+@safetestset "Rewrite rules for the generated code                                                   " begin
+    include("codegen/expression_rewriting.jl")
+end
+@safetestset "Kernels                                                                                " begin
+    include("codegen/kernels.jl")
+end
+@safetestset "build_nn_function                                                                      " begin
+    include("codegen/build_nn_function.jl")
+end
+@safetestset "Batching, allocation and result shapes                                                 " begin
+    include("codegen/batched_function.jl")
+end
+@safetestset "Equation sets                                                                          " begin
+    include("codegen/equation_sets.jl")
+end
+@safetestset "Codegen-drift guard                                                                    " begin
+    include("codegen/codegen_drift.jl")
+end
+@safetestset "CSE does not change the computed values                                                " begin
+    include("codegen/cse_equivalence.jl")
+end
+@safetestset "In-place kernels agree with the out-of-place ones                                      " begin
+    include("codegen/inplace_equivalence.jl")
+end
+@safetestset "Generated functions are differentiable                                                 " begin
+    include("codegen/zygote_differentiability.jl")
+end
+@safetestset "Generated functions are type stable                                                    " begin
+    include("codegen/type_stability.jl")
+end
+@safetestset "Jacobian                                                                               " begin
     include("derivatives/jacobian.jl")
 end
-@safetestset "Symbolic Params                                                                        " begin
-    include("symbolic_neuralnet/symbolize.jl")
+@safetestset "Gradient                                                                               " begin
+    include("derivatives/gradient.jl")
 end
-@safetestset "Tests associated with 'build_function.jl'                                              " begin
-    include("build_function/build_function.jl")
-end
-@safetestset "Tests associated with 'build_function_double_input.jl'                                 " begin
-    include("build_function/build_function_double_input.jl")
-end
-@safetestset "Tests associated with 'build_function_array.jl                                         " begin
-    include("build_function/build_function_arrays.jl")
-end
-@safetestset "Codegen-drift guard for the Symbolics string pipeline                                  " begin
-    include("build_function/codegen_drift.jl")
-end
-@safetestset "CSE does not change the computed values                                                 " begin
-    include("build_function/cse_equivalence.jl")
-end
-@safetestset "In-place kernels agree with the out-of-place ones                                       " begin
-    include("build_function/inplace_equivalence.jl")
-end
-@safetestset "Joint codegen agrees with per-entry codegen                                             " begin
-    include("build_function/joint_codegen.jl")
-end
-@safetestset "Generated functions are differentiable                                                  " begin
-    include("build_function/zygote_differentiability.jl")
-end
-@safetestset "Compare Zygote Pullback with Symbolic Pullback                                         " begin
+@safetestset "SymbolicPullback                                                                       " begin
     include("derivatives/pullback.jl")
 end
 

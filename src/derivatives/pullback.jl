@@ -1,7 +1,16 @@
 @doc raw"""
     SymbolicPullback <: AbstractPullback
 
-`SymbolicPullback` computes the *symbolic pullback* of a loss function.
+The *symbolic pullback* of a loss function: it evaluates the loss and the derivative of the loss
+with respect to the network parameters from generated code instead of by automatic differentiation.
+
+# Constructors
+
+    SymbolicPullback(nn, loss)
+    SymbolicPullback(nn)
+
+Build the pullback of `loss` (an `AbstractNeuralNetworks.NetworkLoss`, by default a
+`FeedForwardLoss`) for the [`SymbolicNeuralNetwork`](@ref) `nn`.
 
 # Examples
 
@@ -15,8 +24,7 @@ Random.seed!(123)
 c = Chain(Dense(2, 1, tanh))
 nn = NeuralNetwork(c)
 snn = SymbolicNeuralNetwork(nn)
-loss = FeedForwardLoss()
-pb = SymbolicPullback(snn, loss)
+pb = SymbolicPullback(snn, FeedForwardLoss())
 ps = params(nn)
 typeof(pb(ps, nn.model, (rand(2), rand(1)))[2](1))
 
@@ -27,55 +35,30 @@ typeof(pb(ps, nn.model, (rand(2), rand(1)))[2](1))
 
 # Keyword Arguments
 
-- `cse`: perform *common subexpression elimination* when generating code (default `true`). This matters a lot here: without it every one of the `2 * n_layers` generated blocks re-emits the entire forward pass, which makes the code for networks with more than one hidden layer intractably large. See [`_build_nn_function`](@ref).
-- `inplace`: evaluate a batch with an in-place kernel (default `true`). The pullback is the end of the differentiation chain, so nothing differentiates through it and the default is what you want here; `inplace = false` exists for symmetry with [`build_nn_function`](@ref).
+- `cse`: perform *common subexpression elimination* when generating code (default `true`). This
+  matters a lot here: without it every one of the `2 * n_layers` generated blocks re-emits the
+  entire forward pass, which makes the code for networks with more than one hidden layer
+  intractably large. See [`build_kernel`](@ref).
+- `inplace`: evaluate a batch with an in-place kernel (default `true`). The pullback is the end of
+  the differentiation chain, so nothing differentiates through it and the default is what you want
+  here; `inplace = false` exists for symmetry with [`build_nn_function`](@ref).
 
 # Implementation
 
-An instance of `SymbolicPullback` stores
-- `loss`: an instance of a `NetworkLoss`,
-- `fun`: a function that is used to compute the pullback.
+An instance stores
 
-If we call the functor of an instance of `SymbolicPullback` on `model`, `ps` and `input` it returns:
+- `loss`: the `NetworkLoss`,
+- `fun`: a [`ParameterGradient`](@ref) that produces the pullback function.
+
+Calling the functor on `ps`, `model` and an `(input, output)` tuple returns
+
 ```julia
-_pullback.loss(model, ps, input...), _pullback.fun(input..., ps)
+pullback.loss(model, ps, input, output), pullback.fun(input, output, ps)
 ```
-where the second output argument is again a function.
+
+where the second entry is again a function — of the *output sensitivities*.
 
 # Extended help
-
-We note the following seeming peculiarity:
-
-```jldoctest
-using SymbolicNeuralNetworks
-using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, FeedForwardLoss, params
-using Symbolics
-import Random
-Random.seed!(123)
-
-c = Chain(Dense(2, 1, tanh))
-nn = NeuralNetwork(c)
-snn = SymbolicNeuralNetwork(nn)
-loss = FeedForwardLoss()
-pb = SymbolicPullback(snn, loss)
-input_output = (rand(2), rand(1))
-loss_and_pullback = pb(params(nn), nn.model, input_output)
-# note that we apply the second argument to another input `1`
-pb_values = loss_and_pullback[2](1)
-
-@variables soutput[1:SymbolicNeuralNetworks.output_dimension(nn.model)]
-symbolic_pullbacks = SymbolicNeuralNetworks.symbolic_pullback(loss(nn.model, params(snn), snn.input, soutput), snn)
-pb_values2 = build_nn_function(symbolic_pullbacks, params(snn), snn.input, soutput; reduce = +)(input_output[1], input_output[2], params(nn))
-
-pb_values == (pb_values2 |> SymbolicNeuralNetworks._get_contents |> SymbolicNeuralNetworks._get_params)
-
-# output
-
-true
-```
-
-See the docstrings for [`symbolic_pullback`](@ref), [`build_nn_function`](@ref), [`_get_params`](@ref) and [`_get_contents`](@ref) for more info on the functions that we used here.
-The noteworthy thing in the expression above is that the functor of `SymbolicPullback` returns two objects: the first one is the loss value evaluated for the relevant parameters and inputs. The second one is a function that takes again an input argument and then finally returns the partial derivatives. But why do we need this extra step with another function?
 
 !!! info "Reverse Accumulation"
     In machine learning we typically do [reverse accumulation](https://en.wikipedia.org/wiki/Automatic_differentiation#Forward_and_reverse_accumulation) to perform automatic differentiation (AD).
@@ -85,8 +68,40 @@ The noteworthy thing in the expression above is that the functor of `SymbolicPul
     ```
     where ``do\in\mathbb{R}^m`` are the *output sensitivities* and the jacobians are stepwise multiplied from the left. So we propagate from the output stepwise back to the input. If we have ``m=1``, i.e. if the output is one-dimensional, then the *output sensitivities* may simply be taken to be ``do = 1``.
 
-So in theory we could leave out this extra step: returning an object (that is stored in `pb.fun`) can be seen as unnecessary as we could simply store the equivalent of `pb.fun(1.)` in an instance of `SymbolicPullback`.
-It is however customary for a pullback to return a callable function (that depends on the *output sensitivities*), which is why we also choose to do this here, even if the *output sensitivities* are a scalar quantity.
+A `NetworkLoss` is scalar-valued, so the extra step of returning a function of the output
+sensitivities is not strictly necessary here — the equivalent of `pb.fun(input, output, ps)(1)`
+could be stored directly. It is however customary for a pullback to return a callable, which is why
+this package does so too.
+
+The pullback is the derivative of a loss *summed over the batch*, which is why the generated
+function is built with `reduce = +`:
+
+```jldoctest
+using SymbolicNeuralNetworks
+using SymbolicNeuralNetworks: symbolic_parameter_gradient, output_dimension
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, FeedForwardLoss, params
+using Symbolics
+import Random
+Random.seed!(123)
+
+c = Chain(Dense(2, 1, tanh))
+nn = NeuralNetwork(c)
+snn = SymbolicNeuralNetwork(nn)
+loss = FeedForwardLoss()
+input_output = (rand(2), rand(1))
+
+pb_values = SymbolicPullback(snn, loss)(params(nn), nn.model, input_output)[2](1)
+
+soutput = Symbolics.variables(:y, 1:output_dimension(nn.model))
+gradient = symbolic_parameter_gradient(loss(nn.model, params(snn), snn.input, soutput), snn)
+pb_values2 = build_nn_function(gradient, params(snn), snn.input, soutput; reduce = +)(input_output..., params(nn))
+
+pb_values == params(pb_values2)
+
+# output
+
+true
+```
 """
 struct SymbolicPullback{NNLT, FT} <: AbstractPullback{NNLT}
     loss::NNLT
@@ -94,61 +109,50 @@ struct SymbolicPullback{NNLT, FT} <: AbstractPullback{NNLT}
 end
 
 function SymbolicPullback(nn::SymbolicNeuralNetwork, loss::NetworkLoss; cse::Bool = true, inplace::Bool = true)
-    @variables soutput[1:output_dimension(nn.model)]
+    soutput = Symbolics.variables(:y, 1:output_dimension(nn.model))
     symbolic_loss = loss(nn.model, params(nn), nn.input, soutput)
-    symbolic_pullbacks = symbolic_pullback(symbolic_loss, nn)
-    pbs_executable = build_nn_function(symbolic_pullbacks, params(nn), nn.input, soutput; reduce = +, cse = cse, inplace = inplace)
-    function pbs(input, output, params)
-        pullback(::Union{Real, AbstractArray{<:Real}}) = _get_contents(_get_params(pbs_executable(input, output, params)))
-        pullback
-    end
-    SymbolicPullback(loss, pbs)
+    gradient = symbolic_parameter_gradient(symbolic_loss, nn)
+    # `reduce = +`: the loss of a batch is the sum of the losses of its samples, so its gradient is
+    # the sum of the per-sample gradients.
+    gradient_function = build_nn_function(gradient, params(nn), nn.input, soutput;
+                                          reduce = +, cse = cse, inplace = inplace)
+    SymbolicPullback(loss, ParameterGradient(gradient_function))
 end
 
-SymbolicPullback(nn::SymbolicNeuralNetwork; cse::Bool = true, inplace::Bool = true) = SymbolicPullback(nn, AbstractNeuralNetworks.FeedForwardLoss(); cse = cse, inplace = inplace)
+SymbolicPullback(nn::SymbolicNeuralNetwork; kwargs...) =
+    SymbolicPullback(nn, AbstractNeuralNetworks.FeedForwardLoss(); kwargs...)
 
 """
-    _get_params(ps::NeuralNetworkParameters)
+    ParameterGradient(gradient_function)
 
-Return the `NamedTuple` that's equivalent to the `NeuralNetworkParameters`.
+What a [`SymbolicPullback`](@ref) stores in its `fun` field. Applying it to an input, an output and
+the network parameters returns the [`PullbackFunction`](@ref) for those.
 """
-_get_params(nt::NamedTuple) = nt
-function _get_params(nt::NamedTuple{(:params,), Tuple{AT}}) where {AT <: Any}
-    @warn "This function was most likely called because @adjoint for `NeuralNetworkParameters` hasn't been implemented."
-    nt.params
+struct ParameterGradient{FT} <: Function
+    gradient_function::FT
 end
-_get_params(ps::NeuralNetworkParameters) = params(ps)
-_get_params(ps::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}) = [_get_params(nt) for nt in ps]
+
+(g::ParameterGradient)(input, output, parameters) = PullbackFunction(g.gradient_function, input, output, parameters)
 
 """
-    _get_contents(nt::AbstractArray{<:NamedTuple})
+    PullbackFunction(gradient_function, input, output, parameters)
 
-Return the contents of a one-dimensional vector.
-
-# Examples
-
-```jldoctest
-using SymbolicNeuralNetworks: _get_contents
-
-_get_contents([(a = "element_contained_in_vector", )])
-
-# output
-
-(a = "element_contained_in_vector",)
-```
+The function a [`SymbolicPullback`](@ref) returns as the second entry of its result. It takes the
+*output sensitivities* — which it ignores, as the loss is scalar-valued, see the extended help of
+[`SymbolicPullback`](@ref) — and returns the derivative of the loss with respect to the network
+parameters, as a `NamedTuple`.
 """
-_get_contents(nt::NamedTuple) = nt
-function _get_contents(nt::AbstractVector{<:Union{NamedTuple, NeuralNetworkParameters}})
-    length(nt) == 1 ? nt[1] : __get_contents(nt)
+struct PullbackFunction{FT, IT, OT, PT} <: Function
+    gradient_function::FT
+    input::IT
+    output::OT
+    parameters::PT
 end
-function __get_contents(nt::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}})
-    @warn "The pullback returns an array expression. There is probably a bug in the code somewhere."
-    nt
-end
-_get_contents(nt::AbstractArray{<:Union{NamedTuple, NeuralNetworkParameters}}) = __get_contents(nt)
-_get_contents(nt::Tuple{<:Union{NamedTuple, NeuralNetworkParameters}}) = nt[1]
 
-# (_pullback::SymbolicPullback)(ps, model, input_nt::QPTOAT)::Tuple = Zygote.pullback(ps -> _pullback.loss(model, ps, input_nt), ps)
-function (_pullback::SymbolicPullback)(ps, model, input_nt_output_nt::Tuple{<:QPTOAT, <:QPTOAT})::Tuple
-    _pullback.loss(model, ps, input_nt_output_nt...), _pullback.fun(input_nt_output_nt..., ps)
+function (pb::PullbackFunction)(::Union{Real, AbstractArray{<:Real}})
+    params(pb.gradient_function(pb.input, pb.output, pb.parameters))
+end
+
+function (pullback::SymbolicPullback)(ps, model, input_output::Tuple{<:QPTOAT, <:QPTOAT})::Tuple
+    pullback.loss(model, ps, input_output...), pullback.fun(input_output..., ps)
 end
