@@ -3,7 +3,6 @@ using SymbolicNeuralNetworks: symbolic_differentials, symbolic_derivative, _buil
 using LinearAlgebra: norm
 using Symbolics, AbstractNeuralNetworks
 using AbstractNeuralNetworks: NeuralNetworkParameters, params
-using GeometricMachineLearning
 
 import Zygote
 import Random
