@@ -9,23 +9,44 @@ This function can be called with:
 built_function(input, ps)
 ```
 
+# Keyword Arguments
+
+- `cse`: perform *common subexpression elimination* when generating code (default `true`). See [`_build_nn_function`](@ref).
+
 # Implementation
 
-Internally this is calling [`_build_nn_function`](@ref) and then *parallelizing* the expression via the index `k`.
+Internally this is calling [`_build_nn_function_iip`](@ref) and then *parallelizing* the expression via the index `k`.
+The kernel writes straight into a preallocated output array, so evaluating a batch costs a single allocation
+instead of one array per column plus a `Base.reduce` fold.
+
+For scalar-valued equations `Symbolics.build_function` does not emit an in-place form; those fall back to the
+out-of-place [`_build_nn_function`](@ref).
 
 # Extended Help
 
 The functions mentioned in the implementation section were adjusted ad-hoc to deal with problems that emerged on the fly.
 Other problems may occur. In case you bump into one please [open an issue on github](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues).
 """
-function build_nn_function(eq::EqT, nn::AbstractSymbolicNeuralNetwork)
-    build_nn_function(eq, params(nn), nn.input)
+function build_nn_function(eq::EqT, nn::AbstractSymbolicNeuralNetwork; cse::Bool = true)
+    build_nn_function(eq, params(nn), nn.input; cse = cse)
 end
 
 function build_nn_function(
-        eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr; reduce = hcat)
+        eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr; reduce = hcat, cse::Bool = true)
     @assert ( (reduce == hcat) || (reduce == +) ) "Keyword reduce either has to be + or hcat!"
-    gen_fun = _build_nn_function(eq, sparams, sinput)
+    sc_eq = Symbolics.scalarize(eq)
+    kernel! = _build_nn_function_iip(sc_eq, sparams, sinput; reduce = reduce, cse = cse)
+    isnothing(kernel!) && return _oop_batch_wrapper(_build_nn_function(sc_eq, sparams, sinput; cse = cse), reduce)
+    _iip_batch_wrapper(kernel!, size(sc_eq), reduce)
+end
+
+"""
+    _oop_batch_wrapper(gen_fun, reduce)
+
+Evaluate the out-of-place kernel `gen_fun` once per batch column and combine the results.
+Used for scalar-valued equations, for which there is no in-place kernel.
+"""
+function _oop_batch_wrapper(gen_fun, reduce)
     # Combine the per-column results in a single allocation. `mapreduce(…, hcat, …)` folds
     # `hcat` left-to-right, recopying the growing accumulator once per column (O(N²) in the
     # batch size); `Base.reduce(hcat, ::Vector)` sizes the result once instead (O(N)).
@@ -43,6 +64,80 @@ function build_nn_function(
     end
     gen_fun_returned
 end
+
+"""
+    _iip_batch_wrapper(kernel!, eq_size, reduce)
+
+Allocate the output once and let the in-place `kernel!` write every batch column into it.
+`eq_size` is the size of the (scalarized) equation, which fixes the shape of the result;
+see [`allocate_batch_output`](@ref).
+"""
+function _iip_batch_wrapper(kernel!, eq_size::Tuple, reduce)
+    function gen_fun_returned(x, ps)
+        out = allocate_batch_output(promoted_eltype(x, ps), eq_size, size(x, 2), reduce)
+        for k in axes(x, 2)
+            kernel!(out, x, ps, k)
+        end
+        out
+    end
+    function gen_fun_returned(x::Union{AbstractVector, Symbolics.Arr}, ps)
+        # for vectors we do not reshape the output, as it may be a matrix
+        out = allocate_single_output(promoted_eltype(x, ps), eq_size, reduce)
+        kernel!(out, reshape(x, length(x), 1), ps, 1)
+        out
+    end
+    # check this! (definitely not correct in all cases!)
+    function gen_fun_returned(x::AbstractArray{<:Number, 3}, ps)
+        output_not_reshaped = gen_fun_returned(
+            reshape(x, size(x, 1), size(x, 2) * size(x, 3)), ps)
+        reshape(output_not_reshaped, size(output_not_reshaped, 1), size(x, 2), size(x, 3))
+    end
+    gen_fun_returned
+end
+
+"""
+    promoted_eltype(args...)
+
+The element type the generated code will produce, promoted over all inputs.
+
+This is needed because the in-place kernels write into an array that we have to allocate
+*before* calling them, so the element type cannot be inferred from a result. Promoting over
+the inputs keeps `Float32` parameters, symbolic (`Num`) inputs and `ForwardDiff.Dual` numbers
+working.
+"""
+promoted_eltype(args...) = promote_type(map(_eltype, args)...)
+
+_eltype(x::AbstractArray) = eltype(x)
+_eltype(x::Number) = typeof(x)
+_eltype(x::Tuple) = promote_type(map(_eltype, x)...)
+_eltype(x::NamedTuple) = _eltype(values(x))
+_eltype(x::NeuralNetworkParameters) = _eltype(values(x))
+
+@doc raw"""
+    allocate_batch_output(T, eq_size, batch_size, reduce)
+
+Allocate the result of evaluating an equation of size `eq_size` over `batch_size` columns.
+
+The shape matches what `Base.reduce(reduce, ::Vector)` over the per-column results used to
+produce:
+- `reduce = +`: the per-column results are summed, so the result has the size of the equation.
+- `reduce = hcat`, vector-valued equation of length ``m``: an ``m\times{}N`` matrix.
+- `reduce = hcat`, equation of size ``(m, n, \ldots)``: the blocks are placed next to each
+  other, giving an ``m\times(n\cdot{}\ldots\cdot{}N)`` matrix.
+"""
+allocate_batch_output(::Type{T}, eq_size::Tuple, ::Integer, ::typeof(+)) where {T} = zeros(T, eq_size...)
+allocate_batch_output(::Type{T}, eq_size::Tuple{<:Integer}, batch_size::Integer, ::typeof(hcat)) where {T} = Array{T}(undef, eq_size[1], batch_size)
+allocate_batch_output(::Type{T}, eq_size::Tuple, batch_size::Integer, ::typeof(hcat)) where {T} = Array{T}(undef, eq_size[1], prod(Base.tail(eq_size)) * batch_size)
+
+"""
+    allocate_single_output(T, eq_size, reduce)
+
+Allocate the result of evaluating an equation of size `eq_size` for a single (vector) input.
+Unlike [`allocate_batch_output`](@ref) this keeps the shape of the equation, as the output may
+itself be a matrix.
+"""
+allocate_single_output(::Type{T}, eq_size::Tuple, ::typeof(+)) where {T} = zeros(T, eq_size...)
+allocate_single_output(::Type{T}, eq_size::Tuple, ::typeof(hcat)) where {T} = Array{T}(undef, eq_size...)
 
 """
     _build_nn_function(eq, params, sinput)
@@ -72,6 +167,21 @@ built_function([1. 2.; 3. 4.], params(nn), 1)
 
 Note that we have to supply an extra argument (index) to `_build_nn_function` that we do not have to supply to [`build_nn_function`](@ref).
 
+# Keyword Arguments
+
+- `cse`: perform *common subexpression elimination* (default `true`).
+
+`Symbolics` stores an expression as a hash-consed *directed acyclic graph*, but
+`Symbolics.build_function` prints it as a *tree*. Every time a subexpression is reused — the
+output of layer ``n`` feeding each neuron of layer ``n+1``, or the forward pass shared by every
+block of a symbolic pullback — the whole subtree is emitted again, so both the size of the
+generated code and the amount of redundant arithmetic grow exponentially with the depth of the
+network. With `cse = true` the graph is emitted as a `let` block of intermediate bindings
+instead, which keeps code size proportional to the number of distinct nodes.
+
+Pass `cse = false` to recover the old (fully inlined) output; this is mostly useful for
+debugging, and for very small networks where the binding overhead is not amortized.
+
 # Implementation
 
 This first calls `Symbolics.build_function` with the keyword argument `expression = Val{true}` and then modifies the generated code by calling:
@@ -83,17 +193,86 @@ This first calls `Symbolics.build_function` with the keyword argument `expressio
 See the docstrings for those functions for details on how the code is modified.
 """
 function _build_nn_function(
-        eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr)
+        eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr; cse::Bool = true)
     sc_eq = Symbolics.scalarize(eq)
-    code = build_function(sc_eq, sinput, values(sparams)...; expression = Val{true}) |>
-           _reduce
+    code = build_function_generated(_reduce, sc_eq, sinput, values(sparams)...; cse = cse)
     rewritten_code = fix_map_reduce(modify_input_arguments(rewrite_arguments(fix_create_array(code))))
     parallelized_code = make_kernel(rewritten_code)
     @RuntimeGeneratedFunction(parallelized_code)
 end
 
+"""
+    _reduce(a)
+
+Pick the *out-of-place* half of what `Symbolics.build_function` returns. It returns a
+`(out_of_place, in_place)` tuple for array-valued equations and a single expression for
+scalar-valued ones. See [`_reduce_iip`](@ref).
+"""
 _reduce(a) = a
 _reduce(a::Tuple) = a[1]
+
+"""
+    _reduce_iip(a)
+
+Pick the *in-place* half of what `Symbolics.build_function` returns, or `nothing` if there is
+none (which is the case for scalar-valued equations). See [`_reduce`](@ref).
+"""
+_reduce_iip(::Any) = nothing
+_reduce_iip(a::Tuple) = a[2]
+
+"""
+    build_function_generated(reducer, sc_eq, args...; cse)
+
+Call `Symbolics.build_function` and pick the relevant half of its output with `reducer`
+([`_reduce`](@ref) for the out-of-place form, [`_reduce_iip`](@ref) for the in-place one).
+
+!!! note "Unsupported: reductions over un-scalarized symbolic arrays"
+    Expressions containing an `arrayop` — a reduction over a `Symbolics.Arr` that has not been
+    scalarized, e.g. `sum(c(input, ps))` — generate code that refers to variables nothing binds,
+    so the resulting function throws an `UndefVarError` when it is called. This is independent
+    of `cse` (the two modes just mangle different names). Reduce over `collect(c(input, ps))`
+    instead.
+"""
+function build_function_generated(reducer, sc_eq, args...; cse::Bool)
+    reducer(build_function(sc_eq, args...; expression = Val{true}, cse = cse))
+end
+
+@doc raw"""
+    _build_nn_function_iip(eq, params, sinput; reduce, cse)
+
+Build an *in-place* kernel that writes the result for batch column `k` into a preallocated array:
+
+```julia
+kernel!(out, input, ps, k)
+```
+
+Returns `nothing` for scalar-valued equations, for which `Symbolics.build_function` emits no
+in-place form.
+
+# Implementation
+
+This works like [`_build_nn_function`](@ref), but keeps the second (in-place) half of what
+`Symbolics.build_function` returns and post-processes it with:
+1. [`fix_create_array`](@ref),
+2. [`rewrite_arguments`](@ref) — unchanged, because the `ˍ₋out` argument is not counted in the
+   `ˍ₋argN` numbering,
+3. [`modify_input_arguments_iip`](@ref),
+4. [`fix_map_reduce`](@ref),
+5. [`make_kernel_iip`](@ref).
+
+The in-place code addresses its output with a *linear* index (`ˍ₋out[i] = …`) whatever the shape
+of the equation, which is what lets [`make_kernel_iip`](@ref) offset the writes by the batch
+index instead of handing the kernel a view.
+"""
+function _build_nn_function_iip(
+        eq::EqT, sparams::NeuralNetworkParameters, sinput::Symbolics.Arr; reduce = hcat, cse::Bool = true)
+    sc_eq = Symbolics.scalarize(eq)
+    code = build_function_generated(_reduce_iip, sc_eq, sinput, values(sparams)...; cse = cse)
+    isnothing(code) && return nothing
+    rewritten_code = fix_map_reduce(modify_input_arguments_iip(rewrite_arguments(fix_create_array(code))))
+    parallelized_code = make_kernel_iip(rewritten_code, reduce, length(sc_eq))
+    @RuntimeGeneratedFunction(parallelized_code)
+end
 
 """
     rewrite_arguments(s)
@@ -186,6 +365,36 @@ function modify_input_arguments(expression::Expr)
 end
 
 """
+    modify_input_arguments_iip(s)
+
+Change input arguments of type `(ˍ₋out, sinput, ps.L1, ps.L2)` etc to `(ˍ₋out, sinput, ps)`.
+
+This is the in-place counterpart of [`modify_input_arguments`](@ref) and should be used after
+[`rewrite_arguments`](@ref). See [`_build_nn_function_iip`](@ref).
+
+# Examples
+
+```jldoctest
+using SymbolicNeuralNetworks: modify_input_arguments_iip
+
+s = "(ˍ₋out, sinput, ps.L1, ps.L2, ps.L3)"
+modify_input_arguments_iip(s)
+
+# output
+"(ˍ₋out, sinput, ps)"
+```
+"""
+function modify_input_arguments_iip(s::AbstractString)
+    @assert contains(s, "(ˍ₋out, sinput, ") "The first input arguments must be ˍ₋out and sinput."
+    regex = r"\(ˍ₋out, sinput, ps[a-zA-Z0-9., ]+\)"
+    replace(s, regex => "(ˍ₋out, sinput, ps)")
+end
+
+function modify_input_arguments_iip(expression::Expr)
+    Meta.parse(modify_input_arguments_iip(string(expression)))
+end
+
+"""
    fix_create_array(s)
 
 Fix a problem that occurs in connection with `create_array`.
@@ -268,4 +477,68 @@ end
 
 function make_kernel(expression::Expr)
     Meta.parse(make_kernel(string(expression)))
+end
+
+@doc raw"""
+    make_kernel_iip(s, reduce, eq_length)
+
+The in-place counterpart of [`make_kernel`](@ref): add the batch index `k` to the arguments,
+index `sinput` with it, and redirect the writes to `ˍ₋out` so that a single preallocated array
+can hold the result for the whole batch.
+
+`eq_length` is the number of entries of the (scalarized) equation.
+
+Which redirection is applied depends on how the per-column results are combined:
+- `reduce = +`: the writes become `+=` and every column accumulates into the same buffer (which
+  [`allocate_batch_output`](@ref) zeroes).
+- `reduce = hcat`: the writes are shifted by ``(k - 1)\cdot\mathrm{eq\_length}``, which is exactly
+  the offset of block `k` in the column-major layout of the concatenated result.
+
+# Examples
+
+```jldoctest
+using SymbolicNeuralNetworks: make_kernel_iip
+
+s = "function (ˍ₋out, sinput, ps)\n begin\n ˍ₋out[1] = getindex(sinput, 2) \n end\n end"
+make_kernel_iip(s, hcat, 3)
+
+# output
+
+"function (ˍ₋out, sinput, ps, k)\n begin\n ˍ₋out[1 + (k - 1) * 3] = getindex(sinput, 2, k) \n end\n end"
+```
+
+```jldoctest
+using SymbolicNeuralNetworks: make_kernel_iip
+
+s = "function (ˍ₋out, sinput, ps)\n begin\n ˍ₋out[1] = getindex(sinput, 2) \n end\n end"
+make_kernel_iip(s, +, 3)
+
+# output
+
+"function (ˍ₋out, sinput, ps, k)\n begin\n ˍ₋out[1] += getindex(sinput, 2, k) \n end\n end"
+```
+"""
+function make_kernel_iip(s::AbstractString, reduce, eq_length::Integer)
+    # add k to function arguments
+    s_added_k = replace(s, "function (ˍ₋out, sinput, ps)" => "function (ˍ₋out, sinput, ps, k)")
+    # add k in body of function
+    s_indexed = replace(s_added_k, r"getindex\(sinput, ([0-9]+)\)" => s"getindex(sinput, \1, k)")
+    redirect_output_writes(s_indexed, reduce, eq_length)
+end
+
+function make_kernel_iip(expression::Expr, reduce, eq_length::Integer)
+    Meta.parse(make_kernel_iip(string(expression), reduce, eq_length))
+end
+
+"""
+    redirect_output_writes(s, reduce, eq_length)
+
+Rewrite the `ˍ₋out[i] = …` assignments of in-place generated code. See [`make_kernel_iip`](@ref).
+"""
+function redirect_output_writes(s::AbstractString, ::typeof(+), ::Integer)
+    replace(s, r"ˍ₋out\[([0-9]+)\] = " => s"ˍ₋out[\1] += ")
+end
+
+function redirect_output_writes(s::AbstractString, ::typeof(hcat), eq_length::Integer)
+    replace(s, r"ˍ₋out\[([0-9]+)\] = " => SubstitutionString("ˍ₋out[\\1 + (k - 1) * $(eq_length)] = "))
 end
