@@ -78,8 +78,8 @@ function is built with `reduce = +`:
 
 ```jldoctest
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: symbolic_parameter_gradient, output_dimension
-using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, FeedForwardLoss, params
+using SymbolicNeuralNetworks: symbolic_parameter_gradient
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, FeedForwardLoss, params, output_dimension
 using Symbolics
 import Random
 Random.seed!(123)

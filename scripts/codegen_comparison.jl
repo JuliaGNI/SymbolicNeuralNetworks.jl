@@ -15,10 +15,9 @@
 # emits roughly 440 MB of code and takes minutes, which is exactly the point being made.
 
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: generated_expression, parameter_arguments, symbolic_parameter_gradient,
-                              output_dimension
+using SymbolicNeuralNetworks: generated_expression, parameter_arguments, symbolic_parameter_gradient
 using AbstractNeuralNetworks
-using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, FeedForwardLoss, params
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, FeedForwardLoss, params, output_dimension
 using Symbolics
 using Printf
 import Random

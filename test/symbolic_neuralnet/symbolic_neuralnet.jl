@@ -1,7 +1,6 @@
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: input_dimension, output_dimension
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, NeuralNetworkParameters,
-                              UnknownArchitecture
+                              UnknownArchitecture, input_dimension, output_dimension
 using Symbolics
 using Test
 
@@ -23,11 +22,13 @@ c = Chain(Dense(2, 3, tanh), Dense(3, 1, tanh))
     end
 end
 
+# `AbstractNeuralNetworks` defines these for a layer; this package adds the `Chain` methods, which is
+# how `SymbolicNeuralNetwork` knows how many symbolic input variables to build.
 @testset "dimensions" begin
-    @test input_dimension(c) == 2
-    @test output_dimension(c) == 1
     @test input_dimension(Dense(4, 7)) == 4
     @test output_dimension(Dense(4, 7)) == 7
+    @test input_dimension(c) == input_dimension(c.layers[begin]) == 2
+    @test output_dimension(c) == output_dimension(c.layers[end]) == 1
 end
 
 @testset "the symbolic output has the shape of the numeric one" begin

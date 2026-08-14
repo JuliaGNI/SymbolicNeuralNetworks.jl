@@ -1,6 +1,6 @@
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: symbolic_parameter_gradient, output_dimension, PullbackFunction
-using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, FeedForwardLoss
+using SymbolicNeuralNetworks: symbolic_parameter_gradient, PullbackFunction
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, FeedForwardLoss, output_dimension
 using Symbolics
 using Test
 import Zygote, Random

@@ -68,11 +68,18 @@ SymbolicNeuralNetwork(layer::AbstractExplicitLayer) = SymbolicNeuralNetwork(Chai
 
 AbstractNeuralNetworks.params(nn::SymbolicNeuralNetwork) = nn.params
 
-# TODO: these belong into `AbstractNeuralNetworks`, see
-# https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/35
-input_dimension(::AbstractExplicitLayer{M}) where {M} = M
+"""
+    input_dimension(c::Chain)
+    output_dimension(c::Chain)
+
+The dimensions a `Chain` maps between, taken from its first and last layer.
+
+`AbstractNeuralNetworks` defines both for an `AbstractLayer`; these methods extend them to a whole
+`Chain`, which is what [`SymbolicNeuralNetwork`](@ref) needs to know how many symbolic input
+variables to build. They belong upstream too, see
+[issue #35](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/35).
+"""
 input_dimension(c::Chain) = input_dimension(c.layers[begin])
-output_dimension(::AbstractExplicitLayer{M, N}) where {M, N} = N
 output_dimension(c::Chain) = output_dimension(c.layers[end])
 
 function Base.show(io::IO, nn::SymbolicNeuralNetwork)

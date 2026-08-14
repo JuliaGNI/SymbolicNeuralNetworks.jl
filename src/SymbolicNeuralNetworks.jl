@@ -13,6 +13,8 @@ module SymbolicNeuralNetworks
     import Latexify: _latexraw
     import AbstractNeuralNetworks: NeuralNetwork, Architecture, Model, UnknownArchitecture, AbstractExplicitLayer, NeuralNetworkParameters
     import AbstractNeuralNetworks: architecture, model, params
+    # defined for `AbstractLayer` upstream; extended to `Chain` in `symbolic_neuralnet.jl`
+    import AbstractNeuralNetworks: input_dimension, output_dimension
     # these types will be shifted to `GeometricOptimizers` once this package is ready
     import AbstractNeuralNetworks: NetworkLoss, AbstractPullback, FeedForwardLoss
     # the generated code may call `NaNMath` functions, so the name has to resolve in this module
