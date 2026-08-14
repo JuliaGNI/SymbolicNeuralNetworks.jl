@@ -28,10 +28,21 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
+        "Guide" => [
+            "Symbolic Neural Networks" => "guide/symbolic_neural_networks.md",
+            "Building Functions" => "guide/building_functions.md",
+            "Derivatives" => "guide/derivatives.md",
+            "Equation Sets" => "guide/equation_sets.md",
+            "Training" => "guide/training.md",
+        ],
         "Tutorials" => [
-            "Vanilla Symbolic Neural Network" => "symbolic_neural_networks.md",
-            "Double Derivative" => "double_derivative.md",
-            ],
+            "Double Derivatives" => "tutorials/double_derivative.md",
+        ],
+        "Limitations" => "limitations.md",
+        "Internals" => [
+            "Code Generation" => "internals/code_generation.md",
+        ],
+        "API" => "api.md",
     ],
 )
 

@@ -1,9 +1,9 @@
-# `cse = true` is the default for all code generation (see `_build_nn_function`). It changes
-# *how* the expression is printed — a `let` block of shared bindings instead of a fully
-# inlined tree — but must never change *what* is computed. These tests pin that down for
-# every expression shape the package generates code for: plain forward passes, derivatives
-# with respect to the input (`Jacobian`), derivatives with respect to the parameters
-# (`Gradient`), the `NamedTuple`-valued builders, and the full `SymbolicPullback`.
+# `cse = true` is the default for all code generation (see `build_kernel`). It changes *how* the
+# expression is printed — a `let` block of shared bindings instead of a fully inlined tree — but must
+# never change *what* is computed. These tests pin that down for every expression shape the package
+# generates code for: plain forward passes, derivatives with respect to the input (`Jacobian`),
+# derivatives with respect to the parameters (`Gradient`), the `NamedTuple`-valued builders, and the
+# full `SymbolicPullback`.
 
 using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: Jacobian, Gradient, derivative

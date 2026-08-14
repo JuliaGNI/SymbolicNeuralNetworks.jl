@@ -1,73 +1,66 @@
 @doc raw"""
     Jacobian <: Derivative
 
-An subtype of [`Derivative`](@ref). Computes the derivatives of a neural network with respect to its inputs.
+Computes and stores the derivative of a symbolic expression with respect to the *input* of a
+[`SymbolicNeuralNetwork`](@ref).
 
 # Constructors
 
     Jacobian(f, nn)
     Jacobian(nn)
 
-Compute the jacobian of a [`SymbolicNeuralNetwork`](@ref) with respect to the input arguments.
+Differentiate the symbolic `f` with respect to the input of `nn`. If `f` is not supplied it is taken
+to be the symbolic output of the network, `nn.model(nn.input, params(nn))`.
 
+# Fields
 
-# Keys
-
-`Jacobian` has the following keys:
-1. `nn::`[`SymbolicNeuralNetwork`](@ref),
-2. `f`: a symbolic expression to be differentiated,
-3. `□`: a symbolic expression of the Jacobian.
-
-If `f` is not supplied as an input argument than it is taken to be:
-
-```julia
-f = nn.model(nn.input, params(nn))
-```
+1. `f`: the symbolic expression that was differentiated,
+2. `□`: the symbolic Jacobian,
+3. `nn`: the [`SymbolicNeuralNetwork`](@ref).
 
 # Implementation
 
-For a function ``f:\mathbb{R}^n\to\mathbb{R}^m`` we choose the following convention for the Jacobian:
+For a function ``f:\mathbb{R}^n\to\mathbb{R}^m`` we use the convention
 
 ```math
-\square_{ij} = \frac{\partial}{\partial{}x_j}f_i, \text{ i.e. } \square \in \mathbb{R}^{m\times{}n}
+\square_{ij} = \frac{\partial}{\partial{}x_j}f_i, \text{ i.e. } \square \in \mathbb{R}^{m\times{}n},
 ```
-This is also used by [`Zygote`](https://github.com/FluxML/Zygote.jl) and [`ForwardDiff`](https://github.com/JuliaDiff/ForwardDiff.jl).
+
+which is also the one [`Zygote`](https://github.com/FluxML/Zygote.jl) and
+[`ForwardDiff`](https://github.com/JuliaDiff/ForwardDiff.jl) use. An `f` that is not a vector is
+flattened with `vec` first, so the rows of `□` are indexed by `vec(f)`; a *scalar* `f` gives a
+``1\times{}n`` Jacobian, i.e. its gradient with respect to the input as a row.
 
 # Examples
 
-Here we compute the Jacobian of a single-layer neural network ``x \to \mathrm{tanh}(Wx + b)``. Its element-wise derivative is:
+Here we compute the Jacobian of a single-layer neural network ``x \mapsto \mathrm{tanh}(Wx + b)``,
+whose element-wise derivative is
 
 ```math
-    \frac{\partial}{\partial_i}\sigma(\sum_{k}w_{jk}x_k + b_j) = \sigma'(\sum_{k}w_{jk}x_k + b_j)w_{ji}.
+    \frac{\partial}{\partial{}x_i}\sigma\left(\sum_{k}w_{jk}x_k + b_j\right) = \sigma'\left(\sum_{k}w_{jk}x_k + b_j\right)w_{ji},
 ```
 
-Also note that for this calculation ``\mathrm{tanh}(x) = \frac{e^{2x} - 1}{e^{2x} + 1}`` and ``\mathrm{tanh}'(x) = \frac{4e^{2x}}{(e^{2x} + 1)^2}.``
-
-We can use `Jacobian` together with [`build_nn_function`](@ref):
+and compare it to that expression. Note that ``\mathrm{tanh}'(x) = \frac{4e^{2x}}{(e^{2x} + 1)^2}.``
 
 ```jldoctest
 using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: Jacobian, derivative
 using AbstractNeuralNetworks: Dense, Chain, NeuralNetwork, params
-using Symbolics
 import Random
 
 Random.seed!(123)
 
 input_dim = 5
 output_dim = 2
-d = Dense(input_dim, 2, tanh)
-c = Chain(d)
+c = Chain(Dense(input_dim, output_dim, tanh))
 nn = SymbolicNeuralNetwork(c)
-□ = SymbolicNeuralNetworks.Jacobian(nn)
-# here we need to access the derivative and convert it into a function
-jacobian1 = build_nn_function(derivative(□), nn)
+jacobian = build_nn_function(derivative(Jacobian(nn)), nn)
+
 ps = params(NeuralNetwork(c, Float64))
 input = rand(input_dim)
-#derivative
 Dtanh(x::Real) = 4 * exp(2 * x) / (1 + exp(2x)) ^ 2
 analytic_jacobian(i, j) = Dtanh(sum(k -> ps.L1.W[j, k] * input[k], 1:input_dim) + ps.L1.b[j]) * ps.L1.W[j, i]
-jacobian1(input, ps) ≈ [analytic_jacobian(i, j) for j ∈ 1:output_dim, i ∈ 1:input_dim]
+jacobian(input, ps) ≈ [analytic_jacobian(i, j) for j ∈ 1:output_dim, i ∈ 1:input_dim]
 
 # output
 
@@ -80,22 +73,18 @@ struct Jacobian{OT, SDT, ST} <: Derivative{OT, SDT, ST}
     nn::ST
 end
 
-function Jacobian(f::EqT, nn::AbstractSymbolicNeuralNetwork)
-    # make differential
-    Dx = symbolic_differentials(nn.input)
-
-    # Evaluation of gradient
-    s∇f = expand_derivatives.(reduce(hcat, [Symbolics.scalarize(dx.(f |> collect)) for dx in Dx]))
-
-    Jacobian(f, s∇f, nn)
+function Jacobian(f, nn::AbstractSymbolicNeuralNetwork)
+    differentials = symbolic_differentials(nn.input)
+    rows = _flat_entries(scalar_expressions(f))
+    □ = [expand_derivatives(D(row)) for row in rows, D in differentials]
+    Jacobian(f, □, nn)
 end
 
-function Jacobian(nn::AbstractSymbolicNeuralNetwork)
+Jacobian(nn::AbstractSymbolicNeuralNetwork) = Jacobian(nn.model(nn.input, params(nn)), nn)
 
-    # Evaluation of the symbolic output
-    soutput = nn.model(nn.input, params(nn))
+"""
+    derivative(j)
 
-    Jacobian(soutput, nn)
-end
-
+The symbolic Jacobian stored in `j`.
+"""
 derivative(j::Jacobian) = j.□

@@ -6,68 +6,80 @@
 [![Coverage](https://codecov.io/gh/JuliaGNI/SymbolicNeuralNetworks.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/JuliaGNI/SymbolicNeuralNetworks.jl)
 [![PkgEval](https://JuliaCI.github.io/NanosoldierReports/pkgeval_badges/S/SymbolicNeuralNetworks.svg)](https://JuliaCI.github.io/NanosoldierReports/pkgeval_badges/S/SymbolicNeuralNetworks.html)
 
-In a perfect world we probably would not need `SymbolicNeuralNetworks`. Its motivation mainly comes from [`Zygote`](https://github.com/FluxML/Zygote.jl)'s inability to handle second-order derivatives in a decent way[^1]. We also note that if [`Enzyme`](https://github.com/EnzymeAD/Enzyme.jl) matures further, there may be no need for `SymoblicNeuralNetworks` anymore in the future. For now (December 2024) `SymbolicNeuralNetworks` offer a good way to incorporate derivatives into the loss function.
+`SymbolicNeuralNetworks` builds a *symbolic* representation of a (small) neural network with
+[`Symbolics`](https://symbolics.juliasymbolics.org/stable/), lets you form arbitrary expressions from
+it — derivatives with respect to the input, derivatives with respect to the parameters, and
+combinations of the two — and compiles those into ordinary `Julia` functions with
+[`RuntimeGeneratedFunctions`](https://github.com/SciML/RuntimeGeneratedFunctions.jl). It is built on
+[`AbstractNeuralNetworks`](https://github.com/JuliaGNI/AbstractNeuralNetworks.jl) and is meant to be
+used together with [`GeometricMachineLearning`](https://github.com/JuliaGNI/GeometricMachineLearning.jl).
 
-[^1]: In some cases it is possible to perform second-order differentiation with `Zygote`, but when this is possible and when it is not is not entirely clear. 
+In a perfect world we probably would not need it. Its motivation mainly comes from
+[`Zygote`](https://github.com/FluxML/Zygote.jl)'s inability to handle second-order derivatives in a
+decent way[^1] — which is exactly what a loss containing a derivative of the network needs. If
+[`Enzyme`](https://github.com/EnzymeAD/Enzyme.jl) matures further there may be no need for
+`SymbolicNeuralNetworks` in the future; for now it offers a good way to incorporate derivatives into
+a loss function.
 
-`SymbolicNeuralNetworks` was created to take advantage of [`Symbolics`](https://symbolics.juliasymbolics.org/stable/) for training neural networks by accelerating their evaluation and by simplifying the computation of arbitrary derivatives of the neural network. This package is based on [`AbstractNeuralNetwork`](https://github.com/JuliaGNI/AbstractNeuralNetworks.jl) and can be applied to [`GeometricMachineLearning`](https://github.com/JuliaGNI/GeometricMachineLearning.jl). 
+[^1]: In some cases it is possible to perform second-order differentiation with `Zygote`, but when this is possible and when it is not is not entirely clear.
 
-`SymbolicNeuralNetworks` creates a symbolic expression of the neural network, computes arbitrary combinations of derivatives and uses [`RuntimeGeneratedFunctions`](https://github.com/SciML/RuntimeGeneratedFunctions.jl) to compile a `Julia` function.
+## Installation
 
-To create a symbolic neural network, we first design a `model` with [`AbstractNeuralNetwork`](https://github.com/JuliaGNI/AbstractNeuralNetworks.jl):
 ```julia
-using AbstractNeuralNetworks
-
-c = Chain(Dense(2, 2, tanh), Linear(2, 1))
+using Pkg
+Pkg.add("SymbolicNeuralNetworks")
 ```
 
-We now call `SymbolicNeuralNetwork`:
+## Quickstart
+
+Design a `model` with `AbstractNeuralNetworks`, wrap it in a `SymbolicNeuralNetwork`, and compile
+symbolic expressions with `build_nn_function`:
 
 ```julia
 using SymbolicNeuralNetworks
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
 
-nn = SymbolicNeuralNetwork(c)
+c = Chain(Dense(2, 3, tanh), Dense(3, 1, tanh))
+snn = SymbolicNeuralNetwork(c)
+
+forward = build_nn_function(c(snn.input, params(snn)), snn)
+
+nn = NeuralNetwork(c)
+forward([1.0, 2.0], params(nn))     # a single sample
+forward(rand(2, 8), params(nn))     # a batch, one sample per column
 ```
 
-## Example
-
-We now train the neural network by using `SymbolicPullback`[^2]:
-
-[^2]: This example is discussed in detail in the docs.
+Derivatives with respect to the input and with respect to the parameters are built the same way:
 
 ```julia
-pb = SymbolicPullback(nn)
+using SymbolicNeuralNetworks: Jacobian, Gradient, derivative
 
+jacobian = build_nn_function(derivative(Jacobian(snn)), snn)
+jacobian([1.0, 2.0], params(nn))
+```
+
+For training there is `SymbolicPullback`, a drop-in replacement for a `Zygote`-based pullback:
+
+```julia
+using AbstractNeuralNetworks: FeedForwardLoss
 using GeometricMachineLearning
 
-# we generate the data and process them with `GeometricMachineLearning.DataLoader`
-x_vec = -1.:.1:1.
-y_vec = -1.:.1:1.
-xy_data = hcat([[x, y] for x in x_vec, y in y_vec]...)
-f(x::Vector) = exp.(-sum(x.^2))
-z_data = mapreduce(i -> f(xy_data[:, i]), hcat, axes(xy_data, 2))
+pb = SymbolicPullback(snn, FeedForwardLoss())
 
-dl = DataLoader(xy_data, z_data)
-
+dl = DataLoader(rand(2, 100), rand(1, 100))
 nn_cpu = NeuralNetwork(c, CPU())
 o = Optimizer(AdamOptimizer(), nn_cpu)
-n_epochs = 1000
-batch = Batch(10)
-o(nn_cpu, dl, batch, n_epochs, pb.loss, pb)
+o(nn_cpu, dl, Batch(10), 1000, pb.loss, pb)
 ```
 
-We can also train the neural network with `Zygote`-based[^3] automatic differentiation (AD):
-
-[^3]: Note that here we can actually use `Zygote` without problems as it does not involve any complicated derivatives.
-
-```julia
-pb_zygote = GeometricMachineLearning.ZygotePullback(FeedForwardLoss())
-o(nn_cpu, dl, batch, n_epochs, pb_zygote.loss, pb_zygote)
-```
+See the [documentation](https://JuliaGNI.github.io/SymbolicNeuralNetworks.jl/latest/) for the full
+picture: batching and result shapes, the `cse`/`inplace`/`reduce` keywords, equation sets, a worked
+training example, and the limitations of the approach.
 
 ## Development
 
-We are using git hooks, e.g., to enforce that all tests pass before pushing. In order to activate these hooks, the following command must be executed once:
+We are using git hooks, e.g., to enforce that all tests pass before pushing. In order to activate
+these hooks, the following command must be executed once:
 ```
 git config core.hooksPath .githooks
 ```
