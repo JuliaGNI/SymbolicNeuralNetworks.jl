@@ -22,13 +22,15 @@ symbolic_variables((a = 1.0, b = [1, 2]), :X)
 ```jldoctest
 using SymbolicNeuralNetworks: symbolic_variables
 using AbstractNeuralNetworks: NeuralNetwork, Chain, Dense, params
+import AbstractNeuralNetworks: NeuralNetworkParameters
 
 nn = NeuralNetwork(Chain(Dense(1, 2; use_bias = false), Dense(2, 1; use_bias = false)))
-typeof(symbolic_variables(params(nn), :W))
+sparams = symbolic_variables(params(nn), :W)
+(sparams isa NeuralNetworkParameters, keys(sparams), size(sparams.L1.W), eltype(sparams.L1.W))
 
 # output
 
-AbstractNeuralNetworks.NeuralNetworkParameters{(:L1, :L2), Tuple{@NamedTuple{W::Matrix{Symbolics.Num}}, @NamedTuple{W::Matrix{Symbolics.Num}}}}
+(true, (:L1, :L2), (2, 1), Symbolics.Num)
 ```
 
 # Implementation

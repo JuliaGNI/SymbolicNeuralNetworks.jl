@@ -77,7 +77,7 @@ x = \begin{pmatrix} 1 \\ 0 \end{pmatrix}, \quad W = \begin{bmatrix} 1 & 0 \end{b
 ```
 
 ```@example jacobian_gradient
-using AbstractNeuralNetworks: params
+using AbstractNeuralNetworks: params, NeuralNetworkParameters
 
 built_function = build_nn_function(derivative(g), params(nn), nn.input)
 
