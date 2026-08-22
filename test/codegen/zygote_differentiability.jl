@@ -13,8 +13,8 @@
 # (`promoted_eltype`), so `ForwardDiff.Dual` numbers flow through the in-place path too.
 
 using SymbolicNeuralNetworks
-using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, NeuralNetworkParameters,
-                              FeedForwardLoss
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, FeedForwardLoss
+using NeuralNetworkParameters: NetworkParameters
 using Test
 import ForwardDiff
 import Random
@@ -32,7 +32,7 @@ input = rand(3, 5)
 @testset "the out-of-place path is Zygote-differentiable, reduce = $reduction" for reduction in (hcat, +)
     f = build_nn_function(eq, params(snn), snn.input; reduce = reduction, inplace = false)
     grad = Zygote.gradient(p -> sum(f(input, p)), ps)[1]
-    @test grad isa Union{NamedTuple, NeuralNetworkParameters}
+    @test grad isa Union{NamedTuple, NetworkParameters}
 
     # the same derivative through the chain itself, which needs no code generation at all
     reference = Zygote.gradient(p -> sum(Base.reduce(reduction, [c(input[:, k], p) for k in axes(input, 2)])), ps)[1]
@@ -60,7 +60,7 @@ end
 # in-place kernel writes into is allocated with the promoted element type, which is the `Dual`.
 @testset "ForwardDiff works either way" begin
     W = ps.L1.W
-    rewrap(w) = NeuralNetworkParameters((L1 = (W = reshape(w, size(W)...), b = ps.L1.b), L2 = ps.L2))
+    rewrap(w) = NetworkParameters((L1 = (W = reshape(w, size(W)...), b = ps.L1.b), L2 = ps.L2))
     grads = map((true, false)) do inplace
         f = build_nn_function(eq, params(snn), snn.input; inplace = inplace)
         ForwardDiff.gradient(w -> sum(f(input, rewrap(w))), vec(W))

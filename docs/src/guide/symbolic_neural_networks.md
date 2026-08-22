@@ -44,7 +44,7 @@ params(snn).L1.W
 They are numbered in the order in which they occur in the parameter set, so `W_1` is the weight
 matrix of the first layer, `W_2` its bias, `W_3` the weight matrix of the second layer, and so on.
 This is done by [`symbolic_variables`](@ref), which works on any nesting of `NamedTuple`s and
-`NeuralNetworkParameters`.
+`NetworkParameters`.
 
 !!! info "These are arrays of scalar variables, not symbolic arrays"
     `params(snn).L1.W` is a `Matrix{Num}`, not a `Symbolics.Arr`. The difference matters: `Symbolics`

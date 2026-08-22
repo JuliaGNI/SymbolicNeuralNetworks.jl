@@ -32,7 +32,7 @@ would re-derive everything the entries have in common — for a symbolic gradien
 forward pass, once per parameter array — and would compile one `RuntimeGeneratedFunction` per entry
 rather than one in total.
 """
-function build_nn_function(eqs::EquationSet, sparams::NeuralNetworkParameters,
+function build_nn_function(eqs::EquationSet, sparams::NetworkParameters,
                            svariables::SymbolicVariables...; kwargs...)
     flat, template = flatten_equations(eqs)
     joint = build_nn_function(flat, sparams, svariables...; kwargs...)
@@ -69,7 +69,7 @@ funcs([1.0, 2.0], params(nn))
  (b = [0.9576465981186686],)
 ```
 """
-function build_nn_function(eqs::AbstractArray{<:EquationSet}, sparams::NeuralNetworkParameters,
+function build_nn_function(eqs::AbstractArray{<:EquationSet}, sparams::NetworkParameters,
                            svariables::SymbolicVariables...; kwargs...)
     functions = map(eq -> build_nn_function(eq, sparams, svariables...; kwargs...), eqs)
     EquationSetArrayFunction{length(svariables)}(functions)
@@ -148,8 +148,8 @@ function flatten_equations(eqs::EquationSet)
     flat, template
 end
 
-flatten_equations!(flat::AbstractVector, eqs::NeuralNetworkParameters) =
-    NeuralNetworkParameters{keys(eqs)}(map(eq -> flatten_equations!(flat, eq), values(eqs)))
+flatten_equations!(flat::AbstractVector, eqs::NetworkParameters) =
+    NetworkParameters{keys(eqs)}(map(eq -> flatten_equations!(flat, eq), values(eqs)))
 flatten_equations!(flat::AbstractVector, eqs::NamedTuple) =
     NamedTuple{keys(eqs)}(map(eq -> flatten_equations!(flat, eq), values(eqs)))
 
@@ -185,8 +185,8 @@ accounted for — see [`AbstractBatchedFunction`](@ref) for where those layouts 
 A scalar-valued entry is treated as one of size ``m = 1`` throughout, so it comes back as a number
 for a single sample and as a ``1\times{}N`` matrix for a concatenated batch.
 """
-unflatten(template::NeuralNetworkParameters, out::AbstractArray) =
-    NeuralNetworkParameters{keys(template)}(map(t -> unflatten(t, out), values(template)))
+unflatten(template::NetworkParameters, out::AbstractArray) =
+    NetworkParameters{keys(template)}(map(t -> unflatten(t, out), values(template)))
 unflatten(template::NamedTuple, out::AbstractArray) =
     NamedTuple{keys(template)}(map(t -> unflatten(t, out), values(template)))
 

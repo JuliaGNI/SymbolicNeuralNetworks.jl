@@ -1,7 +1,8 @@
 using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: Gradient, derivative, symbolic_differentials, symbolic_derivative,
                               symbolic_parameter_gradient, build_kernel
-using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, NeuralNetworkParameters
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
+using NeuralNetworkParameters: NetworkParameters
 using LinearAlgebra: norm
 using Test
 import Zygote, Random
@@ -13,7 +14,7 @@ Random.seed!(123)
     snn = SymbolicNeuralNetwork(c)
     g = Gradient(snn)
     @test isequal(derivative(g), symbolic_parameter_gradient(g.f, snn))
-    @test derivative(g) isa AbstractArray{<:NeuralNetworkParameters}
+    @test derivative(g) isa AbstractArray{<:NetworkParameters}
 end
 
 # A scalar expression is differentiated into the parameter shape directly; only an array-valued one
@@ -22,7 +23,7 @@ end
     c = Chain(Dense(2, 1, tanh))
     snn = SymbolicNeuralNetwork(c)
     scalar = symbolic_parameter_gradient(sum(c(snn.input, params(snn))), snn)
-    @test scalar isa NeuralNetworkParameters
+    @test scalar isa NetworkParameters
     @test size(scalar.L1.W) == size(params(snn).L1.W)
 end
 

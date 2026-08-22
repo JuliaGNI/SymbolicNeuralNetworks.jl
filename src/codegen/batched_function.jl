@@ -219,7 +219,7 @@ _eltype(x::AbstractArray) = eltype(x)
 _eltype(x::Number) = typeof(x)
 _eltype(x::Tuple) = promote_type(map(_eltype, x)...)
 _eltype(x::NamedTuple) = _eltype(values(x))
-_eltype(x::NeuralNetworkParameters) = _eltype(values(x))
+_eltype(x::NetworkParameters) = _eltype(values(x))
 
 @doc raw"""
     allocate_batch_output(T, equation_size, batch_size, reduction)

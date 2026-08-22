@@ -3,7 +3,7 @@
 
 Build symbolic variables with the shape of `x`, named after `name`.
 
-`x` may be a number, an array, or an arbitrarily nested `NamedTuple`/`NeuralNetworkParameters` of
+`x` may be a number, an array, or an arbitrarily nested `NamedTuple`/`NetworkParameters` of
 those — i.e. anything that can hold the parameters of a neural network. Every leaf gets its own
 name, numbered consecutively: `name_1`, `name_2`, …
 
@@ -22,11 +22,11 @@ symbolic_variables((a = 1.0, b = [1, 2]), :X)
 ```jldoctest
 using SymbolicNeuralNetworks: symbolic_variables
 using AbstractNeuralNetworks: NeuralNetwork, Chain, Dense, params
-import AbstractNeuralNetworks: NeuralNetworkParameters
+import NeuralNetworkParameters: NetworkParameters
 
 nn = NeuralNetwork(Chain(Dense(1, 2; use_bias = false), Dense(2, 1; use_bias = false)))
 sparams = symbolic_variables(params(nn), :W)
-(sparams isa NeuralNetworkParameters, keys(sparams), size(sparams.L1.W), eltype(sparams.L1.W))
+(sparams isa NetworkParameters, keys(sparams), size(sparams.L1.W), eltype(sparams.L1.W))
 
 # output
 
@@ -60,8 +60,8 @@ function symbolic_variables!(counters::Dict{Symbol, Int}, x::NamedTuple, name::S
     NamedTuple{keys(x)}(map(value -> symbolic_variables!(counters, value, name), values(x)))
 end
 
-function symbolic_variables!(counters::Dict{Symbol, Int}, x::NeuralNetworkParameters, name::Symbol)
-    NeuralNetworkParameters(symbolic_variables!(counters, params(x), name))
+function symbolic_variables!(counters::Dict{Symbol, Int}, x::NetworkParameters, name::Symbol)
+    NetworkParameters(symbolic_variables!(counters, params(x), name))
 end
 
 """

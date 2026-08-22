@@ -34,7 +34,7 @@ nn = SymbolicNeuralNetwork(c)
 
 Internally this uses [`symbolic_parameter_gradient`](@ref). For an array-valued `f` the result is an
 array of the same shape whose entries are the parameter-shaped gradients of the corresponding entry
-of `f` — so the gradient of a matrix is a matrix of `NeuralNetworkParameters`, each of which is the
+of `f` — so the gradient of a matrix is a matrix of `NetworkParameters`, each of which is the
 ordinary gradient of one matrix element.
 """
 struct Gradient{OT, SDT, ST} <: Derivative{OT, SDT, ST}

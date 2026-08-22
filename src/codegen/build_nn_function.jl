@@ -82,7 +82,7 @@ function build_nn_function(eq, nn::AbstractSymbolicNeuralNetwork, soutput::Symbo
     build_nn_function(eq, params(nn), nn.input, soutput; kwargs...)
 end
 
-function build_nn_function(eq::SymbolicExpression, sparams::NeuralNetworkParameters,
+function build_nn_function(eq::SymbolicExpression, sparams::NetworkParameters,
                            svariables::SymbolicVariables...;
                            reduce = hcat, cse::Bool = true, inplace::Bool = true)
     reduction = _check_reduction(reduce)

@@ -4,7 +4,8 @@
 using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: build_kernel, build_kernel!, parameter_arguments, generated_expression,
                               _assert_no_name_clash, _assert_no_reserved_names_in_body
-using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, NeuralNetworkParameters
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
+using NeuralNetworkParameters: NetworkParameters
 using Symbolics
 using Test
 import Random
