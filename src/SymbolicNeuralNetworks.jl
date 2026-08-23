@@ -21,8 +21,8 @@ module SymbolicNeuralNetworks
     # visible which names in this module are somebody else's.
     import NeuralNetworkParameters: NetworkParameters, ParameterLayout, ParametersLayout,
                                     NestedLayout, TupleLayout, WrappedLayout, LeafLayout,
-                                    flatten, unflatten, parameterlayout, parameterrange,
-                                    flatlength, parameter_eltype, mapparameters
+                                    FlatParameters, flatten, unflatten, parameterlayout,
+                                    parameterrange, flatlength, parameter_eltype, mapparameters
     import AbstractNeuralNetworks: architecture, model, params
     # defined for `AbstractLayer` upstream; extended to `Chain` in `symbolic_neuralnet.jl`
     import AbstractNeuralNetworks: input_dimension, output_dimension
@@ -52,6 +52,7 @@ module SymbolicNeuralNetworks
     include("codegen/batched_function.jl")
     include("codegen/build_nn_function.jl")
     include("codegen/equation_sets.jl")
+    include("codegen/flat_parameters.jl")
 
     include("derivatives/derivative.jl")
     include("derivatives/jacobian.jl")

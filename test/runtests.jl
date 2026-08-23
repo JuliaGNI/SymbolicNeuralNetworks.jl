@@ -21,6 +21,9 @@ end
 @safetestset "Equation sets                                                                          " begin
     include("codegen/equation_sets.jl")
 end
+@safetestset "Flat parameters                                                                        " begin
+    include("codegen/flat_parameters.jl")
+end
 @safetestset "Codegen-drift guard                                                                    " begin
     include("codegen/codegen_drift.jl")
 end
