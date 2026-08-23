@@ -26,6 +26,8 @@ module SymbolicNeuralNetworks
     import AbstractNeuralNetworks: architecture, model, params
     # defined for `AbstractLayer` upstream; extended to `Chain` in `symbolic_neuralnet.jl`
     import AbstractNeuralNetworks: input_dimension, output_dimension
+    # the accessor for a `Chain`'s layers, which the layerwise pullback decomposes a model with
+    import AbstractNeuralNetworks: layers
     # these types will be shifted to `GeometricOptimizers` once this package is ready
     import AbstractNeuralNetworks: NetworkLoss, AbstractPullback, FeedForwardLoss
     # the generated code may call `NaNMath` functions, so the name has to resolve in this module
@@ -55,4 +57,5 @@ module SymbolicNeuralNetworks
     include("derivatives/jacobian.jl")
     include("derivatives/gradient.jl")
     include("derivatives/pullback.jl")
+    include("derivatives/layerwise_pullback.jl")
 end

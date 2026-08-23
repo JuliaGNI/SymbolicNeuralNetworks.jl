@@ -45,6 +45,9 @@ end
 @safetestset "SymbolicPullback                                                                       " begin
     include("derivatives/pullback.jl")
 end
+@safetestset "Layerwise SymbolicPullback                                                              " begin
+    include("derivatives/layerwise_pullback.jl")
+end
 
 # Doctests are version-sensitive, so they are opt-in here (and run authoritatively in the
 # documentation build, see .github/workflows/Documenter.yml). Enable locally with
