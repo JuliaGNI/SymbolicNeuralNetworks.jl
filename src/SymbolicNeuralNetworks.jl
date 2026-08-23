@@ -38,6 +38,8 @@ module SymbolicNeuralNetworks
     export AbstractSymbolicNeuralNetwork
     export SymbolicNeuralNetwork
     export build_nn_function
+    export build_flat_function
+    export flat_parameter_gradient
     export SymbolicPullback
 
     include("symbolic_expressions.jl")

@@ -4,8 +4,7 @@
 # usable for the thing it exists for: differentiating with respect to a vector.
 
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: build_flat_function, flat_parameter_gradient, flatten_gradient,
-                              symbolic_parameter_gradient, FlatParameterFunction
+using SymbolicNeuralNetworks: flatten_gradient, symbolic_parameter_gradient, FlatParameterFunction
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, FeedForwardLoss
 using NeuralNetworkParameters: NetworkParameters, FlatParameters, flatten, unflatten,
                                parameterlayout, flatlength
@@ -99,6 +98,48 @@ end
     blocks = unflatten(layout, permutedims(J))
     @test size(blocks.L1.W) == (length(ps.L1.W), 2)
     @test size(blocks.L2.b) == (length(ps.L2.b), 2)
+end
+
+# Neither function reads a model, so degrees of freedom that are not a network's parameters go
+# through both. This is what `docs/src/guide/flat_parameters.md` claims at the end, exercised.
+@testset "degrees of freedom that are not a network's" begin
+    dof = NetworkParameters((scale = Symbolics.variables(:s, 1:2),
+                             offset = Symbolics.variables(:o, 1:2, 1:2)))
+    sinput = Symbolics.variables(:t, 1:2)
+    # a nonlinear expression over `dof` that no `Chain` produces
+    equation = dof.offset * (dof.scale .* sinput) .- sin.(dof.scale)
+
+    residual = build_flat_function(equation, dof, sinput)
+    J = flat_parameter_gradient(equation, dof)
+    @test size(J) == (2, flatlength(dof))
+    jacobian = build_flat_function(J, dof, sinput)
+
+    numbers = NetworkParameters((scale = [0.5, 2.0], offset = [1.0 2.0; 3.0 4.0]))
+    v, dof_layout = flatten(numbers)
+    t = rand(2)
+
+    reference(u) = let p = unflatten(dof_layout, u)
+        p.offset * (p.scale .* t) .- sin.(p.scale)
+    end
+    @test residual(t, v) ≈ reference(v)
+    @test jacobian(t, v) ≈ ForwardDiff.jacobian(reference, v)
+end
+
+# `SymbolicNeuralNetwork`'s parameter field is a `Union{NetworkParameters, NamedTuple}` and
+# `symbolic_differentials` walks either, so the gradient functions have to accept a bare `NamedTuple`
+# too — both as the parameters of a network and as degrees of freedom handed over directly.
+@testset "parameters nested in a plain NamedTuple" begin
+    nt = NamedTuple(params(snn))
+    snt = SymbolicNeuralNetwork(snn.architecture, snn.model, nt, snn.input)
+    @test params(snt) isa NamedTuple
+
+    eq = c(snt.input, params(snt))
+    J = flat_parameter_gradient(eq, snt)
+    @test size(J) == (2, flatlength(ps))
+    # the same variables either way round, so the two derivatives are the same expressions
+    @test all(isequal.(J, flat_parameter_gradient(c(snn.input, params(snn)), snn)))
+    @test all(isequal.(flat_parameter_gradient(eq, nt), J))
+    @test all(isequal.(flatten_gradient(symbolic_parameter_gradient(eq, nt)), J))
 end
 
 @testset "flatten_gradient rejects an empty expression" begin

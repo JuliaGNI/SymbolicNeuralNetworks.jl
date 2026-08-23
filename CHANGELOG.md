@@ -6,9 +6,10 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
 
 ## [0.5.0] — unreleased
 
-A refactor of the whole package for robustness, correctness and clarity. The exported surface —
-`SymbolicNeuralNetwork`, `AbstractSymbolicNeuralNetwork`, `build_nn_function`, `SymbolicPullback` —
-is unchanged in name, but almost everything below it moved. There are no deprecation shims.
+A refactor of the whole package for robustness, correctness and clarity. Nothing in the exported
+surface — `SymbolicNeuralNetwork`, `AbstractSymbolicNeuralNetwork`, `build_nn_function`,
+`SymbolicPullback` — is renamed or removed; `build_flat_function` and `flat_parameter_gradient` are
+added to it. Almost everything below it moved. There are no deprecation shims.
 
 Resolves [#14](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/14),
 [#21](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/21),
@@ -210,17 +211,27 @@ Resolves [#14](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/14),
   its expression instead, in which case it is used as given.
 
 - **Generated functions that take their parameters flat**
-  ([#21](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/21)). `build_flat_function` is
-  `build_nn_function` with a flat vector in place of the parameter set, and `flat_parameter_gradient`
-  differentiates with respect to the parameters and lays the result out flat — a vector for a scalar
-  expression, and for an array-valued one the `length(f) × flatlength` Jacobian a Newton step is built
-  from. Out of place, so a `Dual`-valued vector gives `Dual`-valued parameters and `ForwardDiff`
-  differentiates with respect to the flat form.
+  ([#21](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/21)), both **exported**.
+  `build_flat_function` is `build_nn_function` with a flat vector in place of the parameter set, and
+  `flat_parameter_gradient` differentiates with respect to the parameters and lays the result out
+  flat — a vector for a scalar expression, and for an array-valued one the `length(f) × flatlength`
+  Jacobian a Newton step is built from. Out of place, so a `Dual`-valued vector gives `Dual`-valued
+  parameters and `ForwardDiff` differentiates with respect to the flat form.
+
+  Neither reads a model: both take a `NetworkParameters` of symbolic leaves in place of the symbolic
+  network, which is what the issue's second half — degrees of freedom of a nonlinear expression that
+  is not a network's forward pass — goes through. `symbolic_parameter_gradient` gained the same
+  method. Both gradient functions take any `EquationSet`, so a nested `NamedTuple` of symbolic leaves
+  works as well — which is also what the parameters of a `SymbolicNeuralNetwork` are allowed to be.
+  `build_flat_function` is the narrower of the two and wants a `NetworkParameters`, because
+  `build_nn_function` dispatches on one.
 
   The conversion itself is not reimplemented here: `NeuralNetworkParameters` has `flatten`/`unflatten`
-  over a reusable `ParameterLayout`, allocation-free variants, `Float32` fidelity, GPU support and
-  `ChainRulesCore` rules for both directions. The new `docs/src/guide/flat_parameters.md` says which
-  half is whose.
+  over a reusable `ParameterLayout`, allocation-free variants, `Float32` fidelity, a GPU-safe forward
+  conversion (`copyto!` per leaf, no element ever indexed) and `ChainRulesCore` rules for both
+  directions — though its reverse rule accumulates cotangents elementwise, so reverse mode *through*
+  the conversion is not itself GPU-clean. The new `docs/src/guide/flat_parameters.md` says which half
+  is whose.
 
 - **A user manual.** `docs/src/` gains a guide (symbolic networks, building functions, derivatives,
   equation sets, training), a `limitations.md` collecting the assumptions and rough edges in one
@@ -297,8 +308,6 @@ Things that came up during this refactor and are **not** fixed.
   also [#9](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/9).
 - The generated `api.md` is 106 KiB, above Documenter's 100 KiB warning threshold. Splitting the
   `@autodocs` block per source directory would fix it.
-- Remaining open issues untouched by this refactor:
-  [#21](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/21) (flatten/destruct/reconstruct),
+- One open issue is untouched by this refactor:
   [#31](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/31) (convenience wrappers such
-  as `parent(jac)` and `build_nn_function(jac, …)`), and
-  [#34](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/34) (`ParameterHandling`).
+  as `parent(jac)` and `build_nn_function(jac, …)`).

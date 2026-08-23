@@ -28,11 +28,16 @@ equation was built from — or a `NeuralNetworkParameters.FlatParameters`, which
 Takes the same keyword arguments as [`build_nn_function`](@ref), and accepts everything it accepts,
 including an [`EquationSet`](@ref).
 
+The third form — the symbolic parameters and the symbolic data variables given directly rather than
+taken from a network — is the one for degrees of freedom that are *not* a network's parameters:
+nothing here reads a model. It is what [`flat_parameter_gradient`](@ref)'s second form pairs with.
+Unlike that one it needs a `NetworkParameters` rather than any [`EquationSet`](@ref), because
+[`build_nn_function`](@ref) dispatches on one.
+
 # Examples
 
 ```jldoctest
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: build_flat_function
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
 using NeuralNetworkParameters: flatten
 import Random
@@ -112,9 +117,11 @@ end
 
 @doc raw"""
     flat_parameter_gradient(f, nn)
+    flat_parameter_gradient(f, sparams)
 
-Differentiate the symbolic expression `f` with respect to the parameters of `nn`, as one flat object
-rather than as a set nested like the parameters.
+Differentiate the symbolic expression `f` with respect to the parameters of `nn` — or with respect
+to a set of symbolic parameters `sparams` given directly — as one flat object rather than as a set
+nested like the parameters.
 
 A scalar `f` gives a vector of length `flatlength(params(nn))`; an array-valued `f` gives the
 ``\mathrm{length}(f)\times\mathrm{flatlength}`` Jacobian
@@ -130,13 +137,19 @@ Pair it with [`build_flat_function`](@ref) for a function that is flat in both d
 `NeuralNetworkParameters.unflatten` to read a column block of the result back as the entry of the
 parameter set it belongs to.
 
+The `sparams` form is the one for degrees of freedom that are not a network's parameters: nothing in
+either function reads a model, so an expression over any `NetworkParameters` of symbolic leaves goes
+through both. Here `sparams` may be any [`EquationSet`](@ref), as with
+[`symbolic_parameter_gradient`](@ref); [`build_flat_function`](@ref) is the narrower of the two and
+wants a `NetworkParameters`.
+
 # Examples
 
 The gradient of a scalar expression, against the same derivative in its nested form:
 
 ```jldoctest
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: flat_parameter_gradient, symbolic_parameter_gradient
+using SymbolicNeuralNetworks: symbolic_parameter_gradient
 using AbstractNeuralNetworks: Chain, Dense, params
 using NeuralNetworkParameters: flatten
 
@@ -157,7 +170,6 @@ The Jacobian of a vector-valued one:
 
 ```jldoctest
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: flat_parameter_gradient
 using AbstractNeuralNetworks: Chain, Dense, params
 
 c = Chain(Dense(2, 3, tanh))
@@ -169,8 +181,8 @@ size(flat_parameter_gradient(c(snn.input, params(snn)), snn))
 (3, 9)
 ```
 """
-function flat_parameter_gradient(f, nn::AbstractSymbolicNeuralNetwork)
-    flatten_gradient(symbolic_parameter_gradient(f, nn))
+function flat_parameter_gradient(f, dof::Union{AbstractSymbolicNeuralNetwork, EquationSet})
+    flatten_gradient(symbolic_parameter_gradient(f, dof))
 end
 
 """
