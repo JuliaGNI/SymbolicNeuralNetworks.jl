@@ -49,6 +49,29 @@ jobs:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v3
+      # The Pkg server serves a registry snapshot that lags General master, and this package needs
+      # `AbstractNeuralNetworks` 0.7, which the snapshot does not list yet. Take the registry from
+      # git when that is the case; package downloads still go through the Pkg server. The check
+      # makes this a no-op — a plain `Registry.update()` — as soon as the snapshot catches up, so
+      # it costs a clone of General only while it is actually needed.
+      - name: Take the General registry from upstream if the Pkg server lags
+        shell: bash
+        run: |
+          julia -e '
+            using Pkg
+            function has_ann07()
+                for r in Pkg.Registry.reachable_registries(), (_, pe) in r.pkgs
+                    pe.name == "AbstractNeuralNetworks" || continue
+                    return any(>=(v"0.7"), keys(Pkg.Registry.registry_info(r, pe).version_info))
+                end
+                false
+            end
+            Pkg.Registry.update()
+            if !has_ann07()
+                @info "Pkg server registry lags; taking General from upstream"
+                try; Pkg.Registry.rm("General"); catch; end
+                Pkg.Registry.add(RegistrySpec(url = "https://github.com/JuliaRegistries/General.git"))
+            end'
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
