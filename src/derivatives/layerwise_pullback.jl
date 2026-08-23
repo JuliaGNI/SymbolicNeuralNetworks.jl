@@ -291,27 +291,33 @@ Whether composing the pullback layer by layer is the better choice for `nn`, whi
 
 # Implementation
 
-A single layer is the one case where the monolithic construction wins: there is no composition to
-keep out of the expression, so the two build the same derivative, and the seeded form of
-[`layer_step`](@ref) merely adds the sensitivity variables and a second generated function. Measured
-build times, `FeedForwardLoss` and `Dense` chains, after warm-up:
+A single layer is the one case where the monolithic construction is unambiguously right: there is no
+composition to keep out of the expression, so the two build the same derivative, and the seeded form
+of [`layer_step`](@ref) merely adds the sensitivity variables and a second generated function.
 
-| layers | width | parameters | layerwise | monolithic |
-|-------:|------:|-----------:|----------:|-----------:|
-| 1 | 2 | 6 | 0.16 s | **0.06 s** |
-| 2 | 4 | 22 | 0.21 s | **0.04 s** |
-| 3 | 4 | 42 | 0.29 s | **0.17 s** |
-| 4 | 4 | 62 | **0.23 s** | 0.26 s |
-| 5 | 4 | 82 | **0.24 s** | 0.40 s |
-| 6 | 4 | 102 | **0.26 s** | 0.66 s |
-| 4 | 8 | 186 | **0.36 s** | 0.64 s |
-| 4 | 16 | 626 | **0.59 s** | does not build |
+Above one layer the two are measured against each other by `scripts/codegen_comparison.jl`. In
+expression nodes — the size of the symbolic material each construction has to hold — and in seconds
+to build, for `Dense` chains with a `FeedForwardLoss`:
 
-The layerwise column is flat because it is a sum over layers; the monolithic one grows without bound.
-Two and three layers are the rows where the monolithic path is still ahead, by a fraction of a
-second — not enough to be worth dispatching on a threshold that would then have to be justified, and
-the wrong way to be wrong: the cost of choosing layerwise there is bounded and small, while the cost
-of choosing monolithic on a network one layer deeper is unbounded.
+| layers | width | parameters | monolithic nodes | layerwise nodes | monolithic | layerwise |
+|-------:|------:|-----------:|-----------------:|----------------:|-----------:|----------:|
+| 2 | 4 | 22 | 6 652 | 792 | **0.02 s** | 0.20 s |
+| 3 | 4 | 42 | 57 772 | 1 656 | **0.04 s** | 0.23 s |
+| 4 | 4 | 62 | 388 700 | 2 520 | **0.10 s** | 0.21 s |
+| 5 | 4 | 82 | 2 317 964 | 3 384 | 0.34 s | **0.30 s** |
+| 6 | 4 | 102 | 12 848 828 | 4 248 | 0.65 s | **0.32 s** |
+| 4 | 8 | 186 | 8 253 148 | 11 736 | 0.61 s | **0.30 s** |
+| 4 | 16 | 626 | 209 455 964 | 68 760 | does not build | **0.53 s** |
+
+The layerwise node count is exactly linear — 864 more per identical added layer — against a column
+that multiplies by about six each time.
+
+Build time crosses over at five layers, or at four of width eight. Below that the monolithic path is
+still ahead, by at most a fifth of a second, and this returns `true` there anyway: a threshold that
+reproduced the crossover would have to be a function of width as well as depth, fitted to timings
+from one machine, and it would be the wrong thing to get wrong. Choosing layerwise where monolithic
+would have been quicker costs a fixed fraction of a second; choosing monolithic on a network one
+layer deeper costs everything.
 """
 function composes_layerwise(nn::AbstractSymbolicNeuralNetwork)
     steps = symbolic_steps(nn)

@@ -6,13 +6,23 @@ CurrentModule = SymbolicNeuralNetworks
 
 The assumptions and rough edges of this package, collected in one place.
 
-## Only small networks
+## Code generation dominates the cost
 
-The whole network is unrolled into a single expression, so the size of the generated code grows with
-the size of the network. Common subexpression elimination (on by default, see
-[Building Functions](@ref)) keeps that growth linear in the number of distinct operations rather than
-exponential in the depth, but code generation still dominates the cost of using this package.
-`scripts/codegen_comparison.jl` measures it for networks of increasing depth.
+Everything here is built once and evaluated many times, and the build is the expensive half. Two
+things make it so.
+
+The *generated code* re-emits a subexpression once per use, because `Symbolics` stores an expression
+as a hash-consed graph but prints it as a tree. Common subexpression elimination — on by default, see
+[Building Functions](@ref) — keeps that proportional to the number of distinct operations instead.
+
+The *expression* itself grows with the network when a whole composition is written down as one
+formula: a `Chain`'s forward pass inlined layer into layer is exponential in depth. For the pullback
+this is avoided by not inlining it, which is what [`SymbolicPullback`](@ref) does by default; see
+[How the pullback is built](@ref). Elsewhere — [`Jacobian`](@ref), [`Gradient`](@ref),
+[`build_nn_function`](@ref) of an expression over the whole model — the single expression is still
+what is built, so those remain practical for small networks only.
+
+`scripts/codegen_comparison.jl` measures both effects.
 
 ## The default result cannot be differentiated by `Zygote`
 

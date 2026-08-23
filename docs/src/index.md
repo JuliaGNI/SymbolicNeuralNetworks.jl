@@ -93,6 +93,9 @@ pullback(1).L1.b
   `cse`, `inplace` and `reduce` keywords.
 - [Derivatives](@ref) — [`Jacobian`](@ref), [`Gradient`](@ref) and [`SymbolicPullback`](@ref).
 - [Equation Sets](@ref) — building several equations at once.
-- [Training a Symbolic Neural Network](@ref) — a worked example with `GeometricMachineLearning`.
+- [Flat Parameters](@ref) — functions of a flat parameter vector, and the derivative with respect to
+  it, for a solver that wants the network's degrees of freedom as a vector.
+- [Training a Symbolic Neural Network](@ref) — a worked example with `GeometricMachineLearning`, and
+  how the pullback is built.
 - [Limitations](@ref) — the assumptions and rough edges, collected in one place.
 - [Code Generation](@ref) — how the generated code is put together, for maintainers.
