@@ -10,6 +10,20 @@ concurrency:
   # Cancel intermediate builds: only if it is a pull request build.
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+# Temporary: go straight to the General registry instead of through a package server.
+#
+# `AbstractNeuralNetworks` 0.7.0 was registered at 04:00 UTC on 2026-08-23 and the package servers
+# were still serving a registry that stopped at 0.6.4 hours later, so every job here died in
+# `Pkg.resolve` — "possible versions are: 0.1.0-0.6.4 … restricted to versions 0.7 by
+# SymbolicNeuralNetworks" — before running a single test. An empty `JULIA_PKG_SERVER` makes Pkg clone
+# the registry over git and fetch packages from their own repositories, which resolves the same
+# environment that resolves locally.
+#
+# The cost is speed: no CDN and no registry tarball. Remove this once the package servers have caught
+# up (check with `curl -s https://pkg.julialang.org/registries`), and check whether it is still
+# needed before assuming it is.
+env:
+  JULIA_PKG_SERVER: ""
 jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
@@ -43,7 +57,7 @@ jobs:
             arch: default
             experimental: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: julia-actions/setup-julia@v3
         with:
           version: ${{ matrix.version }}
@@ -52,7 +66,7 @@ jobs:
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
-      - uses: codecov/codecov-action@v6
+      - uses: codecov/codecov-action@v7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:

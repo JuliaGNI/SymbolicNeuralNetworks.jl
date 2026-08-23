@@ -58,7 +58,7 @@ build_nn_function(gradient, params(snn), snn.input; reduce = +)(rand(2, 8), ps).
 Building each of those four entries as its own function would re-derive the forward pass four times
 and compile four `RuntimeGeneratedFunction`s instead of one. Internally the set is flattened into a
 single vector of scalar equations by [`flatten_equations`](@ref) and the flat result is split up
-again by [`unflatten`](@ref).
+again by [`split_result`](@ref).
 
 ## Arrays of equation sets
 

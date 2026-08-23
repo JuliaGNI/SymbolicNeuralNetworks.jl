@@ -72,9 +72,12 @@ o = Optimizer(AdamOptimizer(), nn_cpu)
 o(nn_cpu, dl, Batch(10), 1000, pb.loss, pb)
 ```
 
+The pullback is composed layer by layer, so what it costs to build grows with the *size* of the
+network rather than exponentially with its depth.
+
 See the [documentation](https://JuliaGNI.github.io/SymbolicNeuralNetworks.jl/latest/) for the full
-picture: batching and result shapes, the `cse`/`inplace`/`reduce` keywords, equation sets, a worked
-training example, and the limitations of the approach.
+picture: batching and result shapes, the `cse`/`inplace`/`reduce` keywords, equation sets, functions
+of a flat parameter vector, a worked training example, and the limitations of the approach.
 
 ## Development
 

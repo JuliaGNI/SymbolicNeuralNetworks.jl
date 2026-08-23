@@ -21,6 +21,9 @@ end
 @safetestset "Equation sets                                                                          " begin
     include("codegen/equation_sets.jl")
 end
+@safetestset "Flat parameters                                                                        " begin
+    include("codegen/flat_parameters.jl")
+end
 @safetestset "Codegen-drift guard                                                                    " begin
     include("codegen/codegen_drift.jl")
 end
@@ -44,6 +47,9 @@ end
 end
 @safetestset "SymbolicPullback                                                                       " begin
     include("derivatives/pullback.jl")
+end
+@safetestset "Layerwise SymbolicPullback                                                             " begin
+    include("derivatives/layerwise_pullback.jl")
 end
 
 # Doctests are version-sensitive, so they are opt-in here (and run authoritatively in the

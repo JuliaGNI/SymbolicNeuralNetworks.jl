@@ -26,6 +26,7 @@ makedocs(;
             "Building Functions" => "guide/building_functions.md",
             "Derivatives" => "guide/derivatives.md",
             "Equation Sets" => "guide/equation_sets.md",
+            "Flat Parameters" => "guide/flat_parameters.md",
             "Training" => "guide/training.md",
         ],
         "Tutorials" => [

@@ -143,7 +143,7 @@ not always infer (`test/codegen/type_stability.jl` guards this).
 
 Equation sets go through one more layer, `src/codegen/equation_sets.jl`: the set is flattened into a
 single vector of scalar equations by [`flatten_equations`](@ref), built as one function, and the flat
-result is split up again by [`unflatten`](@ref).
+result is split up again by [`split_result`](@ref).
 
 ## Guarding against upstream drift
 

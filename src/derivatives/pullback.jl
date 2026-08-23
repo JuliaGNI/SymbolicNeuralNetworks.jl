@@ -35,10 +35,16 @@ typeof(pb(ps, nn.model, (rand(2), rand(1)))[2](1))
 
 # Keyword Arguments
 
+- `layerwise`: how the pullback is built (default `:auto`). With `:auto` it is composed layer by
+  layer whenever that is the better choice ([`composes_layerwise`](@ref)), and built from one
+  expression for the whole network otherwise. `true` demands the layerwise construction and errors
+  if it does not apply; `false` demands the monolithic one. See
+  [`layerwise_gradient_function`](@ref) and [`monolithic_gradient_function`](@ref) — the two produce
+  the same gradient, and differ by orders of magnitude in what it costs to build.
 - `cse`: perform *common subexpression elimination* when generating code (default `true`). This
-  matters a lot here: without it every one of the `2 * n_layers` generated blocks re-emits the
-  entire forward pass, which makes the code for networks with more than one hidden layer
-  intractably large. See [`build_kernel`](@ref).
+  matters most on the monolithic path: without it every one of the `2 * n_layers` generated blocks
+  re-emits the entire forward pass, which makes the code for networks with more than one hidden
+  layer intractably large. See [`build_kernel`](@ref).
 - `inplace`: evaluate a batch with an in-place kernel (default `true`). The pullback is the end of
   the differentiation chain, so nothing differentiates through it and the default is what you want
   here; `inplace = false` exists for symmetry with [`build_nn_function`](@ref).
@@ -108,15 +114,54 @@ struct SymbolicPullback{NNLT, FT} <: AbstractPullback{NNLT}
     fun::FT
 end
 
-function SymbolicPullback(nn::SymbolicNeuralNetwork, loss::NetworkLoss; cse::Bool = true, inplace::Bool = true)
+function SymbolicPullback(nn::SymbolicNeuralNetwork, loss::NetworkLoss;
+                          layerwise::Union{Bool, Symbol} = :auto, cse::Bool = true,
+                          inplace::Bool = true)
+    _check_layerwise(layerwise)
+    if layerwise === true || (layerwise === :auto && composes_layerwise(nn))
+        gradient_function = layerwise_gradient_function(nn, loss; cse = cse, inplace = inplace)
+        isnothing(gradient_function) && layerwise === true && throw(ArgumentError(
+            "`layerwise = true`, but the pullback cannot be built layer by layer for this network: " *
+            "either the model does not decompose into a sequence of layers with known dimensions " *
+            "(see `symbolic_steps`), or the loss cannot be expressed as a function of the " *
+            "prediction and the target (see `loss_expression`). Pass `layerwise = :auto` to fall " *
+            "back to the monolithic construction."))
+        isnothing(gradient_function) ||
+            return SymbolicPullback(loss, ParameterGradient(gradient_function))
+    end
+    SymbolicPullback(loss, ParameterGradient(monolithic_gradient_function(nn, loss; cse = cse,
+                                                                         inplace = inplace)))
+end
+
+function _check_layerwise(layerwise)
+    layerwise isa Bool || layerwise === :auto || throw(ArgumentError(
+        "the keyword argument `layerwise` has to be `true`, `false` or `:auto`, got `$(layerwise)`."))
+    nothing
+end
+
+"""
+    monolithic_gradient_function(nn, loss; cse, inplace)
+
+Build the gradient of `loss` as *one* generated function, from one symbolic expression for the loss of
+the whole network.
+
+This is what [`SymbolicPullback`](@ref) used to do unconditionally, and what it still does for a
+network the layerwise construction does not apply to, or is not worth applying to — see
+[`composes_layerwise`](@ref).
+
+Its cost is the reason for [`layerwise_gradient_function`](@ref): the expression is
+`O(width^depth)` before anything is differentiated, and differentiating it walks the whole of it once
+per scalar parameter.
+"""
+function monolithic_gradient_function(nn::SymbolicNeuralNetwork, loss::NetworkLoss;
+                                      cse::Bool = true, inplace::Bool = true)
     soutput = Symbolics.variables(:y, 1:output_dimension(nn.model))
     symbolic_loss = loss(nn.model, params(nn), nn.input, soutput)
     gradient = symbolic_parameter_gradient(symbolic_loss, nn)
     # `reduce = +`: the loss of a batch is the sum of the losses of its samples, so its gradient is
     # the sum of the per-sample gradients.
-    gradient_function = build_nn_function(gradient, params(nn), nn.input, soutput;
-                                          reduce = +, cse = cse, inplace = inplace)
-    SymbolicPullback(loss, ParameterGradient(gradient_function))
+    build_nn_function(gradient, params(nn), nn.input, soutput;
+                      reduce = +, cse = cse, inplace = inplace)
 end
 
 SymbolicPullback(nn::SymbolicNeuralNetwork; kwargs...) =

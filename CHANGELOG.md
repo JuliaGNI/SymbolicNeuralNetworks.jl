@@ -11,10 +11,12 @@ A refactor of the whole package for robustness, correctness and clarity. The exp
 is unchanged in name, but almost everything below it moved. There are no deprecation shims.
 
 Resolves [#14](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/14),
+[#21](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/21),
 [#29](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/29),
 [#39](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/39),
-[#43](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/43) and
-[#44](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/44).
+[#43](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/43),
+[#44](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/44) and
+[#49](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/49).
 
 ### Breaking
 
@@ -156,8 +158,69 @@ Resolves [#14](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/14),
   `@warn "There is probably a bug in the code somewhere"` paths are gone.
 - Code generation emits 15–20 % less code and batched evaluation is 20–35 % faster, measured with
   `scripts/codegen_comparison.jl`.
+- **Equation sets are laid out by `NeuralNetworkParameters.ParameterLayout`** rather than by a local
+  `FlatSlice`. Flattening a nested collection of symbolic equations into one vector is the same
+  problem as flattening a parameter set, because an equation set has the same shape as one, so
+  `flatten_equations` is now `flatten` over the layout upstream builds. `unflatten_batch` stays here:
+  `unflatten` upstream already has a matrix method, and it means the other thing a matrix can mean —
+  splitting the rows of a Jacobian, with no batch dimension to restore. `symbolic_differentials`,
+  `symbolic_derivative` and `promoted_eltype` likewise use `mapparameters` and `parameter_eltype`
+  instead of each carrying its own recursion over a parameter set.
 
 ### Added
+
+- **`SymbolicPullback` is composed layer by layer**
+  ([#49](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/49)). It used to build one
+  scalar expression for the loss of the whole network and differentiate it once per scalar parameter.
+  A `Chain`'s forward pass is inlined layer into layer, so that expression is
+  `O(width^depth)` before anything is differentiated, and differentiating it walks the whole of it
+  once per parameter: four layers of width 16 — 626 parameters — reach a gradient expression of 2·10⁸
+  nodes and never build. `cse` cannot help, as it runs on an expression that has already been built.
+
+  Each layer now gets fresh symbolic variables for its own input, and per layer the *scalar*
+  `λₖ · fₖ(xₖ₋₁; θₖ)` is differentiated twice — once with respect to the layer's input, which gives
+  `λₖ₋₁`, and once with respect to its parameters, which gives `∂L/∂θₖ`. The composition happens when
+  the pullback is evaluated. The symbolic material becomes a sum over layers rather than a product:
+  2 520 nodes instead of 388 700 at four layers of width 4, 68 760 instead of 209 455 964 at width 16,
+  and exactly 864 more per identical added layer. The network that did not build now builds in half a
+  second.
+
+  `SymbolicPullback`'s signature, its functor and its return type are unchanged. The new `layerwise`
+  keyword selects the construction; `:auto`, the default, composes layer by layer for every model that
+  decomposes into more than one layer. `layerwise = false` recovers the previous construction, which
+  is also what a model that does not decompose into layers falls back to — as does a loss the
+  layerwise construction cannot get a seed from, whether because the guessed expression disagrees
+  with the loss or because the loss cannot be applied to a `PassThroughLayer` at all. `:auto` never
+  raises where the monolithic construction would have built; only `layerwise = true` does.
+
+  This also fixes the second-derivative case of
+  [GML #245](https://github.com/JuliaGNI/GeometricMachineLearning.jl/issues/245), where a layer
+  itself *contains* a built symbolic gradient: with a seam at each layer the layer is called rather
+  than traced, so stacking two costs a function call instead of inlining a gradient expression inside
+  a gradient expression.
+
+- **`loss_expression`, an extension point for the loss** — the layerwise construction needs the loss
+  as a function of the network's *prediction*, which `AbstractNeuralNetworks` has no interface for.
+  By default it is obtained by applying the loss to a `PassThroughLayer`, a model whose prediction is
+  its input. That is right for a loss which reaches its model once and compares the result to
+  `output`, and wrong for one that does something else — an autoencoder loss compares the prediction
+  to the network's *input*, and so reads through a pass-through model as identically zero. The guess
+  is therefore checked against the loss itself before it is used, and the construction falls back to
+  the monolithic one when the two disagree, rather than returning a zero gradient. A loss can declare
+  its expression instead, in which case it is used as given.
+
+- **Generated functions that take their parameters flat**
+  ([#21](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/21)). `build_flat_function` is
+  `build_nn_function` with a flat vector in place of the parameter set, and `flat_parameter_gradient`
+  differentiates with respect to the parameters and lays the result out flat — a vector for a scalar
+  expression, and for an array-valued one the `length(f) × flatlength` Jacobian a Newton step is built
+  from. Out of place, so a `Dual`-valued vector gives `Dual`-valued parameters and `ForwardDiff`
+  differentiates with respect to the flat form.
+
+  The conversion itself is not reimplemented here: `NeuralNetworkParameters` has `flatten`/`unflatten`
+  over a reusable `ParameterLayout`, allocation-free variants, `Float32` fidelity, GPU support and
+  `ChainRulesCore` rules for both directions. The new `docs/src/guide/flat_parameters.md` says which
+  half is whose.
 
 - **A user manual.** `docs/src/` gains a guide (symbolic networks, building functions, derivatives,
   equation sets, training), a `limitations.md` collecting the assumptions and rough edges in one
