@@ -12,7 +12,7 @@ The `FeedForwardLoss` of `AbstractNeuralNetworks`, evaluated on symbolic argumen
     generated function return `NaN`/`Inf`.
 """
 function (::FeedForwardLoss)(model::Union{AbstractNeuralNetworks.Chain, AbstractNeuralNetworks.AbstractExplicitLayer},
-                             params::NeuralNetworkParameters,
+                             params::NetworkParameters,
                              input::SymbolicExpression,
                              output::SymbolicExpression)
     norm(scalar_expressions(model(input, params)) - scalar_expressions(output)) / norm(scalar_expressions(output))

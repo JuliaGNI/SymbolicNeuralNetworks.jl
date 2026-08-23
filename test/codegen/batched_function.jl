@@ -14,7 +14,8 @@
 using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: Jacobian, derivative, promoted_eltype, allocate_batch_output,
                               allocate_single_output, InPlaceBatchedFunction, OutOfPlaceBatchedFunction
-using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, NeuralNetworkParameters
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
+using NeuralNetworkParameters: NetworkParameters
 using Symbolics
 using Test
 import Random
@@ -163,8 +164,8 @@ end
 @testset "integer inputs are widened, reduce = $reduction" for reduction in (hcat, +)
     f_iip = build_nn_function(c(snn.input, params(snn)), snn; reduce = reduction)
     f_oop = build_nn_function(c(snn.input, params(snn)), snn; reduce = reduction, inplace = false)
-    int_ps = NeuralNetworkParameters((L1 = (W = ones(Int, 4, INPUT_DIM), b = zeros(Int, 4)),
-                                      L2 = (W = ones(Int, OUTPUT_DIM, 4), b = zeros(Int, OUTPUT_DIM))))
+    int_ps = NetworkParameters((L1 = (W = ones(Int, 4, INPUT_DIM), b = zeros(Int, 4)),
+                                L2 = (W = ones(Int, OUTPUT_DIM, 4), b = zeros(Int, OUTPUT_DIM))))
     int_input = [1 2; 3 4; 5 6]
     @test f_iip(int_input, int_ps) ≈ f_oop(int_input, int_ps)
     @test eltype(f_iip(int_input, int_ps)) == Float64

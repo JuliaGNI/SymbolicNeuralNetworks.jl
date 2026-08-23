@@ -1,4 +1,4 @@
-# `build_nn_function` generates all entries of a `NamedTuple`- or `NeuralNetworkParameters`-valued
+# `build_nn_function` generates all entries of a `NamedTuple`- or `NetworkParameters`-valued
 # equation set as ONE function and splits the flat result afterwards (`flatten_equations` /
 # `unflatten`), instead of one function per entry: the entries of a symbolic gradient share the
 # whole forward pass, which would otherwise be re-derived once per parameter array.
@@ -9,7 +9,8 @@
 
 using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: flatten_equations, unflatten, FlatSlice, symbolic_parameter_gradient
-using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, NeuralNetworkParameters
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
+using NeuralNetworkParameters: NetworkParameters
 using Symbolics
 using Test
 import Random
@@ -24,21 +25,21 @@ soutput = Symbolics.variables(:y, 1:2)
 
 "Rebuild a nested set from the results of applying `f` to each of its entries."
 rewrap(eqs::NamedTuple, values) = NamedTuple{keys(eqs)}(values)
-rewrap(eqs::NeuralNetworkParameters, values) = NeuralNetworkParameters{keys(eqs)}(values)
+rewrap(eqs::NetworkParameters, values) = NetworkParameters{keys(eqs)}(values)
 
 "Build every entry of `eqs` as its own function — the reference the joint path has to reproduce."
-per_entry(eqs::Union{NamedTuple, NeuralNetworkParameters}, args...; kwargs...) =
+per_entry(eqs::Union{NamedTuple, NetworkParameters}, args...; kwargs...) =
     rewrap(eqs, Tuple(per_entry(eq, args...; kwargs...) for eq in values(eqs)))
 per_entry(eq, args...; kwargs...) = build_nn_function(eq, args...; kwargs...)
 
-evaluate_entries(fs::Union{NamedTuple, NeuralNetworkParameters}, args...) =
+evaluate_entries(fs::Union{NamedTuple, NetworkParameters}, args...) =
     rewrap(fs, Tuple(evaluate_entries(f, args...) for f in values(fs)))
 evaluate_entries(f, args...) = f(args...)
 
 function compare_entries(joint, reference)
     @test keys(joint) == keys(reference)
     for key in keys(joint)
-        if joint[key] isa Union{NamedTuple, NeuralNetworkParameters}
+        if joint[key] isa Union{NamedTuple, NetworkParameters}
             compare_entries(joint[key], reference[key])
         else
             @test joint[key] ≈ reference[key]
@@ -106,9 +107,9 @@ end
     end
 end
 
-@testset "nested NeuralNetworkParameters (the shape a gradient has), reduce = $reduction" for reduction in (hcat, +)
+@testset "nested NetworkParameters (the shape a gradient has), reduce = $reduction" for reduction in (hcat, +)
     eqs = symbolic_parameter_gradient(c(snn.input, params(snn)), snn)[1]
-    @test eqs isa NeuralNetworkParameters       # two levels of nesting: layer, then W/b
+    @test eqs isa NetworkParameters     # two levels of nesting: layer, then W/b
     joint = build_nn_function(eqs, params(snn), snn.input; reduce = reduction)
     reference = per_entry(eqs, params(snn), snn.input; reduce = reduction)
 

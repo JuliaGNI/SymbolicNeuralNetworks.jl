@@ -86,7 +86,7 @@ output argument — the correspondence is
 ```
 
 Every parameter argument becomes a chain of `getproperty` calls on the single parameter argument
-`ps`, which is what lets the kernel be called with `NeuralNetworkParameters` instead of a flat
+`ps`, which is what lets the kernel be called with `NetworkParameters` instead of a flat
 argument list.
 
 # Examples

@@ -3,7 +3,7 @@
 
 The name the generated kernels give their parameter argument. The rewrite rules turn every
 parameter argument of the code `Symbolics.build_function` emits into a `getproperty` on it, so that
-the kernel can be called with a single `NeuralNetworkParameters`.
+the kernel can be called with a single `NetworkParameters`.
 """
 const PARAMETER_NAME = :ps
 
@@ -82,7 +82,7 @@ code size proportional to the number of distinct nodes.
 Pass `cse = false` to recover the fully inlined output; that is mostly useful for debugging, and for
 very small networks where the binding overhead is not amortised.
 """
-function build_kernel(equation, sparams::NeuralNetworkParameters, svariables...; cse::Bool = true)
+function build_kernel(equation, sparams::NetworkParameters, svariables...; cse::Bool = true)
     paths, arrays = parameter_arguments(sparams)
     expression = generated_expression(equation, svariables, arrays; inplace = false, cse = cse)
     data_names = _data_names(svariables)
@@ -109,7 +109,7 @@ Evaluating a batch with such a kernel costs a single allocation instead of one a
 plus a `Base.reduce` fold, but the result is produced by mutation and can therefore not be
 differentiated by `Zygote`. See [`build_kernel`](@ref) for the keyword arguments.
 """
-function build_kernel!(equation, sparams::NeuralNetworkParameters, svariables...;
+function build_kernel!(equation, sparams::NetworkParameters, svariables...;
                        reduction, cse::Bool = true)
     paths, arrays = parameter_arguments(sparams)
     expression = generated_expression(equation, svariables, arrays; inplace = true, cse = cse)

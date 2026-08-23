@@ -1,6 +1,7 @@
 using SymbolicNeuralNetworks
-using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, NeuralNetworkParameters,
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params,
                               UnknownArchitecture, input_dimension, output_dimension
+using NeuralNetworkParameters: NetworkParameters
 using Symbolics
 using Test
 
@@ -15,7 +16,7 @@ c = Chain(Dense(2, 3, tanh), Dense(3, 1, tanh))
         @test snn.model === c
         @test length(snn.input) == input_dimension(c)
         @test snn.input isa Vector{Num}
-        @test params(snn) isa NeuralNetworkParameters
+        @test params(snn) isa NetworkParameters
         @test keys(params(snn)) == (:L1, :L2)
         @test size(params(snn).L1.W) == (3, 2)
         @test size(params(snn).L1.b) == (3,)

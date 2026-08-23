@@ -42,7 +42,7 @@ the parameter set, the input entries `x₁`, `x₂`, ….
 """
 struct SymbolicNeuralNetwork{AT,
                              MT,
-                             PT <: Union{NeuralNetworkParameters, NamedTuple},
+                             PT <: Union{NetworkParameters, NamedTuple},
                              IT <: AbstractVector{Num}} <: AbstractSymbolicNeuralNetwork{AT}
     architecture::AT
     model::MT

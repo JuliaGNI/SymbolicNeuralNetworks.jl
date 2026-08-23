@@ -25,8 +25,8 @@ symbolic_differentials(svariables::Symbolics.Arr) = symbolic_differentials(colle
 
 symbolic_differentials(svariables::NamedTuple) =
     NamedTuple{keys(svariables)}(map(symbolic_differentials, values(svariables)))
-symbolic_differentials(svariables::NeuralNetworkParameters) =
-    NeuralNetworkParameters{keys(svariables)}(map(symbolic_differentials, values(svariables)))
+symbolic_differentials(svariables::NetworkParameters) =
+    NetworkParameters{keys(svariables)}(map(symbolic_differentials, values(svariables)))
 
 """
     symbolic_derivative(f, differentials)
@@ -39,5 +39,5 @@ symbolic_derivative(f, differentials::AbstractArray) = [expand_derivatives(D(f))
 
 symbolic_derivative(f, differentials::NamedTuple) =
     NamedTuple{keys(differentials)}(map(D -> symbolic_derivative(f, D), values(differentials)))
-symbolic_derivative(f, differentials::NeuralNetworkParameters) =
-    NeuralNetworkParameters{keys(differentials)}(map(D -> symbolic_derivative(f, D), values(differentials)))
+symbolic_derivative(f, differentials::NetworkParameters) =
+    NetworkParameters{keys(differentials)}(map(D -> symbolic_derivative(f, D), values(differentials)))

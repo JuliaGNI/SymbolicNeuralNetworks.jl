@@ -19,13 +19,13 @@ const SymbolicExpression = Union{Num, Symbolics.BasicSymbolic, AbstractArray{Num
 """
     EquationSet
 
-An arbitrarily nested `NamedTuple` or `NeuralNetworkParameters`.
+An arbitrarily nested `NamedTuple` or `NetworkParameters`.
 
 This is the shape of the parameters of a neural network, and therefore also the shape of a symbolic
 derivative with respect to them. [`build_nn_function`](@ref) builds a whole set of equations of this
 shape as one function; see [`flatten_equations`](@ref).
 """
-const EquationSet = Union{NamedTuple, NeuralNetworkParameters}
+const EquationSet = Union{NamedTuple, NetworkParameters}
 
 """
     scalar_expressions(eq)

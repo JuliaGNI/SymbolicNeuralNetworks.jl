@@ -78,11 +78,12 @@ x = \begin{pmatrix} 1 \\ 0 \end{pmatrix}, \quad W = \begin{bmatrix} 1 & 0 \end{b
 
 ```@example jacobian_gradient
 using AbstractNeuralNetworks: params
+using NeuralNetworkParameters: NetworkParameters
 
 built_function = build_nn_function(derivative(g), params(nn), nn.input)
 
 x = [1.0, 0.0]
-ps = NeuralNetworkParameters((L1 = (W = [1.0 0.0],),))
+ps = NetworkParameters((L1 = (W = [1.0 0.0],),))
 built_function(x, ps)[matrix_index...][layer][weight]
 ```
 

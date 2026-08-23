@@ -5,9 +5,17 @@ Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 GeometricMachineLearning = "194d25b2-d3f5-49f0-af24-c124f4aa80cc"
 Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
+NeuralNetworkParameters = "67f4d93a-60e9-472b-8cdd-1ccf6005724a"
 SymbolicNeuralNetworks = "aed23131-dcd0-47ca-8090-d21e605652e3"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
+
+[compat]
+# The docs build the training guide against `GeometricMachineLearning`'s optimizers. 0.6 is the
+# first release that tracks `AbstractNeuralNetworks` 0.7, and also the first whose single generic
+# `optimization_step!` takes a `NetworkParameters` gradient directly, which is what let the
+# compatibility shim that used to sit in `make.jl` go away.
+GeometricMachineLearning = "0.6"
 
 [sources]
 SymbolicNeuralNetworks = {path = ".."}
