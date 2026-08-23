@@ -153,6 +153,6 @@ function (pb::PullbackFunction)(::Union{Real, AbstractArray{<:Real}})
     params(pb.gradient_function(pb.input, pb.output, pb.parameters))
 end
 
-function (pullback::SymbolicPullback)(ps, model, input_output::Tuple{<:QPTOAT, <:QPTOAT})::Tuple
+function (pullback::SymbolicPullback)(ps, model, input_output::Tuple{<:ArrayOrNamedTuple, <:ArrayOrNamedTuple})::Tuple
     pullback.loss(model, ps, input_output...), pullback.fun(input_output..., ps)
 end

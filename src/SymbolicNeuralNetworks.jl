@@ -8,7 +8,9 @@ module SymbolicNeuralNetworks
     import SymbolicUtils
     using LinearAlgebra
     using RuntimeGeneratedFunctions
-    using AbstractNeuralNetworks: QPTOAT
+    # `QPTOAT` was `AbstractNeuralNetworks` 0.6's `(:q, :p)`-keyed alias; 0.7 replaced it with the
+    # key-agnostic `ArrayOrNamedTuple` (JuliaGNI/AbstractNeuralNetworks.jl#31).
+    using AbstractNeuralNetworks: ArrayOrNamedTuple
 
     import Latexify: _latexraw
     import AbstractNeuralNetworks: NeuralNetwork, Architecture, Model, UnknownArchitecture, AbstractExplicitLayer
