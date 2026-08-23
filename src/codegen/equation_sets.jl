@@ -27,16 +27,16 @@ funcs([1.0, 2.0], params(nn))
 # Implementation
 
 All entries are generated as a *single* function whose flat result is split up again afterwards;
-see [`flatten_equations`](@ref) and [`unflatten`](@ref). Generating one function per entry instead
-would re-derive everything the entries have in common — for a symbolic gradient that is the whole
-forward pass, once per parameter array — and would compile one `RuntimeGeneratedFunction` per entry
-rather than one in total.
+see [`flatten_equations`](@ref) and [`unflatten_batch`](@ref). Generating one function per entry
+instead would re-derive everything the entries have in common — for a symbolic gradient that is the
+whole forward pass, once per parameter array — and would compile one `RuntimeGeneratedFunction` per
+entry rather than one in total.
 """
 function build_nn_function(eqs::EquationSet, sparams::NetworkParameters,
                            svariables::SymbolicVariables...; kwargs...)
-    flat, template = flatten_equations(eqs)
+    flat, layout = flatten_equations(eqs)
     joint = build_nn_function(flat, sparams, svariables...; kwargs...)
-    EquationSetFunction{length(svariables)}(joint, template)
+    EquationSetFunction{length(svariables)}(joint, layout)
 end
 
 """
@@ -76,21 +76,21 @@ function build_nn_function(eqs::AbstractArray{<:EquationSet}, sparams::NetworkPa
 end
 
 """
-    EquationSetFunction{NDATA}(f, template)
+    EquationSetFunction{NDATA}(f, layout)
 
 The function [`build_nn_function`](@ref) returns for an [`EquationSet`](@ref): it evaluates the
-jointly generated `f` and puts the flat result back into the nesting recorded in `template`.
+jointly generated `f` and puts the flat result back into the nesting recorded in `layout`.
 """
-struct EquationSetFunction{NDATA, FT, TT} <: Function
+struct EquationSetFunction{NDATA, FT, LT} <: Function
     f::FT
-    template::TT
+    layout::LT
 end
 
-EquationSetFunction{NDATA}(f::FT, template::TT) where {NDATA, FT, TT} =
-    EquationSetFunction{NDATA, FT, TT}(f, template)
+EquationSetFunction{NDATA}(f::FT, layout::LT) where {NDATA, FT, LT} =
+    EquationSetFunction{NDATA, FT, LT}(f, layout)
 
-(f::EquationSetFunction{1})(input, ps) = unflatten(f.template, f.f(input, ps))
-(f::EquationSetFunction{2})(input, output, ps) = unflatten(f.template, f.f(input, output, ps))
+(f::EquationSetFunction{1})(input, ps) = split_result(f.layout, f.f(input, ps))
+(f::EquationSetFunction{2})(input, output, ps) = split_result(f.layout, f.f(input, output, ps))
 
 """
     EquationSetArrayFunction{NDATA}(functions)
@@ -108,100 +108,99 @@ EquationSetArrayFunction{NDATA}(functions::FT) where {NDATA, FT} = EquationSetAr
 (f::EquationSetArrayFunction{2})(input, output, ps) = [g(input, output, ps) for g in f.functions]
 
 @doc raw"""
-    FlatSlice(range, size)
-
-Where an entry of an equation set ended up in the flat vector that [`flatten_equations`](@ref)
-produces, and which shape it has to be given again by [`unflatten`](@ref). A scalar-valued entry
-has `size == ()`.
-"""
-struct FlatSlice{N}
-    range::UnitRange{Int}
-    size::NTuple{N, Int}
-end
-
-@doc raw"""
     flatten_equations(eqs)
 
-Concatenate every entry of `eqs` into one vector of scalar equations, together with a *template*: a
-copy of the nesting of `eqs` in which each entry has been replaced by the [`FlatSlice`](@ref)
-describing where it went. [`unflatten`](@ref) reverses this.
+Concatenate every entry of `eqs` into one vector of scalar equations, together with the
+`NeuralNetworkParameters.ParameterLayout` that records where each entry went.
 
 # Examples
 
 ```jldoctest
 using SymbolicNeuralNetworks: flatten_equations, SymbolicNeuralNetwork
 using AbstractNeuralNetworks: Chain, Dense, params
+using NeuralNetworkParameters: parameterrange
 
 c = Chain(Dense(2, 3, tanh))
 snn = SymbolicNeuralNetwork(c)
-flat, template = flatten_equations((a = c(snn.input, params(snn)), b = c(snn.input, params(snn)) .^ 2))
-(length(flat), template.a.range, template.b.range)
+flat, layout = flatten_equations((a = c(snn.input, params(snn)), b = c(snn.input, params(snn)) .^ 2))
+(length(flat), parameterrange(layout.children.a), parameterrange(layout.children.b))
 
 # output
 
 (6, 1:3, 4:6)
 ```
+
+# Implementation
+
+The layout is the one `NeuralNetworkParameters` builds for a *parameter* set: an equation set has
+the same shape as one, its leaves are arrays (or single instances) of `Num`, and the layout records
+exactly what splitting the flat result needs — a range and a size per leaf, in the order the leaves
+are written. See [`unflatten_batch`](@ref) for the one thing that has to be added on top, and
+`NeuralNetworkParameters.unflatten` for the vector case, which needs nothing.
+
+Each entry is normalised by [`scalar_expressions`](@ref) on the way in, which is what turns a
+`Symbolics.Arr` leaf into the `Array{Num}` the layout expects. The element type of the flat vector is
+fixed to `Num` rather than left to `NeuralNetworkParameters.parameter_eltype` to promote, so that it
+is the same type for every equation set — the code generation downstream dispatches on it.
 """
-function flatten_equations(eqs::EquationSet)
-    flat = Num[]
-    template = flatten_equations!(flat, eqs)
-    flat, template
-end
-
-flatten_equations!(flat::AbstractVector, eqs::NetworkParameters) =
-    NetworkParameters{keys(eqs)}(map(eq -> flatten_equations!(flat, eq), values(eqs)))
-flatten_equations!(flat::AbstractVector, eqs::NamedTuple) =
-    NamedTuple{keys(eqs)}(map(eq -> flatten_equations!(flat, eq), values(eqs)))
-
-function flatten_equations!(flat::AbstractVector, eq)
-    scalarized = scalar_expressions(eq)
-    offset = length(flat)
-    append!(flat, _flat_entries(scalarized))
-    FlatSlice((offset + 1):length(flat), _equation_size(scalarized))
-end
-
-_flat_entries(eq::AbstractArray) = vec(eq)
-_flat_entries(eq) = [eq]
+flatten_equations(eqs::EquationSet) = flatten(Num, mapparameters(scalar_expressions, eqs))
 
 @doc raw"""
-    unflatten(template, out)
+    split_result(layout, out)
 
-Split the flat result `out` of a jointly generated function back into the nesting recorded in
-`template`. The inverse of [`flatten_equations`](@ref).
+Split the flat result `out` of a jointly generated function into the nesting recorded in `layout`.
+
+`out` is dispatched on by its number of dimensions, which is how the layout of the batch is
+accounted for — see [`AbstractBatchedFunction`](@ref) for where those layouts come from. A vector,
+which is what a summed batch or a single sample produces, is the case
+`NeuralNetworkParameters.unflatten` already covers: every entry simply keeps the shape of its
+equation. Anything else has a batch dimension and goes to [`unflatten_batch`](@ref).
+"""
+split_result(layout::ParameterLayout, out::AbstractVector) = unflatten(layout, out)
+split_result(layout::ParameterLayout, out::AbstractArray) = unflatten_batch(layout, out)
+
+@doc raw"""
+    unflatten_batch(layout, out)
+
+Split a *batched* flat result into the nesting recorded in `layout`, giving each entry the shape
+[`AbstractBatchedFunction`](@ref) documents for a concatenated batch:
+
+- a ``P\times{}N`` matrix, in which an entry of size ``(m, n, \ldots)`` becomes an
+  ``m\times(n\cdot\ldots\cdot{}N)`` matrix,
+- a ``P\times{}N_1\times{}N_2`` array, in which it becomes an ``m\times{}N_1\times{}N_2`` one.
+
+A scalar-valued entry is treated as one of size ``m = 1`` throughout, so it comes back as a
+``1\times{}N`` matrix.
+
+This is deliberately *not* a method of `NeuralNetworkParameters.unflatten`, which already means
+something else for a matrix: splitting the rows of a Jacobian taken with respect to a flat parameter
+vector, with no batch dimension to restore.
 
 # Implementation
 
 Each entry is *copied* out of `out` rather than viewed into it, so that the entries are ordinary
 `Array`s and cannot alias each other.
-
-`out` is dispatched on by its number of dimensions, which is how the layout of the batch is
-accounted for — see [`AbstractBatchedFunction`](@ref) for where those layouts come from:
-- a vector when the per-sample results were summed or a single sample was evaluated, in which case
-  every entry keeps the shape of its equation,
-- a ``P\times{}N`` matrix when they were concatenated, in which case an entry of size
-  ``(m, n, \ldots)`` becomes an ``m\times(n\cdot\ldots\cdot{}N)`` matrix,
-- a ``P\times{}N_1\times{}N_2`` array when they were concatenated over two batch dimensions.
-
-A scalar-valued entry is treated as one of size ``m = 1`` throughout, so it comes back as a number
-for a single sample and as a ``1\times{}N`` matrix for a concatenated batch.
 """
-unflatten(template::NetworkParameters, out::AbstractArray) =
-    NetworkParameters{keys(template)}(map(t -> unflatten(t, out), values(template)))
-unflatten(template::NamedTuple, out::AbstractArray) =
-    NamedTuple{keys(template)}(map(t -> unflatten(t, out), values(template)))
+unflatten_batch(layout::ParametersLayout, out::AbstractArray) =
+    NetworkParameters(unflatten_batch(layout.inner, out))
+unflatten_batch(layout::NestedLayout, out::AbstractArray) =
+    NamedTuple{keys(layout.children)}(map(child -> unflatten_batch(child, out), values(layout.children)))
+unflatten_batch(layout::TupleLayout, out::AbstractArray) =
+    map(child -> unflatten_batch(child, out), layout.children)
+unflatten_batch(layout::WrappedLayout, out::AbstractArray) = unflatten_batch(layout.inner, out)
 
-unflatten(slice::FlatSlice, out::AbstractVector) = _reshape_entry(out[slice.range], slice.size)
-unflatten(slice::FlatSlice, out::AbstractMatrix) =
-    reshape(out[slice.range, :], _batched_size(slice.size, size(out, 2))...)
-function unflatten(slice::FlatSlice, out::AbstractArray{<:Any, 3})
+unflatten_batch(layout::LeafLayout, out::AbstractMatrix) =
+    reshape(out[parameterrange(layout), :], _batched_size(layout.size, size(out, 2))...)
+
+function unflatten_batch(layout::LeafLayout, out::AbstractArray{<:Any, 3})
     # the same restriction the single-equation path applies in `_restore_batch_dimensions`: an entry
     # whose result is more than one column wide per sample has no room for a second batch dimension
-    trailing_dimensions(slice.size) == 1 || throw(ArgumentError(two_batch_dimension_message(slice.size)))
-    out[slice.range, :, :]
+    trailing_dimensions(layout.size) == 1 || throw(ArgumentError(two_batch_dimension_message(layout.size)))
+    out[parameterrange(layout), :, :]
 end
 
-_reshape_entry(entries::AbstractVector, ::Tuple{}) = entries[begin]
-_reshape_entry(entries::AbstractVector, size::Tuple) = reshape(entries, size...)
+_flat_entries(eq::AbstractArray) = vec(eq)
+_flat_entries(eq) = [eq]
 
 _batched_size(::Tuple{}, batch_size::Integer) = (1, batch_size)
 _batched_size(size::Tuple, batch_size::Integer) = (size[1], prod(Base.tail(size)) * batch_size)

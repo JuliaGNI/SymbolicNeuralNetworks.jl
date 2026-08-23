@@ -187,8 +187,8 @@ trailing_dimensions(equation_size::Tuple) = prod(Base.tail(equation_size); init 
     two_batch_dimension_message(equation_size)
 
 The error text for an equation whose result already uses the second dimension. Shared with
-[`unflatten`](@ref), so that an entry of an equation set is rejected in the same words as the same
-equation built on its own.
+[`unflatten_batch`](@ref), so that an entry of an equation set is rejected in the same words as the
+same equation built on its own.
 """
 two_batch_dimension_message(equation_size::Tuple) =
     "an equation of size $(equation_size) cannot be evaluated on a batch with two batch " *
@@ -206,6 +206,10 @@ This is needed because the in-place kernels write into an array that has to be a
 they are called, so the element type cannot be taken from a result. Promoting over the inputs keeps
 `Float32` parameters, symbolic (`Num`) inputs and `ForwardDiff.Dual` numbers working.
 
+The walk over a nested parameter set is `NeuralNetworkParameters.parameter_eltype`, which promotes
+over the leaves and reaches the storage of a structured one — so a parameter that keeps fewer numbers
+than its interface shows contributes the element type of the numbers it actually keeps.
+
 Note that this derives the element type from the *inputs*, not from the expression, which the
 out-of-place path does instead. The two can differ: an equation over integer inputs and integer
 parameters evaluates to a `Float64`, which no `Array{Int}` can hold, so the allocators widen an
@@ -213,13 +217,7 @@ integer type with `float`. A `Float32` network whose generated code contains a `
 rounded to `Float32` rather than widened — which is the behaviour one wants for the network, but is
 worth being aware of.
 """
-promoted_eltype(args...) = promote_type(map(_eltype, args)...)
-
-_eltype(x::AbstractArray) = eltype(x)
-_eltype(x::Number) = typeof(x)
-_eltype(x::Tuple) = promote_type(map(_eltype, x)...)
-_eltype(x::NamedTuple) = _eltype(values(x))
-_eltype(x::NetworkParameters) = _eltype(values(x))
+promoted_eltype(args...) = promote_type(map(parameter_eltype, args)...)
 
 @doc raw"""
     allocate_batch_output(T, equation_size, batch_size, reduction)

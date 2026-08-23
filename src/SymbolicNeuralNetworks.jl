@@ -14,11 +14,15 @@ module SymbolicNeuralNetworks
 
     import Latexify: _latexraw
     import AbstractNeuralNetworks: NeuralNetwork, Architecture, Model, UnknownArchitecture, AbstractExplicitLayer
-    # The parameter container comes from its own package as of `AbstractNeuralNetworks` 0.7. The
-    # import is selective rather than a bare `using`: `NeuralNetworkParameters` exports `flatten`
-    # and `unflatten`, and `unflatten` here is a different concept — it lays a flat vector of
-    # generated values back into the shape of an equation set, not of a parameter set.
-    import NeuralNetworkParameters: NetworkParameters
+    # The parameter container comes from its own package as of `AbstractNeuralNetworks` 0.7, and so
+    # is the machinery for laying a nested set of arrays out in one flat vector: an equation set has
+    # the same shape as a parameter set, so `flatten`/`unflatten` and `ParameterLayout` serve both
+    # (see `flatten_equations`). The import is selective rather than a bare `using` so that it stays
+    # visible which names in this module are somebody else's.
+    import NeuralNetworkParameters: NetworkParameters, ParameterLayout, ParametersLayout,
+                                    NestedLayout, TupleLayout, WrappedLayout, LeafLayout,
+                                    flatten, unflatten, parameterlayout, parameterrange,
+                                    flatlength, parameter_eltype, mapparameters
     import AbstractNeuralNetworks: architecture, model, params
     # defined for `AbstractLayer` upstream; extended to `Chain` in `symbolic_neuralnet.jl`
     import AbstractNeuralNetworks: input_dimension, output_dimension
