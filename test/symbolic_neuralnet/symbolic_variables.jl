@@ -30,21 +30,21 @@ end
 
 # a tuple of `NamedTuple`s and `Tuple`s, including scalar entries
 parameters = NetworkParameters((L1 = (W = [1, 1], b = [2, 2]),
-                                      L2 = (W = (a = 4, b = [1, 2]), c = 2),
-                                      L3 = [4 5; 7 8],
-                                      L4 = (a = 7, b = 8.2)))
+                                L2 = (W = (a = 4, b = [1, 2]), c = 2),
+                                L3 = [4 5; 7 8],
+                                L4 = (a = 7, b = 8.2)))
 
 @testset "nested parameter sets keep their nesting" begin
     sparams = symbolic_variables(parameters, :W)
 
     expected = NetworkParameters((L1 = (W = Symbolics.variables(:W_1, 1:2),
-                                              b = Symbolics.variables(:W_2, 1:2)),
-                                        L2 = (W = (a = Symbolics.variable(:W_3),
-                                                   b = Symbolics.variables(:W_4, 1:2)),
-                                              c = Symbolics.variable(:W_5)),
-                                        L3 = Symbolics.variables(:W_6, 1:2, 1:2),
-                                        L4 = (a = Symbolics.variable(:W_7),
-                                              b = Symbolics.variable(:W_8))))
+                                        b = Symbolics.variables(:W_2, 1:2)),
+                                  L2 = (W = (a = Symbolics.variable(:W_3),
+                                             b = Symbolics.variables(:W_4, 1:2)),
+                                        c = Symbolics.variable(:W_5)),
+                                  L3 = Symbolics.variables(:W_6, 1:2, 1:2),
+                                  L4 = (a = Symbolics.variable(:W_7),
+                                        b = Symbolics.variable(:W_8))))
 
     @test keys(sparams) == keys(expected)
     @test isequal(sparams.L1.W, expected.L1.W)

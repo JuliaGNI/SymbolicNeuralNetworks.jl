@@ -22,7 +22,7 @@ symbolic_variables((a = 1.0, b = [1, 2]), :X)
 ```jldoctest
 using SymbolicNeuralNetworks: symbolic_variables
 using AbstractNeuralNetworks: NeuralNetwork, Chain, Dense, params
-import NeuralNetworkParameters: NetworkParameters
+using NeuralNetworkParameters: NetworkParameters
 
 nn = NeuralNetwork(Chain(Dense(1, 2; use_bias = false), Dense(2, 1; use_bias = false)))
 sparams = symbolic_variables(params(nn), :W)

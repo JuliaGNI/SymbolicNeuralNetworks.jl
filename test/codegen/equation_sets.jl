@@ -109,7 +109,7 @@ end
 
 @testset "nested NetworkParameters (the shape a gradient has), reduce = $reduction" for reduction in (hcat, +)
     eqs = symbolic_parameter_gradient(c(snn.input, params(snn)), snn)[1]
-    @test eqs isa NetworkParameters       # two levels of nesting: layer, then W/b
+    @test eqs isa NetworkParameters     # two levels of nesting: layer, then W/b
     joint = build_nn_function(eqs, params(snn), snn.input; reduce = reduction)
     reference = per_entry(eqs, params(snn), snn.input; reduce = reduction)
 
