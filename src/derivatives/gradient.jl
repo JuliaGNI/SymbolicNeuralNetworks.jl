@@ -76,11 +76,19 @@ Gradient(nn::SymbolicNeuralNetwork) = Gradient(nn.model(nn.input, params(nn)), n
 
 @doc raw"""
     symbolic_parameter_gradient(f, nn)
+    symbolic_parameter_gradient(f, sparams)
 
-Differentiate the symbolic expression `f` with respect to the parameters of `nn`.
+Differentiate the symbolic expression `f` with respect to the parameters of `nn`, or with respect to
+a set of symbolic parameters `sparams` given directly.
 
 The result has the same nesting as the parameters of `nn`. For an array-valued `f` it is an array of
 such parameter sets, one per entry of `f`.
+
+The second form is what the degrees of freedom of an expression that is not a network's forward pass
+go through: nothing here reads the model, only the parameters. `sparams` is anything
+[`symbolic_differentials`](@ref) can walk, i.e. a `NetworkParameters` or a nested `NamedTuple` of
+symbolic leaves — the same [`EquationSet`](@ref) the parameters of a
+[`SymbolicNeuralNetwork`](@ref) are allowed to be.
 
 This is used by [`Gradient`](@ref) and by [`SymbolicPullback`](@ref).
 
@@ -102,7 +110,11 @@ symbolic_parameter_gradient(c(nn.input, params(nn)), nn)[1].L1.b
 ```
 """
 function symbolic_parameter_gradient(f, nn::AbstractSymbolicNeuralNetwork)
-    differentials = symbolic_differentials(params(nn))
+    symbolic_parameter_gradient(f, params(nn))
+end
+
+function symbolic_parameter_gradient(f, sparams::EquationSet)
+    differentials = symbolic_differentials(sparams)
     _parameter_gradient(scalar_expressions(f), differentials)
 end
 

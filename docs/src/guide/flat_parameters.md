@@ -40,8 +40,6 @@ derivative with respect to it.
 [`build_flat_function`](@ref) is [`build_nn_function`](@ref) with a flat parameter argument:
 
 ```@example flat
-using SymbolicNeuralNetworks: build_flat_function
-
 snn = SymbolicNeuralNetwork(c)
 f = build_flat_function(c(snn.input, params(snn)), snn)
 
@@ -71,8 +69,6 @@ lays the result out flat — a vector for a scalar expression, and for an array-
 ``\mathrm{length}(f)\times\mathrm{flatlength}`` Jacobian with rows indexed by `vec(f)`:
 
 ```@example flat
-using SymbolicNeuralNetworks: flat_parameter_gradient
-
 J = flat_parameter_gradient(c(snn.input, params(snn)), snn)
 size(J)
 ```
@@ -109,6 +105,39 @@ x, y = rand(2), rand(2)
 (residual(x, y, w), size(jacobian(x, y, w)))
 ```
 
-The same pattern works for degrees of freedom that are not the parameters of a network at all: the
-layout machinery upstream is written against an arbitrarily nested collection of arrays, not against
-neural networks, so anything shaped like one flattens.
+## Degrees of freedom that are not a network's
+
+The same pattern works for unknowns that are not the parameters of a network at all. Neither function
+reads a model, so both take a `NetworkParameters` of symbolic leaves in place of the symbolic
+network, and the layout machinery upstream is written against an arbitrarily nested collection of
+arrays rather than against neural networks — so anything shaped like one flattens.
+
+Here the unknowns are a scale and an offset, and the expression is one no `Chain` produces:
+
+```@example flat
+using NeuralNetworkParameters: NetworkParameters
+
+dof = NetworkParameters((scale = Symbolics.variables(:s, 1:2),
+                         offset = Symbolics.variables(:o, 1:2, 1:2)))
+sinput = Symbolics.variables(:t, 1:2)
+
+expression = dof.offset * (dof.scale .* sinput) .- sin.(dof.scale)
+
+r = build_flat_function(expression, dof, sinput)
+Jdof = build_flat_function(flat_parameter_gradient(expression, dof), dof, sinput)
+nothing # hide
+```
+
+Both are then called with the unknowns as one vector, exactly as above:
+
+```@example flat
+u, _ = flatten(NetworkParameters((scale = [0.5, 2.0], offset = [1.0 2.0; 3.0 4.0])))
+t = rand(2)
+
+(r(t, u), size(Jdof(t, u)))
+```
+
+[`flat_parameter_gradient`](@ref) accepts a nested `NamedTuple` in place of the `NetworkParameters`
+as well — it only needs something [`symbolic_differentials`](@ref) can walk.
+[`build_flat_function`](@ref) is the narrower of the two, because [`build_nn_function`](@ref)
+dispatches on a `NetworkParameters`.
