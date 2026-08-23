@@ -11,6 +11,12 @@
 using SymbolicNeuralNetworks
 using Documenter: DocMeta, doctest
 
+# `doctest(::Module)` doctests the manual under `docs/src` as well as the docstrings, and Documenter
+# evaluates a page's `CurrentModule = SymbolicNeuralNetworks` in `Main`. Run through `runtests.jl`
+# this file lives inside a `@safetestset`, i.e. an anonymous module, so the name is never bound there
+# and every `@meta` block fails before a single doctest is compared. Bind it explicitly.
+@eval Main using SymbolicNeuralNetworks
+
 DocMeta.setdocmeta!(SymbolicNeuralNetworks, :DocTestSetup, :(using SymbolicNeuralNetworks); recursive = true)
 
 doctest(SymbolicNeuralNetworks)
