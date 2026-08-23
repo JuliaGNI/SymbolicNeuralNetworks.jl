@@ -58,8 +58,11 @@ the code generation being changed to index into the vector. The conversion is a 
 costs a fraction of a forward pass; generating a different kernel would save that and lose the ability
 to hand the same equation a structured parameter set.
 
-Out-of-place, so that `w` may have a different element type from the parameters the layout was built
-from — which is what lets `ForwardDiff` differentiate with respect to the flat form.
+The conversion is `unflatten` and not `unflatten!` — it *allocates* the parameter set rather than
+writing into the one the layout was built from, so `w` may have a different element type, which is
+what lets `ForwardDiff` differentiate with respect to the flat form. This is unrelated to the
+`inplace` keyword, which says how the generated kernel evaluates a batch and is passed through
+untouched.
 """
 function build_flat_function(eq, nn::AbstractSymbolicNeuralNetwork; kwargs...)
     build_flat_function(eq, params(nn), nn.input; kwargs...)

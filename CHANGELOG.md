@@ -188,7 +188,10 @@ Resolves [#14](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/14),
   `SymbolicPullback`'s signature, its functor and its return type are unchanged. The new `layerwise`
   keyword selects the construction; `:auto`, the default, composes layer by layer for every model that
   decomposes into more than one layer. `layerwise = false` recovers the previous construction, which
-  is also what a model that does not decompose into layers falls back to.
+  is also what a model that does not decompose into layers falls back to — as does a loss the
+  layerwise construction cannot get a seed from, whether because the guessed expression disagrees
+  with the loss or because the loss cannot be applied to a `PassThroughLayer` at all. `:auto` never
+  raises where the monolithic construction would have built; only `layerwise = true` does.
 
   This also fixes the second-derivative case of
   [GML #245](https://github.com/JuliaGNI/GeometricMachineLearning.jl/issues/245), where a layer

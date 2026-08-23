@@ -52,8 +52,9 @@ It takes the same keyword arguments as [`build_nn_function`](@ref) and accepts e
 including an [equation set](@ref "Equation Sets"). A `FlatParameters` works too, and is read through
 the layout it carries rather than the one the function was built with.
 
-Because the vector is laid out out-of-place, it may have a different element type from the parameters
-the layout was built from — which is what makes the flat form usable for derivatives:
+The vector is laid out with `unflatten` rather than `unflatten!`, so it may have a different element
+type from the parameters the layout was built from — which is what makes the flat form usable for
+derivatives:
 
 ```@example flat
 import ForwardDiff

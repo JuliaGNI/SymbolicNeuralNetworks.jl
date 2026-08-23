@@ -27,7 +27,7 @@ funcs([1.0, 2.0], params(nn))
 # Implementation
 
 All entries are generated as a *single* function whose flat result is split up again afterwards;
-see [`flatten_equations`](@ref) and [`unflatten_batch`](@ref). Generating one function per entry
+see [`flatten_equations`](@ref) and [`split_result`](@ref). Generating one function per entry
 instead would re-derive everything the entries have in common — for a symbolic gradient that is the
 whole forward pass, once per parameter array — and would compile one `RuntimeGeneratedFunction` per
 entry rather than one in total.

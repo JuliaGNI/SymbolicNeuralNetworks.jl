@@ -89,8 +89,8 @@ what makes the layerwise construction fall back to the monolithic one instead of
 thing.
 
 The expression comes from [`loss_expression`](@ref) if the loss declares one, and from
-[`passthrough_expression`](@ref) otherwise. Only the guess is checked against `loss` itself, with
-[`represents_loss`](@ref); a declared expression is used as given.
+[`checked_guess`](@ref) otherwise. Only the guess is checked against `loss` itself; a declared
+expression is used as given.
 
 # Implementation
 
@@ -106,13 +106,51 @@ function loss_seed(loss::NetworkLoss, nn::AbstractSymbolicNeuralNetwork;
 
     expression = loss_expression(loss, sŷ, sy)
     if isnothing(expression)
-        expression = passthrough_expression(loss, sŷ, sy)
-        value = build_nn_function(expression, sparams, sŷ, sy; cse = cse, inplace = inplace)
-        represents_loss(loss, nn, value) || return nothing
+        expression = checked_guess(loss, nn, sŷ, sy; cse = cse, inplace = inplace)
+        isnothing(expression) && return nothing
     end
 
     build_nn_function(symbolic_derivative(expression, symbolic_differentials(sŷ)), sparams, sŷ, sy;
                       reduce = hcat, cse = cse, inplace = inplace)
+end
+
+"""
+    checked_guess(loss, nn, ŷ, y; cse, inplace)
+
+The guessed expression of `loss` as a function of prediction and target, or `nothing` if the guess
+cannot be trusted.
+
+There are two ways for it not to be, and both mean the same thing to the caller — decline, and let
+[`SymbolicPullback`](@ref) fall back to the monolithic construction:
+
+- the guess *disagrees* with `loss`, which is what [`represents_loss`](@ref) tests for;
+- the guess cannot be **built** at all. A `NetworkLoss` need not accept a
+  [`PassThroughLayer`](@ref): the generic four-argument method of `AbstractNeuralNetworks` invites a
+  loss to be written for the model it belongs to, and one written as
+  `(::MyLoss)(model::Chain, …)` throws when [`passthrough_expression`](@ref) applies it to a model
+  that is not a `Chain`. So does a model whose forward pass cannot be evaluated at the points
+  [`represents_loss`](@ref) checks at.
+
+The second case has to be caught here rather than left to the caller: `layerwise = :auto` promises a
+fallback, and a construction that throws instead of declining would break networks the monolithic
+path builds perfectly well.
+
+# Implementation
+
+The `try` covers building and checking the guess, and nothing else. Once an expression is in hand and
+has been believed, differentiating it and generating code from it are this package's own work, and a
+failure there is a bug to surface rather than a reason to fall back.
+"""
+function checked_guess(loss::NetworkLoss, nn::AbstractSymbolicNeuralNetwork, ŷ, y;
+                       cse::Bool = true, inplace::Bool = true)
+    sparams = NetworkParameters(NamedTuple())
+    try
+        expression = passthrough_expression(loss, ŷ, y)
+        value = build_nn_function(expression, sparams, ŷ, y; cse = cse, inplace = inplace)
+        represents_loss(loss, nn, value) ? expression : nothing
+    catch
+        nothing
+    end
 end
 
 """
@@ -132,19 +170,23 @@ builds must not depend on the state of the global RNG, and building one must not
 caller who seeds the RNG and then builds a pullback would otherwise get different data afterwards
 than before.
 
-Three points, with different shapes, so that an expression which happens to agree at one of them is
-still rejected. The case in mind is an autoencoder loss, which compares the prediction to the input
-and so reads as identically zero through a pass-through model — that agrees with the real loss
-exactly when the real loss is zero too.
+Three points, so that an expression which happens to agree at one of them is still rejected. The case
+in mind is an autoencoder loss, which compares the prediction to the input and so reads as identically
+zero through a pass-through model — that agrees with the real loss exactly when the real loss is zero
+too.
+
+The three differ in *direction* and not merely in scale: three points on one ray through the origin
+would leave an expression that is right along that ray and wrong everywhere else undetected, which is
+no more work to avoid than to allow.
 """
 function represents_loss(loss::NetworkLoss, nn::AbstractSymbolicNeuralNetwork, value)
     model = nn.model
     ps = reference_parameters(nn)
     m, n = input_dimension(model), output_dimension(model)
 
-    for scale in (1.0, -0.5, 2.0)
-        x = scale .* [cospi(i / 7) for i in 1:m]
-        y = [sinpi(scale * i / 5) + 1.5 for i in 1:n]
+    for (scale, turn) in ((1.0, 0.0), (-0.5, 1 / 3), (2.0, 2 / 3))
+        x = scale .* [cospi(i / 7 + turn) for i in 1:m]
+        y = [sinpi(scale * i / 5 + turn) + 1.5 for i in 1:n]
         prediction = model(x, ps)
         reference = try
             loss(model, ps, x, y)
@@ -185,6 +227,9 @@ Both functions take `(x, λ, ps)`: the layer's own input, the sensitivity of the
 output, and the parameters of the *whole* network. `dλ` returns the sensitivity with respect to the
 layer's input, `dθ` the derivative of the loss with respect to the layer's parameters.
 
+`dλ` is `nothing` for the first step of a sweep, which is the one place it is never called; see
+[`layer_step`](@ref).
+
 Taking the whole parameter set rather than the layer's own entry is what avoids a wrapper per call:
 the generated kernels were built from symbolic parameters nested under `Key`, so they reach for
 `ps.<Key>.W` and nothing has to be rebuilt for them.
@@ -211,9 +256,14 @@ The entry of the parameter set `ps` that belongs to `step`.
 step_parameters(::LayerStep{Key}, ps) where {Key} = ps[Key]
 
 @doc raw"""
-    layer_step(layer, key, prototype; cse, inplace)
+    layer_step(layer, key, prototype; input_sensitivity, cse, inplace)
 
 Build the [`LayerStep`](@ref) of one layer.
+
+`input_sensitivity = false` leaves out the derivative with respect to the layer's *input*, for the
+first layer of a chain, whose sensitivity is that of the loss to the network's input — something a
+parameter gradient has no use for, and which [`sweep`](@ref) accordingly never asks for. Generating
+it anyway would be half the code this function emits, spent on a function that is never called.
 
 # Implementation
 
@@ -245,19 +295,40 @@ per-sample gradients — which is what [`SymbolicPullback`](@ref) means by the p
 the sweep costs two calls per layer whatever the batch size, with no per-sample loop.
 """
 function layer_step(layer::AbstractExplicitLayer, key::Symbol, prototype;
-                    cse::Bool = true, inplace::Bool = true)
+                    input_sensitivity::Bool = true, cse::Bool = true, inplace::Bool = true)
+    seed, sparams, sx, sλ = layer_seed(layer, key, prototype)
+
+    dλ = input_sensitivity ?
+         build_nn_function(symbolic_derivative(seed, symbolic_differentials(sx)), sparams, sx, sλ;
+                           reduce = hcat, cse = cse, inplace = inplace) : nothing
+    dθ = build_nn_function(symbolic_derivative(seed, symbolic_differentials(sparams[key])), sparams,
+                           sx, sλ; reduce = +, cse = cse, inplace = inplace)
+    LayerStep{key}(layer, dλ, dθ)
+end
+
+@doc raw"""
+    layer_seed(layer, key, prototype)
+
+The scalar one layer's two derivatives are taken of, together with the variables it is written in:
+`(seed, sparams, sx, sλ)`, where
+
+```math
+\mathrm{seed} = \lambda_k \cdot f_k(x_{k-1}; \theta_k).
+```
+
+`sparams` nests the layer's parameters under `key`, with the shape of `prototype`, so that the code
+generated from `seed` reaches into the parameter set of the *whole* network — see
+[`LayerStep`](@ref). `sx` and `sλ` are fresh for every layer, which is what keeps an expression built
+from this one dependent on that layer alone.
+
+Separate from [`layer_step`](@ref) so that `scripts/codegen_comparison.jl` measures the symbolic
+material this construction actually holds, rather than a second copy of it that can drift.
+"""
+function layer_seed(layer::AbstractExplicitLayer, key::Symbol, prototype)
     sx = Symbolics.variables(:x, 1:input_dimension(layer))
     sλ = Symbolics.variables(:λ, 1:output_dimension(layer))
     sparams = NetworkParameters{(key,)}((symbolic_variables(prototype, :W),))
-
-    seed = sum(sλ .* scalar_expressions(layer(sx, sparams[key])))
-    differentials = symbolic_differentials(sparams)
-
-    dλ = build_nn_function(symbolic_derivative(seed, symbolic_differentials(sx)), sparams, sx, sλ;
-                           reduce = hcat, cse = cse, inplace = inplace)
-    dθ = build_nn_function(symbolic_derivative(seed, differentials)[key], sparams, sx, sλ;
-                           reduce = +, cse = cse, inplace = inplace)
-    LayerStep{key}(layer, dλ, dθ)
+    (sum(sλ .* scalar_expressions(layer(sx, sparams[key]))), sparams, sx, sλ)
 end
 
 """
@@ -275,9 +346,10 @@ function symbolic_steps(nn::AbstractSymbolicNeuralNetwork)
     model = nn.model
     model isa Chain || return nothing
     ks = keys(params(nn))
-    length(ks) == length(layers(model)) || return nothing
-    all(_has_known_dimensions, layers(model)) || return nothing
-    ntuple(i -> (layers(model)[i], ks[i]), length(ks))
+    ls = layers(model)
+    length(ks) == length(ls) || return nothing
+    all(_has_known_dimensions, ls) || return nothing
+    ntuple(i -> (ls[i], ks[i]), length(ks))
 end
 
 _has_known_dimensions(layer) =
@@ -345,8 +417,31 @@ LayerwiseGradientFunction{Keys}(steps::ST, seed::SDT) where {Keys, ST, SDT} =
     LayerwiseGradientFunction{Keys, ST, SDT}(steps, seed)
 
 function (g::LayerwiseGradientFunction{Keys})(input, output, ps) where {Keys}
-    NetworkParameters(NamedTuple{Keys}(sweep(g.steps, input, ps, g.seed, output)))
+    NetworkParameters(NamedTuple{Keys}(sweep(g.steps, batched(input), ps, g.seed, batched(output))))
 end
+
+@doc raw"""
+    batched(data)
+
+`data` with any batch dimensions past the first collapsed into it, which is the shape the sweep
+evaluates in.
+
+# Implementation
+
+[`build_nn_function`](@ref) accepts a result of ``m\times{}N_1\times{}N_2`` as a batch with two
+batch dimensions (see [`AbstractBatchedFunction`](@ref)), and the monolithic construction of
+[`SymbolicPullback`](@ref) therefore evaluates one. The layerwise sweep cannot pass such an array to a
+layer — the forward pass is the layer *called*, and a `Dense` multiplies a matrix by a matrix — so the
+batch is laid out flat first.
+
+That loses nothing. The pullback of a batch is the *sum* of the per-sample gradients, so how the
+samples are arranged cannot change it; the two shapes are checked against each other in
+`test/derivatives/layerwise_pullback.jl`. Nothing has to be restored afterwards either, for the same
+reason: what comes back is shaped like the parameters, not like the batch.
+"""
+batched(data::AbstractVector) = data
+batched(data::AbstractMatrix) = data
+batched(data::AbstractArray) = reshape(data, size(data, 1), :)
 
 """
     sweep(steps, x, ps, seed, output)
@@ -362,7 +457,8 @@ whole sweep stays type stable over the tuple of steps.
 
 The first step's `dλ` is never called: it would give the sensitivity of the loss to the network's
 *input*, which a parameter gradient has no use for. Hence the two entry points — [`adjoint_step`](@ref)
-does the general case, and this function drops that one call.
+does the general case, and this function drops that one call. The first step is not built with a `dλ`
+at all, so dropping it here is what makes that legal as well as cheaper; see [`layer_step`](@ref).
 """
 function sweep(steps::Tuple, x, ps, seed, output)
     step = first(steps)
@@ -404,7 +500,11 @@ function layerwise_gradient_function(nn::SymbolicNeuralNetwork, loss::NetworkLos
     isnothing(seed) && return nothing
 
     sparams = params(nn)
-    kernels = map(step -> layer_step(step[1], step[2], sparams[step[2]]; cse = cse, inplace = inplace),
-                  steps)
+    # `input_sensitivity = i > 1`: the sweep never asks the first layer for the sensitivity to its
+    # input, so that derivative is not generated for it
+    kernels = ntuple(length(steps)) do i
+        layer, key = steps[i]
+        layer_step(layer, key, sparams[key]; input_sensitivity = i > 1, cse = cse, inplace = inplace)
+    end
     LayerwiseGradientFunction{keys(sparams)}(kernels, seed)
 end

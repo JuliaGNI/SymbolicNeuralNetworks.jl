@@ -19,7 +19,7 @@
 
 using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: generated_expression, parameter_arguments, symbolic_parameter_gradient,
-                              symbolic_derivative, symbolic_differentials
+                              symbolic_derivative, symbolic_differentials, layer_seed
 using AbstractNeuralNetworks
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, FeedForwardLoss, params, output_dimension
 using NeuralNetworkParameters: NetworkParameters
@@ -102,18 +102,23 @@ end
 """
 The symbolic material the layerwise construction holds: for each layer, the two derivatives of the
 seeded scalar `λ · f(x; θ)`. Fresh variables at each seam are what makes this a sum over layers.
+
+The seed comes from `layer_seed`, which is what `layer_step` builds from, so this measures the
+construction rather than a second copy of it.
+
+Both derivatives are counted for every layer, including the first layer's derivative with respect to
+its input — which `layer_step` does not actually generate, since the sweep never calls it. That keeps
+this column the like-for-like comparison with the monolithic one, and with the table in issue #49; the
+saving is one constant, not a term that grows with the network.
 """
 function layerwise_nodes(dims)
+    c = chain(dims)
+    sparams = params(SymbolicNeuralNetwork(c))
     total = 0
-    for i in 1:(length(dims) - 1)
-        layer = Dense(dims[i], dims[i + 1], tanh)
-        # `SymbolicNeuralNetwork` of a single layer gives exactly the seam variables and the
-        # per-layer parameters the layerwise construction uses
-        slayer = SymbolicNeuralNetwork(layer)
-        sλ = Symbolics.variables(:λ, 1:dims[i + 1])
-        seed = sum(sλ .* layer(slayer.input, params(slayer).L1))
-        total += nodes(symbolic_derivative(seed, symbolic_differentials(slayer.input)))
-        total += nodes(symbolic_derivative(seed, symbolic_differentials(params(slayer))))
+    for (layer, key) in zip(AbstractNeuralNetworks.layers(c), keys(sparams))
+        seed, layer_params, sx, _ = layer_seed(layer, key, sparams[key])
+        total += nodes(symbolic_derivative(seed, symbolic_differentials(sx)))
+        total += nodes(symbolic_derivative(seed, symbolic_differentials(layer_params[key])))
     end
     total
 end

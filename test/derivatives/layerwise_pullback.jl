@@ -12,7 +12,7 @@ using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: composes_layerwise, symbolic_steps, loss_seed, loss_expression,
                               passthrough_expression, represents_loss, reference_parameters,
                               layerwise_gradient_function, monolithic_gradient_function,
-                              PassThroughLayer
+                              PassThroughLayer, batched
 using AbstractNeuralNetworks
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, FeedForwardLoss, NetworkLoss,
                               UnknownArchitecture, AbstractExplicitLayer, input_dimension,
@@ -209,6 +209,81 @@ SymbolicNeuralNetworks.loss_expression(::DeclaredSelfLoss, ŷ, y) = norm(ŷ - y)
     @test maximum_difference(symbolic, zygote_gradient(loss, params(nn), c, input, input)) < 1e-14
 end
 
+# The pass-through stand-in can fail in a third way, besides being right and being wrong: a
+# `NetworkLoss` is free to type its method to the model it is written for, and `AbstractNeuralNetworks`
+# invites it to — the generic four-argument method is the one that says "Functor not defined". A loss
+# written for a `Chain` therefore *throws* when applied to a `PassThroughLayer`, which is not a
+# `Chain`. That has to count as declining, because `layerwise = :auto` promises a fallback and this
+# network builds monolithically without trouble.
+struct ChainOnlyLoss <: NetworkLoss end
+
+# typed on the parameters as well, so that this is strictly more specific than the generic method
+# upstream rather than ambiguous with it
+(::ChainOnlyLoss)(model::Chain, ps::Union{NamedTuple, NetworkParameters},
+                  input::AbstractArray, output::AbstractArray) =
+    norm(model(input, ps) - output) / norm(output)
+
+@testset "a loss the pass-through stand-in cannot even be applied to" begin
+    c = Chain(Dense(2, 3, tanh), Dense(3, 2, tanh))
+    nn = NeuralNetwork(c, Float64)
+    snn = SymbolicNeuralNetwork(nn)
+    loss = ChainOnlyLoss()
+
+    # the guess cannot be built, which is a decline and not an error
+    ŷ, y = Symbolics.variables(:x, 1:2), Symbolics.variables(:y, 1:2)
+    @test_throws Exception passthrough_expression(loss, ŷ, y)
+    @test isnothing(loss_seed(loss, snn))
+    @test isnothing(layerwise_gradient_function(snn, loss))
+    @test_throws ArgumentError SymbolicPullback(snn, loss; layerwise = true)
+
+    # so `:auto` falls back and builds, where it used to propagate the exception, and what it falls
+    # back to is the monolithic construction
+    input, output = rand(2, 4), rand(2, 4)
+    fallback = gradient_of(SymbolicPullback(snn, loss), nn, input, output)
+    monolithic = gradient_of(SymbolicPullback(snn, loss; layerwise = false), nn, input, output)
+    @test maximum_difference(fallback, monolithic) < 1e-14
+    @test typeof(fallback) == typeof(monolithic)
+
+    # this loss is not additive over a batch, so `Zygote` is the reference on a single sample only —
+    # the same statement the batch testset above pins down for `FeedForwardLoss`
+    one = (rand(2, 1), rand(2, 1))
+    @test maximum_difference(gradient_of(SymbolicPullback(snn, loss), nn, one...),
+                             zygote_gradient(loss, params(nn), c, one...)) < 1e-14
+end
+
+# `build_nn_function` takes a batch with two batch dimensions, and so does the monolithic pullback.
+# The sweep cannot hand such an array to a layer — the forward pass is the layer *called* — so it lays
+# the batch out flat, which the parameter gradient cannot tell apart from any other arrangement of the
+# same samples.
+@testset "a batch with two batch dimensions" begin
+    c = Chain(Dense(3, 4, tanh), Dense(4, 2, tanh))
+    nn = NeuralNetwork(c, Float64)
+    snn = SymbolicNeuralNetwork(nn)
+    loss = FeedForwardLoss()
+
+    layerwise = SymbolicPullback(snn, loss; layerwise = true)
+    monolithic = SymbolicPullback(snn, loss; layerwise = false)
+
+    input, output = rand(3, 2, 3), rand(2, 2, 3)
+    gl = layerwise.fun(input, output, params(nn))(1)
+    gm = monolithic.fun(input, output, params(nn))(1)
+    @test keys(gl) == keys(gm)
+    @test maximum_difference(gl, gm) < 1e-14
+    @test typeof(gl) == typeof(gm)
+
+    # ... and it is the same gradient as for the same samples in one batch dimension
+    flat = layerwise.fun(reshape(input, 3, 6), reshape(output, 2, 6), params(nn))(1)
+    @test maximum_difference(gl, flat) < 1e-14
+end
+
+@testset "batched leaves a sample and an ordinary batch alone" begin
+    sample, batch = rand(3), rand(3, 5)
+    @test batched(sample) === sample
+    @test batched(batch) === batch
+    @test size(batched(rand(3, 2, 4))) == (3, 8)
+    @test size(batched(rand(3, 2, 4, 5))) == (3, 40)
+end
+
 @testset "PassThroughLayer" begin
     layer = PassThroughLayer{3}()
     @test input_dimension(layer) == 3
@@ -234,6 +309,18 @@ end
     Random.seed!(42)
     SymbolicPullback(snn, FeedForwardLoss())
     @test rand(3) == without
+end
+
+# The sweep never asks the first layer for the sensitivity of the loss to its input, so that
+# derivative is not generated for it — half the code of one layer, in a construction whose subject is
+# build time.
+@testset "the first layer has no input-sensitivity kernel" begin
+    snn = SymbolicNeuralNetwork(Chain(Dense(2, 3, tanh), Dense(3, 3, tanh), Dense(3, 2, tanh)))
+    steps = layerwise_gradient_function(snn, FeedForwardLoss()).steps
+
+    @test isnothing(first(steps).dλ)
+    @test all(!isnothing(step.dλ) for step in Base.tail(steps))
+    @test all(!isnothing(step.dθ) for step in steps)
 end
 
 @testset "reference_parameters" begin
