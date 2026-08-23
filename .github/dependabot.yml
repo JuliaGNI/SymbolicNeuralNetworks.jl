@@ -1,0 +1,20 @@
+# Julia dependencies are `CompatHelper`'s (see `.github/workflows/CompatHelper.yml`); Dependabot has
+# no Julia ecosystem. What it is here for is the other set of versions in this repository, the
+# actions the workflows pin, which nothing else was watching — `actions/checkout` and
+# `codecov/codecov-action` had each fallen a major version behind before anyone looked.
+#
+# The interval is monthly rather than weekly because the actions pinned here are pinned to major
+# tags, so patch and minor releases arrive without a pull request at all; only a new major needs a
+# decision.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      # one pull request per batch rather than one per action: these move together and are reviewed
+      # together
+      actions:
+        patterns:
+          - "*"
