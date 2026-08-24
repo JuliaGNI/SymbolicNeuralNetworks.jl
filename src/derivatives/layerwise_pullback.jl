@@ -448,7 +448,8 @@ The part of `layer`'s output ``\lambda`` pairs with, as scalar expressions. All 
 # Extending
 
 ```julia
-SymbolicNeuralNetworks.state_expressions(::MyLayer, y) = scalar_expressions(first(y))
+SymbolicNeuralNetworks.state_expressions(::MyLayer, y) =
+    SymbolicNeuralNetworks.scalar_expressions(first(y))
 ```
 
 A layer that passes its carried data on returns it beside the state, and the seed is

@@ -94,7 +94,8 @@ functions say how such a layer meets the seam, and each defaults to the plain-ve
 ```julia
 SymbolicNeuralNetworks.carried_variables(l::MyLayer) = (Symbolics.variables(:c, 1:length(l)),)
 SymbolicNeuralNetworks.seam_value(::MyLayer, sx, sc) = (sx, sc)
-SymbolicNeuralNetworks.state_expressions(::MyLayer, y) = scalar_expressions(first(y))
+SymbolicNeuralNetworks.state_expressions(::MyLayer, y) =
+    SymbolicNeuralNetworks.scalar_expressions(first(y))
 SymbolicNeuralNetworks.seam_arguments(::MyLayer, x::Tuple) = (first(x), last(x))
 ```
 

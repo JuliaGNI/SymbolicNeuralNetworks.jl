@@ -16,11 +16,11 @@ f(input, output, ps)    # NDATA = 2
 f(x1, …, xNDATA, ps)    # in general
 ```
 
+and `R` is how the per-sample results are combined — `hcat` or `+`.
+
 There is no bound on `NDATA`. One data argument is the network input, a second is typically the target
 output of a loss, and the layerwise pullback uses one per entry of a layer's seam plus one for the
 output sensitivities — see [`seam_interface`](@ref).
-
-and `R` is how the per-sample results are combined — `hcat` or `+`.
 
 # Result shapes
 
