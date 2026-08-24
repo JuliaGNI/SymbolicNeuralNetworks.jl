@@ -195,6 +195,22 @@ function (pb::PullbackFunction)(::Union{Real, AbstractArray{<:Real}})
     params(pb.gradient_function(pb.input, pb.output, pb.parameters))
 end
 
-function (pullback::SymbolicPullback)(ps, model, input_output::Tuple{<:ArrayOrNamedTuple, <:ArrayOrNamedTuple})::Tuple
-    pullback.loss(model, ps, input_output...), pullback.fun(input_output..., ps)
-end
+# The input half of the `(input, output)` pair may be a `Tuple`, so that a model whose layers carry
+# data alongside the state can be handed the pair they thread — see `seam_interface`. The output half
+# stays an array or a `NamedTuple`: it is the target the seed compares the network's output to, and
+# neither construction supports a network whose output is anything else.
+#
+# Two methods rather than one over `Union{ArrayOrNamedTuple, Tuple}`, because `AbstractNeuralNetworks`
+# defines the "not implemented" fallback on `AbstractPullback` and
+# `Tuple{<:ArrayOrNamedTuple, <:ArrayOrNamedTuple}`. A single wider method would be more specific than
+# it in its first argument and less specific in its third, which is an ambiguity rather than an
+# override.
+(pullback::SymbolicPullback)(ps, model,
+                            input_output::Tuple{<:ArrayOrNamedTuple, <:ArrayOrNamedTuple})::Tuple =
+    _loss_and_gradient(pullback, ps, model, input_output)
+
+(pullback::SymbolicPullback)(ps, model, input_output::Tuple{<:Tuple, <:ArrayOrNamedTuple})::Tuple =
+    _loss_and_gradient(pullback, ps, model, input_output)
+
+_loss_and_gradient(pullback::SymbolicPullback, ps, model, (input, output)) =
+    (pullback.loss(model, ps, input, output), pullback.fun(input, output, ps))

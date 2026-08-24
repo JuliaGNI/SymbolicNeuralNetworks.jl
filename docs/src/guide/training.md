@@ -74,6 +74,42 @@ SymbolicPullback(snn, loss; layerwise = false)   # one expression for the whole 
 layer — see [`composes_layerwise`](@ref) for the measured crossover and why the default does not try
 to reproduce it exactly.
 
+### Layers
+
+What sits between two layers is a *seam*: fresh symbolic variables standing for the layer's input,
+rather than the expression of everything upstream of it. By default that is one plain vector — the
+layer's state — because that is what a `Dense` maps to a `Dense`.
+
+A layer may carry more than the state. `GeometricMachineLearning`'s `SymplecticEuler` threads the
+parameters of the *system* through the chain alongside it, so it takes and returns a pair. Four
+functions say how such a layer meets the seam, and each defaults to the plain-vector construction:
+
+| function | what it answers |
+|---|---|
+| [`carried_variables`](@ref) | what fresh variables the carried data needs |
+| [`seam_value`](@ref) | what the layer is *applied to* at the seam |
+| [`state_expressions`](@ref) | which part of the output ``\lambda`` pairs with |
+| [`seam_arguments`](@ref) | the *run-time* arguments of the generated kernels |
+
+```julia
+SymbolicNeuralNetworks.carried_variables(l::MyLayer) = (Symbolics.variables(:c, 1:length(l)),)
+SymbolicNeuralNetworks.seam_value(::MyLayer, sx, sc) = (sx, sc)
+SymbolicNeuralNetworks.state_expressions(::MyLayer, y) = scalar_expressions(first(y))
+SymbolicNeuralNetworks.seam_arguments(::MyLayer, x::Tuple) = (first(x), last(x))
+```
+
+A layer declares all four together or none of them. The carried data is *data*, never a
+differentiation target: ``\lambda`` pairs with the state, the seed is differentiated with respect to
+the state and the layer's parameters, and the carried variables become extra arguments of the
+generated kernels. See [`seam_interface`](@ref).
+
+A layer that carries something and has *not* declared these is where the construction declines — its
+output has more in it than the default can take apart, or it has no method for a bare vector at all —
+and [`SymbolicPullback`](@ref) falls back to the monolithic path. That fallback traces the chain from a
+plain vector, so it differentiates the map in which every layer *defaulted* what it carries: for a
+model whose carried data matters, declaring the seam is not only faster but the only construction that
+is right.
+
 ### Losses
 
 The layerwise construction needs one thing the monolithic one does not: the loss as a function of the

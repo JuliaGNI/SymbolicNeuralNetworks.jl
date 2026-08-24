@@ -3,7 +3,8 @@
 
 using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: build_kernel, build_kernel!, parameter_arguments, generated_expression,
-                              _assert_no_name_clash, _assert_no_reserved_names_in_body
+                              _assert_no_name_clash, _assert_no_reserved_names_in_body,
+                              is_reserved_name, data_name
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
 using Symbolics
 using Test
@@ -108,8 +109,25 @@ end
     @test f(input, ps) ≈ reduce(hcat, [c(input[:, i], ps) for i in axes(input, 2)])
 end
 
-@testset "at most two data arguments" begin
+# There is no bound on the number of data arguments. The layerwise pullback needs three for a layer
+# that carries data alongside the state — the state, what it carries, and the output sensitivities.
+@testset "three data arguments" begin
     third = Symbolics.variables(:z, 1:2)
     soutput = Symbolics.variables(:y, 1:2)
-    @test_throws ArgumentError build_kernel(Symbolics.scalarize(eq), params(snn), snn.input, soutput, third)
+    equation = Symbolics.scalarize(eq) .+ soutput .+ third
+    f = build_nn_function(equation, params(snn), snn.input, soutput, third)
+
+    x, y, z = rand(3), rand(2), rand(2)
+    @test f(x, y, z, ps) ≈ c(x, ps) .+ y .+ z
+    # ... and over a batch, where every data argument is indexed by the same column
+    xs, ys, zs = rand(3, 4), rand(2, 4), rand(2, 4)
+    @test f(xs, ys, zs, ps) ≈ reduce(hcat, [c(xs[:, i], ps) .+ ys[:, i] .+ zs[:, i] for i in 1:4])
+end
+
+# The whole `x1`, `x2`, … family is reserved, not only the arities an equation happens to use: a free
+# variable named `x3` would otherwise pass and then break the day a third data argument arrived.
+@testset "every data-argument name is reserved" begin
+    @test all(is_reserved_name, (:out, :ps, :k, :x1, :x2, :x3, :x17))
+    @test !any(is_reserved_name, (:x, :x0, :xa, :y1, :λ))
+    @test map(data_name, 1:3) == [:x1, :x2, :x3]
 end

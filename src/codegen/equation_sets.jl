@@ -91,6 +91,8 @@ EquationSetFunction{NDATA}(f::FT, layout::LT) where {NDATA, FT, LT} =
 
 (f::EquationSetFunction{1})(input, ps) = split_result(f.layout, f.f(input, ps))
 (f::EquationSetFunction{2})(input, output, ps) = split_result(f.layout, f.f(input, output, ps))
+# beyond the two common arities the arguments are collected, as for `AbstractBatchedFunction`
+(f::EquationSetFunction)(args...) = split_result(f.layout, f.f(args...))
 
 """
     EquationSetArrayFunction{NDATA}(functions)
@@ -106,6 +108,7 @@ EquationSetArrayFunction{NDATA}(functions::FT) where {NDATA, FT} = EquationSetAr
 
 (f::EquationSetArrayFunction{1})(input, ps) = [g(input, ps) for g in f.functions]
 (f::EquationSetArrayFunction{2})(input, output, ps) = [g(input, output, ps) for g in f.functions]
+(f::EquationSetArrayFunction)(args...) = [g(args...) for g in f.functions]
 
 @doc raw"""
     flatten_equations(eqs)

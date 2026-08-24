@@ -12,11 +12,13 @@ using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: composes_layerwise, symbolic_steps, loss_seed, loss_expression,
                               passthrough_expression, represents_loss, reference_parameters,
                               layerwise_gradient_function, monolithic_gradient_function,
-                              PassThroughLayer, batched, layer_seed, checked_layer_seed
+                              PassThroughLayer, batched, layer_seed, checked_layer_seed,
+                              scalar_expressions
 using AbstractNeuralNetworks
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, FeedForwardLoss, NetworkLoss,
                               UnknownArchitecture, AbstractExplicitLayer, input_dimension,
-                              output_dimension, layers, Initializer, NeuralNetworkBackend
+                              output_dimension, layers, Initializer, NeuralNetworkBackend,
+                              ArrayOrNamedTuple
 using NeuralNetworkParameters: NetworkParameters, flatten, unflatten, parameterlayout
 using LinearAlgebra: norm
 using Symbolics
@@ -352,6 +354,167 @@ end
                              zygote_gradient(loss, params(nn), c, one...)) < 1e-14
 end
 
+# The other half of issue #54: the seam can be *widened* to carry what a layer passes alongside the
+# state, and then this chain composes layer by layer after all. Four methods say how — see
+# `seam_interface` — and they are declared here for the `Seamed = true` layers only, so that the pair
+# above goes on standing for a layer that has not declared them.
+SymbolicNeuralNetworks.carried_variables(::SeamLayer{M, N, C, true}) where {M, N, C} =
+    (Symbolics.variables(:c, 1:C),)
+SymbolicNeuralNetworks.seam_value(::SeamLayer{M, N, C, true}, sx, sc) where {M, N, C} = (sx, sc)
+# only the layer that returns the pair needs this one; the other returns the state alone, which is the
+# default
+SymbolicNeuralNetworks.state_expressions(::ThreadingLayer{M, N, C, true}, y) where {M, N, C} =
+    scalar_expressions(first(y))
+
+# `seam_arguments` has to hand the kernels a carried datum with the state's rank and batch size — the
+# constraint every generated function of the package puts on its data arguments — which for data that
+# is the same for the whole batch means broadcasting it out to one column per sample.
+match_batch(carried, ::AbstractVector) = carried
+match_batch(carried, state::AbstractMatrix) = repeat(carried, 1, size(state, 2))
+
+SymbolicNeuralNetworks.seam_arguments(::SeamLayer{M, N, C, true}, x::Tuple) where {M, N, C} =
+    (first(x), match_batch(last(x), first(x)))
+SymbolicNeuralNetworks.seam_arguments(layer::SeamLayer{M, N, C, true},
+                                      x::AbstractArray) where {M, N, C} =
+    (x, match_batch(default_carried(layer), x))
+
+@testset "a layer that declares the seam interface" begin
+    c = seam_chain(2, 3, 2, 2, true)
+    nn = NeuralNetwork(c, Float64)
+    snn = SymbolicNeuralNetwork(nn)
+    loss = FeedForwardLoss()
+    sparams = params(snn)
+    l1, l2 = layers(c)
+
+    # both layers seed now, and the seam holds one array besides the state
+    seeded = checked_layer_seed(l1, :L1, sparams.L1)
+    @test !isnothing(seeded)
+    sdata = seeded[3]
+    @test length(sdata) == 2
+    @test length(first(sdata)) == input_dimension(l1)   # the state
+    @test length(last(sdata)) == 2                      # the carried datum, as the layer declared it
+    @test !isnothing(checked_layer_seed(l2, :L2, sparams.L2))
+
+    g = layerwise_gradient_function(snn, loss)
+    @test !isnothing(g)
+    # the first layer still gets no input-sensitivity kernel, and every step gets a parameter one
+    @test isnothing(first(g.steps).dλ)
+    @test all(!isnothing(step.dθ) for step in g.steps)
+
+    layerwise = SymbolicPullback(snn, loss; layerwise = true)
+    monolithic = SymbolicPullback(snn, loss; layerwise = false)
+
+    # given a bare array every layer supplies the carried datum itself, which is the only thing the
+    # monolithic construction can do — so on that input the two agree
+    input, output = rand(2, 4), rand(2, 4)
+    gl = gradient_of(layerwise, nn, input, output)
+    gm = gradient_of(monolithic, nn, input, output)
+    @test maximum_difference(gl, gm) < 1e-14
+    @test typeof(gl) == typeof(gm)
+
+    # `FeedForwardLoss` is not additive over a batch, so `Zygote` is the reference on a single sample
+    one = (rand(2, 1), rand(2, 1))
+    @test maximum_difference(gradient_of(layerwise, nn, one...),
+                             zygote_gradient(loss, params(nn), c, one...)) < 1e-14
+
+    # over a batch the reference is the sum of the per-sample gradients, here from `ForwardDiff` over
+    # the flat parameter vector
+    flat, layout = flatten(params(nn))
+    reference = ForwardDiff.gradient(flat) do w
+        sum(loss(c, unflatten(layout, w), input[:, k:k], output[:, k:k]) for k in axes(input, 2))
+    end
+    @test maximum_difference(gl, params(unflatten(layout, reference))) < 1e-12
+end
+
+# A layer that carries *nothing* says so with an empty tuple, and the seam is then the plain vector it
+# always was: there is nothing to hand the generated kernels, and an empty array would not be a usable
+# data argument in any case — `Symbolics.variables(:c, 1:0)` is not even a `Vector{Num}`. This is
+# `SymplecticEuler` over a system with no parameters, which is what the issue's reproducer builds.
+#
+# The layer still has to be *given* something, though, since its functor takes the pair either way —
+# so `seam_value` supplies it as a constant rather than as a variable. Nothing varies, so nothing
+# needs a variable; the constant is folded into the expression like any other.
+SymbolicNeuralNetworks.carried_variables(::SeamLayer{M, N, 0, true}) where {M, N} = ()
+SymbolicNeuralNetworks.seam_value(layer::SeamLayer{M, N, 0, true}, sx) where {M, N} =
+    (sx, default_carried(layer))
+SymbolicNeuralNetworks.seam_arguments(::SeamLayer{M, N, 0, true}, x::Tuple) where {M, N} = (first(x),)
+SymbolicNeuralNetworks.seam_arguments(::SeamLayer{M, N, 0, true}, x::AbstractArray) where {M, N} = (x,)
+
+@testset "a layer that carries nothing" begin
+    c = seam_chain(2, 3, 2, 0, true)
+    nn = NeuralNetwork(c, Float64)
+    snn = SymbolicNeuralNetwork(nn)
+    loss = FeedForwardLoss()
+    l1, l2 = layers(c)
+
+    # the seam is one array again, and it is the state
+    seeded = checked_layer_seed(l1, :L1, params(snn).L1)
+    @test !isnothing(seeded)
+    @test length(seeded[3]) == 1
+    @test length(only(seeded[3])) == input_dimension(l1)
+    @test !isnothing(checked_layer_seed(l2, :L2, params(snn).L2))
+
+    # and it composes, agreeing with the monolithic path and with `Zygote`
+    input, output = rand(2, 4), rand(2, 4)
+    gl = gradient_of(SymbolicPullback(snn, loss; layerwise = true), nn, input, output)
+    gm = gradient_of(SymbolicPullback(snn, loss; layerwise = false), nn, input, output)
+    @test maximum_difference(gl, gm) < 1e-14
+    @test typeof(gl) == typeof(gm)
+
+    one = (rand(2, 1), rand(2, 1))
+    @test maximum_difference(gradient_of(SymbolicPullback(snn, loss; layerwise = true), nn, one...),
+                             zygote_gradient(loss, params(nn), c, one...)) < 1e-14
+end
+
+# `AbstractNeuralNetworks`' losses take `input::ArrayOrNamedTuple`, so a model whose input carries data
+# alongside the state needs a loss written for it — `GeometricMachineLearning`'s `ParametricLoss` is
+# one. This is the smallest such loss, making the comparison `FeedForwardLoss` makes.
+struct CarryingLoss <: NetworkLoss end
+
+carrying_loss(model, ps, input, output) = norm(model(input, ps) - output) / norm(output)
+
+# Two methods rather than one with `input` left untyped, for the reason `SymbolicPullback`'s functor
+# has two: a method more specific than the generic one upstream in its *model* argument and less
+# specific in its input would be ambiguous with it rather than an override. The second signature is
+# upstream's exactly, on this loss type.
+(::CarryingLoss)(model::Chain, ps::Union{NetworkParameters, NamedTuple}, input::Tuple,
+                 output::AbstractArray) = carrying_loss(model, ps, input, output)
+(::CarryingLoss)(model::Union{Chain, AbstractExplicitLayer}, ps::Union{NetworkParameters, NamedTuple},
+                 input::ArrayOrNamedTuple, output::ArrayOrNamedTuple) =
+    carrying_loss(model, ps, input, output)
+
+# What the interface is *for*: the carried datum reaches the derivative. The monolithic construction
+# traces the chain from a plain vector, so it can only ever differentiate the map in which every layer
+# defaulted what it carries — whatever the caller then passes.
+@testset "the carried datum reaches the derivative" begin
+    c = seam_chain(2, 3, 2, 2, true)
+    nn = NeuralNetwork(c, Float64)
+    snn = SymbolicNeuralNetwork(nn)
+    loss = CarryingLoss()
+
+    layerwise = SymbolicPullback(snn, loss; layerwise = true)
+    monolithic = SymbolicPullback(snn, loss; layerwise = false)
+
+    carried = [0.75, -1.25]                     # deliberately not `default_carried`
+    input, output = rand(2, 3), rand(2, 3)
+
+    gl = layerwise.fun((input, carried), output, params(nn))(1)
+    per_sample = Zygote.gradient(params(nn)) do p
+        sum(loss(c, p, (input[:, k:k], carried), output[:, k:k]) for k in axes(input, 2))
+    end[1]
+    @test maximum_difference(gl, params(per_sample)) < 1e-14
+
+    # the monolithic path gets the default-carried gradient, and it is a different one
+    gm = monolithic.fun(input, output, params(nn))(1)
+    @test maximum_difference(gl, gm) > 1e-6
+
+    # and the pair goes through the functor, not only through `fun` — which is what a training loop
+    # calls, and what `SymbolicPullback`'s widened input type is for
+    value, back = layerwise(params(nn), c, ((input, carried), output))
+    @test value ≈ loss(c, params(nn), (input, carried), output)
+    @test maximum_difference(back(1), gl) < 1e-14
+end
+
 # `build_nn_function` takes a batch with two batch dimensions, and so does the monolithic pullback.
 # The sweep cannot hand such an array to a layer — the forward pass is the layer *called* — so it lays
 # the batch out flat, which the parameter gradient cannot tell apart from any other arrangement of the
@@ -383,6 +546,13 @@ end
     @test batched(batch) === batch
     @test size(batched(rand(3, 2, 4))) == (3, 8)
     @test size(batched(rand(3, 2, 4, 5))) == (3, 40)
+
+    # an input that carries data alongside the state has only its state laid out; what it carries is
+    # `seam_arguments`' business
+    carried = rand(2)
+    state, rest = batched((rand(3, 2, 4), carried))
+    @test size(state) == (3, 8)
+    @test rest === carried
 end
 
 @testset "PassThroughLayer" begin
