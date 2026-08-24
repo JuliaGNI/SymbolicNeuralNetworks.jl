@@ -116,8 +116,9 @@ function layerwise_nodes(dims)
     sparams = params(SymbolicNeuralNetwork(c))
     total = 0
     for (layer, key) in zip(AbstractNeuralNetworks.layers(c), keys(sparams))
-        seed, layer_params, sx, _ = layer_seed(layer, key, sparams[key])
-        total += nodes(symbolic_derivative(seed, symbolic_differentials(sx)))
+        seed, layer_params, sdata, _ = layer_seed(layer, key, sparams[key])
+        # `sdata` is the seam's data variables, the state first; a `Dense` carries nothing beside it
+        total += nodes(symbolic_derivative(seed, symbolic_differentials(first(sdata))))
         total += nodes(symbolic_derivative(seed, symbolic_differentials(layer_params[key])))
     end
     total

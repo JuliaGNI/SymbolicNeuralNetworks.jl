@@ -4,6 +4,109 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] — unreleased
+
+The seam between two layers, which 0.6.0 introduced as a plain vector, becomes something a layer can
+widen. That is what
+[GML #245](https://github.com/JuliaGNI/GeometricMachineLearning.jl/issues/245) was waiting for, and
+along the way it fixes the promise 0.6.0 made and did not keep.
+
+Resolves [#54](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/54).
+
+### Fixed
+
+- **`layerwise = :auto` declined instead of throwing when a layer cannot be seeded.** 0.6.0 said
+  "`:auto` never raises where the monolithic construction would have built; only `layerwise = true`
+  does", and `29f1a9e` had made that true of the *loss*. It was not true of the *layers*.
+  `symbolic_steps` asks whether the model decomposes and whether each layer has known dimensions;
+  nothing asked whether a layer can be given the fresh variables the construction puts at the seams.
+  `GeometricMachineLearning`'s `GeneralizedHamiltonianArchitecture` composes `SymplecticEuler` layers
+  that thread `(state, system parameters)` from layer to layer, so all but the last return a `Tuple`;
+  `composes_layerwise` said yes and `layer_seed` then threw
+  `MethodError: no method matching scalar_expressions(::Tuple{…})`, on a network `layerwise = false`
+  builds in 3.2 s.
+
+  `checked_layer_seed` is the layer-side counterpart of `checked_guess` and draws its `try` in the
+  same place — around building the seed and nothing else. It catches rather than testing
+  `applicable(scalar_expressions, layer(sx, ps))`, because a layer can fail to be seeded in two ways
+  and that predicate only covers one: the layer *downstream* of a tuple-returning one has no method
+  for a bare vector at all, and has to have been applied before `applicable` can be asked anything.
+
+  `layerwise = true` still raises, and now names which of the three things stood in the way — the
+  offending layers by key and type, where that is the reason — rather than listing two of them and
+  leaving the reader to choose. `layerwise_gradient_function` gained a `demanded` keyword and both
+  outcomes go through `decline`, so there is one decision path rather than a second traversal that
+  could drift from it.
+
+- **`loss_expression` was missing from the manual**, so every `@ref` to it failed to resolve and took
+  the documentation build down with them. A comment sat between the docstring and the definition, and
+  Julia does not attach a docstring across one, so the binding carried no documentation at all and
+  `@autodocs` emitted nothing for it. Introduced in 0.6.0, and surfacing only now: the docs
+  environment could not resolve until `GeometricMachineLearning` 0.6 was registered, so the build
+  never reached its cross-references.
+
+- **The API page was 2 KiB from taking the documentation build down.** `api.md` is one `@autodocs`
+  block over the whole package, so it grows with every docstring, and it had reached 198 KiB against
+  Documenter's `size_threshold` default of 200 KiB — a hard error rather than a warning. Raised to
+  512 KiB in `docs/make.jl`; `size_threshold_warn` is left at its default, so the page still says it
+  is large.
+
+### Added
+
+- **A layer can declare how it meets the seam**, with four functions that each default to the
+  plain-vector construction, so nothing that worked before is affected:
+  `carried_variables`, `seam_value`, `state_expressions` and `seam_arguments`. Declared together, they
+  let the layerwise pullback compose a chain whose layers pass data on alongside the state. See
+  `seam_interface`, and the "Layers" section of the training guide.
+
+  What a layer carries is *data*, never a differentiation target: λ pairs with the state, the
+  seed is differentiated with respect to the state and the layer's parameters, and the carried
+  variables become further arguments of the two generated kernels. So a carrying layer costs the same
+  two calls per sweep as any other.
+
+  This matters for correctness and not only for build time. The monolithic construction traces the
+  chain from a plain vector, so a layer that *defaults* what it carries — `SymplecticEuler` defaults
+  the parameters of the system to `NullParameters` — is differentiated with that default whatever the
+  caller passes. Before this there was no construction that could be told otherwise.
+
+  `carried_variables` has to name its arrays something of its own: `layer_seed` calls the state `x`
+  and the sensitivities `λ`, and reusing either name gives one symbolic array two argument slots
+  rather than declaring a second array. `Symbolics.build_function` then makes the generated code read
+  both slots from the last one, so the kernels build, run and return a wrong gradient — so
+  `layer_step` rejects such a seam outright rather than declining, a decline being what a *layer*
+  that cannot be seeded deserves and not a layer whose declaration is wrong.
+
+- **`SymbolicPullback`'s input may be a `Tuple`**, so that a model whose layers thread a pair can be
+  handed one. The output half stays an array or a `NamedTuple`: it is the target the seed compares the
+  network's output to. Two methods rather than one wider signature, because
+  `AbstractNeuralNetworks` defines the fallback on `AbstractPullback` and
+  `Tuple{<:ArrayOrNamedTuple, <:ArrayOrNamedTuple}`, and a single method more specific in its first
+  argument and less specific in its third would be an ambiguity rather than an override.
+
+### Changed
+
+- **A generated function may take any number of data arguments**, where two was the cap. The plumbing
+  was already variadic — `build_nn_function`, `AbstractBatchedFunction{NDATA}`, the rewrite rules —
+  and the limit was the fixed `DATA_NAMES = (:x1, :x2)`. Names are now derived on demand
+  (`data_name(i)`), and `AbstractBatchedFunction`, `EquationSetFunction` and
+  `EquationSetArrayFunction` gained a general-arity call in addition to the one- and two-argument ones
+  they had. A layerwise sweep over a carrying layer needs three.
+
+  With that, the *whole* `x1`, `x2`, … family is reserved rather than only the arities in use
+  (`is_reserved_name`, replacing `RESERVED_NAMES`): a symbolic variable left free in an equation and
+  named `x3` used to pass the check, and would have broken silently the day a third data argument
+  arrived.
+
+### Breaking
+
+- `layer_seed` returns `(seed, sparams, sdata, sλ)`, where `sdata` is the *tuple* of the seam's data
+  variables — the state first — in place of the single `sx` it returned before. `layer_step` takes
+  that tuple rather than a parameter prototype, so that a chain can be seeded, and declined, before
+  any code is generated for any of its layers. Both are internal; `scripts/codegen_comparison.jl` is
+  the only caller outside the construction, and the node counts it reports are unchanged.
+- `SymbolicNeuralNetworks.RESERVED_NAMES` and `DATA_NAMES` are gone, replaced by `is_reserved_name`,
+  `data_name` and `FIXED_NAMES`.
+
 ## [0.6.0] — 2026-08-24
 
 The rest of the 0.5.0 refactor, and the reason it is breaking: the package follows
@@ -318,7 +421,13 @@ Things that came up during the 0.5/0.6 refactor and are **not** fixed.
 - **A matrix-valued equation cannot be evaluated on a batch with two batch dimensions when
   `reduce = hcat`**: concatenating the per-sample results already uses the second dimension. It now
   throws a clear error; supporting it would need a different result layout.
-- **All data arguments of a generated function must have the same rank and batch size.**
+- **All data arguments of a generated function must have the same rank and batch size.** For a layer
+  that carries data alongside the state (`seam_interface`) that is a constraint on what
+  `seam_arguments` returns: carried data that is the same for the whole batch has to be broadcast out
+  to one column per sample, and a carried datum that varies per sample cannot be combined with a state
+  that has two batch dimensions.
+- **A layer that carries data alongside the state cannot be the last one in a chain**, since the
+  chain's output is what the loss and its seed compare against the target.
 
 ### Upstream
 

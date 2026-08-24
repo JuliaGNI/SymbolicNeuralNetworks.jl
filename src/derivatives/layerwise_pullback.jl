@@ -34,6 +34,13 @@ struct PassThroughLayer{N} <: AbstractExplicitLayer{N, N} end
 
 (::PassThroughLayer)(x, ps) = x
 
+# `ŷ` and `y` are deliberately left untyped, so that an overriding method written the way the
+# docstring below shows — `loss_expression(loss::MyLoss, ŷ, y)` — is strictly more specific than this
+# one rather than ambiguous with it.
+#
+# This note goes *above* the docstring rather than between it and the definition: Julia does not
+# attach a docstring across an intervening comment, so a comment placed there leaves the function
+# undocumented, and every `@ref` to it in the manual then fails to resolve.
 @doc raw"""
     loss_expression(loss, ŷ, y)
 
@@ -58,9 +65,6 @@ guess is: the reason to declare one is that the four-argument form means somethi
 assume it does not, so checking it against that assumption would reject exactly the methods this
 exists for.
 """
-# `ŷ` and `y` are deliberately left untyped, so that an overriding method written the way the
-# docstring shows — `loss_expression(loss::MyLoss, ŷ, y)` — is strictly more specific than this one
-# rather than ambiguous with it.
 loss_expression(::NetworkLoss, ŷ, y) = nothing
 
 """
@@ -227,6 +231,9 @@ Both functions take `(x, λ, ps)`: the layer's own input, the sensitivity of the
 output, and the parameters of the *whole* network. `dλ` returns the sensitivity with respect to the
 layer's input, `dθ` the derivative of the loss with respect to the layer's parameters.
 
+A layer that carries data alongside the state takes that data in between, as further arguments before
+`λ`; [`seam_arguments`](@ref) is what produces them, and [`seam_interface`](@ref) the whole picture.
+
 `dλ` is `nothing` for the first step of a sweep, which is the one place it is never called; see
 [`layer_step`](@ref).
 
@@ -256,9 +263,17 @@ The entry of the parameter set `ps` that belongs to `step`.
 step_parameters(::LayerStep{Key}, ps) where {Key} = ps[Key]
 
 @doc raw"""
-    layer_step(layer, key, prototype; input_sensitivity, cse, inplace)
+    layer_step(layer, key, seeded; input_sensitivity, cse, inplace)
 
-Build the [`LayerStep`](@ref) of one layer.
+Build the [`LayerStep`](@ref) of one layer from `seeded`, the tuple [`layer_seed`](@ref) returns.
+
+The seed is passed in rather than built here so that every layer of a chain can be seeded — and the
+chain declined if one of them cannot be, see [`checked_layer_seed`](@ref) — *before* any code is
+generated for any of them. Building a seed is one symbolic forward pass through one layer; generating
+its two kernels is the expensive half, and a chain that will be declined should not pay it.
+
+A seam whose variables are not pairwise distinct is refused here rather than declined; see
+[`_assert_distinct_seam_variables`](@ref).
 
 `input_sensitivity = false` leaves out the derivative with respect to the layer's *input*, for the
 first layer of a chain, whose sensitivity is that of the loss to the network's input — something a
@@ -294,23 +309,179 @@ sensitivity is per-sample and concatenates, whereas the gradient of a batch is t
 per-sample gradients — which is what [`SymbolicPullback`](@ref) means by the pullback of a batch. So
 the sweep costs two calls per layer whatever the batch size, with no per-sample loop.
 """
-function layer_step(layer::AbstractExplicitLayer, key::Symbol, prototype;
+function layer_step(layer::AbstractExplicitLayer, key::Symbol, seeded::Tuple;
                     input_sensitivity::Bool = true, cse::Bool = true, inplace::Bool = true)
-    seed, sparams, sx, sλ = layer_seed(layer, key, prototype)
+    seed, sparams, sdata, sλ = seeded
+    _assert_distinct_seam_variables(layer, sdata, sλ)
+    # the state is the first of the seam's data variables, and the only one differentiated with
+    # respect to: what a layer carries alongside it is data — see `seam_interface`
+    sx = first(sdata)
 
     dλ = input_sensitivity ?
-         build_nn_function(symbolic_derivative(seed, symbolic_differentials(sx)), sparams, sx, sλ;
-                           reduce = hcat, cse = cse, inplace = inplace) : nothing
+         build_nn_function(symbolic_derivative(seed, symbolic_differentials(sx)), sparams, sdata...,
+                           sλ; reduce = hcat, cse = cse, inplace = inplace) : nothing
     dθ = build_nn_function(symbolic_derivative(seed, symbolic_differentials(sparams[key])), sparams,
-                           sx, sλ; reduce = +, cse = cse, inplace = inplace)
+                           sdata..., sλ; reduce = +, cse = cse, inplace = inplace)
     LayerStep{key}(layer, dλ, dθ)
 end
+
+"""
+    _assert_distinct_seam_variables(layer, sdata, sλ)
+
+Reject a seam whose variables are not pairwise distinct, which is what a
+[`carried_variables`](@ref) that reuses the names [`layer_seed`](@ref) gives the state (`x`) or the
+sensitivities (`λ`) produces.
+
+Nothing further down would notice. `Symbolics.build_function` binds one symbolic array to two
+argument slots and the generated code reads both of them from the last one, so the kernels are built,
+they run, and they return a gradient that is simply wrong — the one failure this construction must
+not have, and the reason [`checked_guess`](@ref) and [`represents_loss`](@ref) exist one level up.
+
+# Implementation
+
+Here rather than in [`layer_seed`](@ref), because [`checked_layer_seed`](@ref) catches everything
+`layer_seed` throws and turns it into a decline. A layer whose `carried_variables` collides is a bug
+in that layer, not a chain to quietly fall back on, so the check belongs on the far side of that
+`try` — and this is where the variables are handed to `build_nn_function`, which is where the damage
+would be done.
+"""
+function _assert_distinct_seam_variables(layer, sdata::Tuple, sλ)
+    allunique(Iterators.flatten((sdata..., sλ))) || throw(ArgumentError(
+        "the seam of `$(nameof(typeof(layer)))` does not consist of distinct symbolic variables. " *
+        "`layer_seed` names the state `x` and the sensitivities `λ`, so `carried_variables` has to " *
+        "return variables of its own — see `seam_interface`."))
+    nothing
+end
+
+@doc raw"""
+The seam interface
+------------------
+
+`layer_seed` puts *fresh* symbolic variables between two layers, which is what keeps the symbolic
+material a sum over layers rather than a product. By default those variables are one plain vector —
+the layer's state — because that is what a `Dense` maps to a `Dense`.
+
+A layer may carry more than the state. `GeometricMachineLearning`'s `SymplecticEuler` threads the
+parameters of the *system* through the chain alongside it, so it takes and returns a pair. Four
+functions say how such a layer meets the seam; each defaults to exactly the plain-vector construction,
+so a layer that carries nothing needs none of them, and a layer that carries something declares all
+four together:
+
+| function | what it answers | default |
+|---|---|---|
+| [`carried_variables`](@ref) | what fresh variables the carried data needs | `()` |
+| [`seam_value`](@ref) | what the layer is *applied to* at the seam | the state alone |
+| [`state_expressions`](@ref) | which part of the output ``\lambda`` pairs with | all of it |
+| [`seam_arguments`](@ref) | the *run-time* arguments of the generated kernels | the input alone |
+
+The carried data is **data, never a differentiation target**: ``\lambda`` pairs with the state, the
+seed is differentiated with respect to the state and with respect to the layer's parameters, and the
+carried variables are extra arguments of the generated kernels. So a layer that carries something gets
+the same two kernels as any other, taking one more argument each.
+
+`seam_arguments` must return arrays with the *same rank and batch size* as the state, in the order
+`(state, carried…)` that `carried_variables` declared — the constraint every generated function of
+this package imposes on its data arguments. For carried data that is the same for the whole batch that
+means broadcasting it out to one column per sample.
+
+`carried_variables` must return variables of its *own*: `layer_seed` names the state `x` and the
+sensitivities ``\lambda``, and a carried array that reuses either name is the same symbolic array
+rather than a second one. `layer_step` rejects that rather than letting it through, because nothing
+downstream would — `Symbolics.build_function` binds one array to two argument slots and the generated
+code reads both from the last one, which builds and runs and returns a wrong gradient.
+"""
+function seam_interface end
+
+"""
+    carried_variables(layer)
+
+Fresh symbolic arrays standing for whatever `layer` carries alongside the state at the seam, as a
+tuple. `()` by default, which is the plain-vector seam.
+
+# Extending
+
+```julia
+SymbolicNeuralNetworks.carried_variables(layer::MyLayer) = (Symbolics.variables(:c, 1:length(layer)),)
+```
+
+The arrays are built here rather than passed in because their *shape* is the layer's own knowledge —
+this package knows only `input_dimension` and `output_dimension`, which describe the state. Their
+*name* is the layer's own to choose too, and has to differ from the ones [`layer_seed`](@ref) uses
+itself — `x` for the state and `λ` for the sensitivities. Reusing one of those does not make a second
+array, it names the same one twice; [`layer_step`](@ref) refuses the seam rather than generating
+kernels that would quietly read the state where the carried datum should be.
+
+Return `()` when there is nothing to carry, rather than an empty array: there would be nothing to hand
+the generated kernels, and an empty array is not a usable data argument in any case. The seam is then
+the plain vector it is for every other layer. `SymplecticEuler` over a system with no parameters is
+exactly this case.
+
+The layer may still have to be *given* something — its functor takes the pair either way — in which
+case [`seam_value`](@ref) supplies it as a constant. Nothing varies, so nothing needs a variable, and
+the constant is folded into the expression like any other. See [`seam_interface`](@ref).
+"""
+carried_variables(::AbstractExplicitLayer) = ()
+
+"""
+    seam_value(layer, sx, carried...)
+
+What `layer` is applied to at the seam, assembled from the state variables `sx` and the arrays
+[`carried_variables`](@ref) returned. `sx` alone by default.
+
+# Extending
+
+```julia
+SymbolicNeuralNetworks.seam_value(layer::MyLayer, sx, sc) = (sx, sc)
+```
+
+A layer whose carried data reaches it in some other shape than the flat array the kernels take —
+`SymplecticEuler` wants a `NamedTuple` of system parameters — reassembles it here, and takes it apart
+again in [`seam_arguments`](@ref). See [`seam_interface`](@ref).
+"""
+seam_value(::AbstractExplicitLayer, sx, carried...) = sx
+
+@doc raw"""
+    state_expressions(layer, y)
+
+The part of `layer`'s output ``\lambda`` pairs with, as scalar expressions. All of it by default.
+
+# Extending
+
+```julia
+SymbolicNeuralNetworks.state_expressions(::MyLayer, y) =
+    SymbolicNeuralNetworks.scalar_expressions(first(y))
+```
+
+A layer that passes its carried data on returns it beside the state, and the seed is
+``\lambda_k\cdot{}f_k(x_{k-1};\theta_k)`` over the *state* — so this is what says which part that is.
+See [`seam_interface`](@ref).
+"""
+state_expressions(::AbstractExplicitLayer, y) = scalar_expressions(y)
+
+"""
+    seam_arguments(layer, x)
+
+The data arguments the kernels generated for `layer` are called with, given the layer's run-time
+input `x`: a tuple in the order `(state, carried...)` that [`carried_variables`](@ref) declared.
+`(x,)` by default.
+
+# Extending
+
+```julia
+SymbolicNeuralNetworks.seam_arguments(::MyLayer, x::Tuple) = (first(x), flat(last(x)))
+```
+
+This is the run-time counterpart of [`seam_value`](@ref), and the two have to agree: what the seam is
+*written in* and what it is *called with* are the same list. Every entry must have the same rank and
+batch size as the state. See [`seam_interface`](@ref).
+"""
+seam_arguments(::AbstractExplicitLayer, x) = (x,)
 
 @doc raw"""
     layer_seed(layer, key, prototype)
 
 The scalar one layer's two derivatives are taken of, together with the variables it is written in:
-`(seed, sparams, sx, sλ)`, where
+`(seed, sparams, sdata, sλ)`, where
 
 ```math
 \mathrm{seed} = \lambda_k \cdot f_k(x_{k-1}; \theta_k).
@@ -318,8 +489,15 @@ The scalar one layer's two derivatives are taken of, together with the variables
 
 `sparams` nests the layer's parameters under `key`, with the shape of `prototype`, so that the code
 generated from `seed` reaches into the parameter set of the *whole* network — see
-[`LayerStep`](@ref). `sx` and `sλ` are fresh for every layer, which is what keeps an expression built
-from this one dependent on that layer alone.
+[`LayerStep`](@ref). `sdata` is the tuple of data variables the seam is written in — the state first,
+then whatever [`carried_variables`](@ref) declared — and it and `sλ` are fresh for every layer, which
+is what keeps an expression built from this one dependent on that layer alone.
+
+A layer that carries nothing gets `sdata = (sx,)`, one plain vector, and this is then the construction
+it always was. A layer that carries something and has *not* declared the seam interface cannot be
+seeded at all — it either returns more than `state_expressions`' default can take apart, or has no
+method for a bare vector in the first place; [`checked_layer_seed`](@ref) is what turns that into a
+decline rather than an exception. See [`seam_interface`](@ref).
 
 Separate from [`layer_step`](@ref) so that `scripts/codegen_comparison.jl` measures the symbolic
 material this construction actually holds, rather than a second copy of it that can drift.
@@ -327,8 +505,44 @@ material this construction actually holds, rather than a second copy of it that 
 function layer_seed(layer::AbstractExplicitLayer, key::Symbol, prototype)
     sx = Symbolics.variables(:x, 1:input_dimension(layer))
     sλ = Symbolics.variables(:λ, 1:output_dimension(layer))
+    sdata = (sx, carried_variables(layer)...)
     sparams = NetworkParameters{(key,)}((symbolic_variables(prototype, :W),))
-    (sum(sλ .* scalar_expressions(layer(sx, sparams[key]))), sparams, sx, sλ)
+    value = layer(seam_value(layer, sdata...), sparams[key])
+    (sum(sλ .* state_expressions(layer, value)), sparams, sdata, sλ)
+end
+
+"""
+    checked_layer_seed(layer, key, prototype)
+
+What [`layer_seed`](@ref) returns for `layer`, or `nothing` when the layer cannot be seeded at all.
+
+A layer that carries something alongside the state and has not declared the seam interface (see
+[`seam_interface`](@ref)) has no seed, because the seam it is offered is a plain vector of symbolic
+variables. There are two ways for that to show, and both mean the same thing to the caller — decline,
+and let [`SymbolicPullback`](@ref) fall back to the monolithic construction:
+
+- the layer *returns* more than the state, so [`state_expressions`](@ref)' default has no method for
+  its output. This is `GeometricMachineLearning`'s `SymplecticEuler` with `return_parameters = true`,
+  which threads the parameters of the system on to the next layer and returns a `Tuple`;
+- the layer cannot be *applied* to the bare vector at the seam in the first place, which is what the
+  layer downstream of such a one does — its input is the tuple, and it has no method for anything
+  else.
+
+The second is why this catches rather than asking `applicable(scalar_expressions, layer(sx, ps))`:
+that predicate needs the layer to have been applied already, so it only covers the first.
+
+# Implementation
+
+The `try` covers building the seed and nothing else — the same line [`checked_guess`](@ref) draws one
+level up. Once a seed is in hand, differentiating it and generating code from it are this package's
+own work, and a failure there is a bug to surface rather than a reason to fall back.
+"""
+function checked_layer_seed(layer::AbstractExplicitLayer, key::Symbol, prototype)
+    try
+        layer_seed(layer, key, prototype)
+    catch
+        nothing
+    end
 end
 
 """
@@ -360,6 +574,11 @@ _has_known_dimensions(layer) =
 
 Whether composing the pullback layer by layer is the better choice for `nn`, which is what
 `layerwise = :auto` asks. True when the model decomposes into *more than one* step.
+
+This is a question about which construction is *preferable*, not about whether the layerwise one
+applies: the layers still have to be seedable ([`checked_layer_seed`](@ref)) and the loss still has to
+reduce to a seed ([`loss_seed`](@ref)), both of which are settled afterwards by
+[`layerwise_gradient_function`](@ref). So a `true` here can still be followed by a decline.
 
 # Implementation
 
@@ -424,7 +643,8 @@ end
     batched(data)
 
 `data` with any batch dimensions past the first collapsed into it, which is the shape the sweep
-evaluates in.
+evaluates in. For an input that carries data alongside the state, only the state is laid out; the rest
+is [`seam_arguments`](@ref)' business.
 
 # Implementation
 
@@ -442,6 +662,9 @@ reason: what comes back is shaped like the parameters, not like the batch.
 batched(data::AbstractVector) = data
 batched(data::AbstractMatrix) = data
 batched(data::AbstractArray) = reshape(data, size(data, 1), :)
+# an input that carries data alongside the state — see `seam_interface` — has the state in its first
+# entry, and it is only the state that a layer's forward pass has to be able to multiply by
+batched(data::Tuple) = (batched(first(data)), Base.tail(data)...)
 
 """
     sweep(steps, x, ps, seed, output)
@@ -464,7 +687,7 @@ function sweep(steps::Tuple, x, ps, seed, output)
     step = first(steps)
     y = step.layer(x, step_parameters(step, ps))
     λ, gradients = adjoint_step(Base.tail(steps), y, ps, seed, output)
-    (step.dθ(x, λ, ps), gradients...)
+    (step.dθ(seam_arguments(step.layer, x)..., λ, ps), gradients...)
 end
 
 sweep(::Tuple{}, x, ps, seed, output) = ()
@@ -474,37 +697,105 @@ sweep(::Tuple{}, x, ps, seed, output) = ()
 
 The sensitivity of the loss to `x` and the parameter gradients of `steps`, given that `x` is what the
 remaining `steps` are applied to. See [`sweep`](@ref).
+
+The recursion bottoms out at the network's *output*, which the seed takes together with the target. So
+the chain's last layer has to return the model's output and nothing beside it — a layer that carries
+data through cannot be the last one, which is also what the monolithic construction and the loss
+itself require.
 """
 function adjoint_step(steps::Tuple, x, ps, seed, output)
     step = first(steps)
     y = step.layer(x, step_parameters(step, ps))
     λ, gradients = adjoint_step(Base.tail(steps), y, ps, seed, output)
-    (step.dλ(x, λ, ps), (step.dθ(x, λ, ps), gradients...))
+    # `seam_arguments` returns a tuple whose length is fixed per layer type, so this stays inferable
+    arguments = seam_arguments(step.layer, x)
+    (step.dλ(arguments..., λ, ps), (step.dθ(arguments..., λ, ps), gradients...))
 end
 
 adjoint_step(::Tuple{}, x, ps, seed, output) = (seed(x, output, ps), ())
 
 """
-    layerwise_gradient_function(nn, loss; cse, inplace)
+    decline(demanded, why)
 
-Build the [`LayerwiseGradientFunction`](@ref) of `loss` for `nn`, or `nothing` when the layerwise
-construction does not apply — because the model does not decompose into steps
-([`symbolic_steps`](@ref)) or because the loss cannot be reduced to a seed ([`loss_seed`](@ref)).
+Refuse the layerwise construction, `why` saying what stood in the way.
+
+Returns `nothing` — the signal `layerwise = :auto` falls back to the monolithic construction on — or
+throws an `ArgumentError` naming `why`, when the caller asked for the construction by name with
+`layerwise = true`.
+
+# Implementation
+
+Both outcomes go through here so that [`layerwise_gradient_function`](@ref) has *one* decision path:
+the message is raised where the decline happens rather than reconstructed afterwards by a second
+traversal of the same checks, which could not help but drift from them.
+"""
+function decline(demanded::Bool, why::AbstractString)
+    demanded && throw(ArgumentError(
+        "`layerwise = true`, but the pullback cannot be built layer by layer for this network: " *
+        why * ". Pass `layerwise = :auto` to fall back to the monolithic construction."))
+    nothing
+end
+
+"""
+    unseedable_reason(steps, seeds)
+
+The `why` [`decline`](@ref) is given when one of a chain's layers cannot be seeded: the keys and types
+of every layer whose entry in `seeds` came back `nothing`.
+"""
+function unseedable_reason(steps::Tuple, seeds::Tuple)
+    unseedable = [i for i in eachindex(seeds) if isnothing(seeds[i])]
+    named = join(("`$(steps[i][2])` (`$(nameof(typeof(steps[i][1])))`)" for i in unseedable),
+                 ", ", " and ")
+    (length(unseedable) == 1 ? "the layer " : "the layers ") * named *
+    " cannot be seeded. The seam the construction puts between two layers is a plain vector of " *
+    "symbolic variables, so a layer has to map an array to an array unless it says otherwise — see " *
+    "`seam_interface`, `layer_seed` and `checked_layer_seed`"
+end
+
+"""
+    layerwise_gradient_function(nn, loss; demanded, cse, inplace)
+
+Build the [`LayerwiseGradientFunction`](@ref) of `loss` for `nn`, or [`decline`](@ref) when the
+layerwise construction does not apply. There are three ways for it not to:
+
+- the model does not decompose into steps ([`symbolic_steps`](@ref));
+- one of those steps cannot be seeded ([`checked_layer_seed`](@ref));
+- the loss cannot be reduced to a seed ([`loss_seed`](@ref)).
+
+`demanded = true` — which is `SymbolicPullback`'s `layerwise = true` — makes each of those an error
+naming the reason instead of the `nothing` that falls back.
+
+# Implementation
+
+The layers are checked before the loss because the check is cheaper: [`loss_seed`](@ref) builds a
+function, evaluates it at three points and then differentiates and builds again, whereas seeding a
+layer is one symbolic forward pass. So a chain that cannot be seeded declines before any code is
+generated at all. The order also decides which reason a model that declines on both counts reports.
 """
 function layerwise_gradient_function(nn::SymbolicNeuralNetwork, loss::NetworkLoss;
-                                     cse::Bool = true, inplace::Bool = true)
+                                     demanded::Bool = false, cse::Bool = true, inplace::Bool = true)
     steps = symbolic_steps(nn)
-    isnothing(steps) && return nothing
-
-    seed = loss_seed(loss, nn; cse = cse, inplace = inplace)
-    isnothing(seed) && return nothing
+    isnothing(steps) && return decline(demanded,
+        "the model does not decompose into a sequence of layers with known dimensions " *
+        "(see `symbolic_steps`)")
 
     sparams = params(nn)
+    seeds = ntuple(length(steps)) do i
+        layer, key = steps[i]
+        checked_layer_seed(layer, key, sparams[key])
+    end
+    any(isnothing, seeds) && return decline(demanded, unseedable_reason(steps, seeds))
+
+    seed = loss_seed(loss, nn; cse = cse, inplace = inplace)
+    isnothing(seed) && return decline(demanded,
+        "the loss cannot be expressed as a function of the prediction and the target " *
+        "(see `loss_expression`)")
+
     # `input_sensitivity = i > 1`: the sweep never asks the first layer for the sensitivity to its
     # input, so that derivative is not generated for it
     kernels = ntuple(length(steps)) do i
         layer, key = steps[i]
-        layer_step(layer, key, sparams[key]; input_sensitivity = i > 1, cse = cse, inplace = inplace)
+        layer_step(layer, key, seeds[i]; input_sensitivity = i > 1, cse = cse, inplace = inplace)
     end
     LayerwiseGradientFunction{keys(sparams)}(kernels, seed)
 end

@@ -64,7 +64,7 @@ The same loss also divides by `norm(output)`, so a target that is identically ze
 ## Batch shapes
 
 - All data arguments of a generated function must have the same number of dimensions and the same
-  batch size.
+  batch size, however many of them there are.
 - A matrix-valued equation cannot be evaluated on a batch with two batch dimensions when
   `reduce = hcat`: concatenating the per-sample results already uses the second dimension. Use
   `reduce = +`, or reshape the input into a matrix.
@@ -73,9 +73,39 @@ The same loss also divides by `norm(output)`, so a target that is identically ze
   one, which is why references in the test suite are assembled sample by sample. See
   [issue #40](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/40).
 
+## What a layer carries alongside the state
+
+The layerwise construction of [`SymbolicPullback`](@ref) puts a *seam* between two layers, and by
+default that seam is one plain vector — so it assumes every layer maps an array to an array. A layer
+that carries something else alongside the state can say so ([`seam_interface`](@ref)), within limits:
+
+- the carried data must reach the generated kernels as an array with the *same rank and batch size* as
+  the state, like every other data argument. For data that is the same for the whole batch that means
+  broadcasting it out to one column per sample.
+- a carried datum that varies per sample cannot be combined with a state that has two batch
+  dimensions: [`batched`](@ref) lays the state out flat and leaves the carried part alone, so the two
+  would no longer correspond.
+- the chain's *last* layer has to return the model's output and nothing beside it, since that is what
+  the loss and its seed compare against the target.
+- a layer that carries nothing declares `()`, not an empty array.
+- the carried variables must be named something of their own. `x` is the state and `λ` the
+  sensitivities, and reusing either name gives the same symbolic array a second slot rather than a
+  second array; the construction refuses such a seam rather than generating kernels for it.
+
+A layer that carries something and declares none of this makes the construction decline, and the
+monolithic path takes over. That path traces the chain from a plain vector, so a layer which
+*defaults* what it carries — as `GeometricMachineLearning`'s `SymplecticEuler` defaults the parameters
+of the system to `NullParameters` — is differentiated with that default, whatever the caller passes.
+The gradient is then right for the default-carried map and for no other.
+
 ## Reserved names
 
-The generated kernels call their own arguments `out`, `x1`, `x2`, `ps` and `k`.
+The generated kernels call their own arguments `out`, `ps`, `k`, and `x1`, `x2`, … — one per data
+argument, of which there may be any number.
+
+The whole `x`-followed-by-a-number family is reserved and not merely the arities an equation happens
+to use, so that a free variable named `x3` is rejected today rather than the day a third data argument
+arrives.
 
 A symbolic variable that is *passed* to [`build_nn_function`](@ref) — as a data variable or as part of
 the parameters — may be named anything: `Symbolics.build_function` turns it into an argument and

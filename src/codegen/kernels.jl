@@ -24,14 +24,41 @@ See [`accumulate_into_output`](@ref).
 const OUTPUT_NAME = :out
 
 """
-    DATA_NAMES
+    data_name(i)
 
-The names the generated kernels give their data arguments — the network input, and for the
-two-argument form the target output as well.
+The name the generated kernels give their `i`-th data argument: `x1`, `x2`, … There is no bound on
+how many there may be. One is the network input; a second is typically the target output of a loss;
+the layerwise pullback uses one per entry of a layer's seam plus one for the output sensitivities
+(see [`seam_interface`](@ref)).
 """
-const DATA_NAMES = (:x1, :x2)
+data_name(i::Integer) = Symbol(:x, i)
 
-const RESERVED_NAMES = (PARAMETER_NAME, BATCH_INDEX, OUTPUT_NAME, DATA_NAMES...)
+"""
+    FIXED_NAMES
+
+The three names a generated kernel always gives its own arguments, whatever its arity.
+See [`is_reserved_name`](@ref) for the rest.
+"""
+const FIXED_NAMES = (PARAMETER_NAME, BATCH_INDEX, OUTPUT_NAME)
+
+"""
+    is_reserved_name(name)
+
+Whether `name` is one a generated kernel gives an argument of its own, and therefore one a symbolic
+variable left *free* in an equation may not carry.
+
+That is [`FIXED_NAMES`](@ref) together with the whole `x1`, `x2`, … family of [`data_name`](@ref)s —
+the family and not just the arities in use, because whether a given name is generated would otherwise
+depend on how many data arguments the equation happens to have, and a free variable named `x3` would
+pass the check today and break the day a third data argument arrived.
+"""
+is_reserved_name(name::Symbol) = name ∈ FIXED_NAMES || _is_data_name(String(name))
+
+function _is_data_name(name::AbstractString)
+    length(name) > 1 && name[1] == 'x' && name[2] != '0' && all(isdigit, @view name[2:end])
+end
+
+const RESERVED_NAMES_MESSAGE = "$(join(FIXED_NAMES, ", ")) and x1, x2, … are reserved"
 
 """
     build_kernel(equation, sparams, svariables...; cse)
@@ -42,6 +69,8 @@ Build an *out-of-place* kernel that evaluates `equation` for batch column `k`:
 kernel(x1, ps, k)          # one data argument
 kernel(x1, x2, ps, k)      # two data arguments
 ```
+
+There is no bound on the number of data arguments; see [`data_name`](@ref).
 
 `sparams` are the symbolic parameters and `svariables` the symbolic data variables the equation was
 built from. See [`build_kernel!`](@ref) for the in-place counterpart and
@@ -203,20 +232,16 @@ function _rewrite_body(expression::Expr, data_names::Tuple, parameter_paths::Tup
     index_by_batch(body, data_names)
 end
 
-function _data_names(svariables::Tuple)
-    length(svariables) ≤ length(DATA_NAMES) || throw(ArgumentError(
-        "at most $(length(DATA_NAMES)) data arguments are supported, got $(length(svariables))."))
-    ntuple(i -> DATA_NAMES[i], length(svariables))
-end
+_data_names(svariables::Tuple) = ntuple(data_name, length(svariables))
 
 # The rewrite rules identify the arguments of the generated function by name, so a symbolic array
 # that happens to carry one of the names the kernel uses itself would be rewritten twice.
 function _assert_no_name_clash(generated_names)
-    clashing = filter(in(RESERVED_NAMES), generated_names)
+    clashing = filter(is_reserved_name, generated_names)
     isempty(clashing) || throw(ArgumentError(
         "the symbolic variables or parameters are named $(join(clashing, ", ")), which the " *
         "generated kernels use for their own arguments. Please rename them; " *
-        "$(join(RESERVED_NAMES, ", ")) are reserved."))
+        RESERVED_NAMES_MESSAGE * "."))
     nothing
 end
 
@@ -240,13 +265,13 @@ come from a free variable.
 function _assert_no_reserved_names_in_body(body)
     found = Symbol[]
     postwalk(body) do node
-        node isa Symbol && node ∈ RESERVED_NAMES && node ∉ found && push!(found, node)
+        node isa Symbol && is_reserved_name(node) && node ∉ found && push!(found, node)
         node
     end
     isempty(found) || throw(ArgumentError(
         "the generated code refers to $(join(found, ", ")), which the generated kernels use for " *
         "their own arguments. This means the equation contains a symbolic variable of that name " *
         "that was passed neither as a data variable nor as a parameter. Please rename it; " *
-        "$(join(RESERVED_NAMES, ", ")) are reserved."))
+        RESERVED_NAMES_MESSAGE * "."))
     nothing
 end

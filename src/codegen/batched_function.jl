@@ -13,9 +13,14 @@ instead of a matrix.
 ```julia
 f(input, ps)            # NDATA = 1
 f(input, output, ps)    # NDATA = 2
+f(x1, …, xNDATA, ps)    # in general
 ```
 
 and `R` is how the per-sample results are combined — `hcat` or `+`.
+
+There is no bound on `NDATA`. One data argument is the network input, a second is typically the target
+output of a loss, and the layerwise pullback uses one per entry of a layer's seam plus one for the
+output sensitivities — see [`seam_interface`](@ref).
 
 # Result shapes
 
@@ -74,11 +79,23 @@ for T in (:OutOfPlaceBatchedFunction, :InPlaceBatchedFunction)
     end
 end
 
+# The two common arities are written out, so that `(input, ps)` and `(input, output, ps)` are calls
+# the compiler sees the arity of. Beyond them the arguments are collected, which is what the layerwise
+# pullback's kernels need — a layer that carries data alongside the state takes one argument per entry
+# of its seam plus the output sensitivities; see `seam_interface`.
 (f::AbstractBatchedFunction{1})(input, ps) = evaluate_batch(f, (input,), ps)
 (f::AbstractBatchedFunction{2})(input, output, ps) = evaluate_batch(f, (input, output), ps)
 
+function (f::AbstractBatchedFunction{NDATA})(args...) where {NDATA}
+    length(args) == NDATA + 1 || throw(ArgumentError(
+        "this function takes $(NDATA) data argument(s) and the parameters, i.e. $(NDATA + 1) " *
+        "arguments in total, got $(length(args))."))
+    evaluate_batch(f, args[1:NDATA], last(args))
+end
+
 function Base.show(io::IO, f::AbstractBatchedFunction{NDATA}) where {NDATA}
-    arguments = NDATA == 1 ? "(input, ps)" : "(input, output, ps)"
+    arguments = NDATA == 1 ? "(input, ps)" :
+                NDATA == 2 ? "(input, output, ps)" : "(x1, …, x$(NDATA), ps)"
     print(io, nameof(typeof(f)), " ", arguments, " for an equation of size ", f.equation_size,
           ", reduced with ", f.reduction)
 end
