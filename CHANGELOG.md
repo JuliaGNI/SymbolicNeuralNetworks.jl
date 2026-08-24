@@ -38,6 +38,13 @@ Resolves [#54](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/54).
   outcomes go through `decline`, so there is one decision path rather than a second traversal that
   could drift from it.
 
+- **`loss_expression` was missing from the manual**, so every `@ref` to it failed to resolve and took
+  the documentation build down with them. A comment sat between the docstring and the definition, and
+  Julia does not attach a docstring across one, so the binding carried no documentation at all and
+  `@autodocs` emitted nothing for it. Introduced in 0.6.0, and surfacing only now: the docs
+  environment could not resolve until `GeometricMachineLearning` 0.6 was registered, so the build
+  never reached its cross-references.
+
 ### Added
 
 - **A layer can declare how it meets the seam**, with four functions that each default to the

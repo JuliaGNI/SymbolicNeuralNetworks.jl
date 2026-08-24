@@ -34,6 +34,13 @@ struct PassThroughLayer{N} <: AbstractExplicitLayer{N, N} end
 
 (::PassThroughLayer)(x, ps) = x
 
+# `ŷ` and `y` are deliberately left untyped, so that an overriding method written the way the
+# docstring below shows — `loss_expression(loss::MyLoss, ŷ, y)` — is strictly more specific than this
+# one rather than ambiguous with it.
+#
+# This note goes *above* the docstring rather than between it and the definition: Julia does not
+# attach a docstring across an intervening comment, so a comment placed there leaves the function
+# undocumented, and every `@ref` to it in the manual then fails to resolve.
 @doc raw"""
     loss_expression(loss, ŷ, y)
 
@@ -58,9 +65,6 @@ guess is: the reason to declare one is that the four-argument form means somethi
 assume it does not, so checking it against that assumption would reject exactly the methods this
 exists for.
 """
-# `ŷ` and `y` are deliberately left untyped, so that an overriding method written the way the
-# docstring shows — `loss_expression(loss::MyLoss, ŷ, y)` — is strictly more specific than this one
-# rather than ambiguous with it.
 loss_expression(::NetworkLoss, ŷ, y) = nothing
 
 """
