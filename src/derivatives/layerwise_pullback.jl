@@ -256,9 +256,14 @@ The entry of the parameter set `ps` that belongs to `step`.
 step_parameters(::LayerStep{Key}, ps) where {Key} = ps[Key]
 
 @doc raw"""
-    layer_step(layer, key, prototype; input_sensitivity, cse, inplace)
+    layer_step(layer, key, seeded; input_sensitivity, cse, inplace)
 
-Build the [`LayerStep`](@ref) of one layer.
+Build the [`LayerStep`](@ref) of one layer from `seeded`, the tuple [`layer_seed`](@ref) returns.
+
+The seed is passed in rather than built here so that every layer of a chain can be seeded — and the
+chain declined if one of them cannot be, see [`checked_layer_seed`](@ref) — *before* any code is
+generated for any of them. Building a seed is one symbolic forward pass through one layer; generating
+its two kernels is the expensive half, and a chain that will be declined should not pay it.
 
 `input_sensitivity = false` leaves out the derivative with respect to the layer's *input*, for the
 first layer of a chain, whose sensitivity is that of the loss to the network's input — something a
@@ -294,9 +299,9 @@ sensitivity is per-sample and concatenates, whereas the gradient of a batch is t
 per-sample gradients — which is what [`SymbolicPullback`](@ref) means by the pullback of a batch. So
 the sweep costs two calls per layer whatever the batch size, with no per-sample loop.
 """
-function layer_step(layer::AbstractExplicitLayer, key::Symbol, prototype;
+function layer_step(layer::AbstractExplicitLayer, key::Symbol, seeded::Tuple;
                     input_sensitivity::Bool = true, cse::Bool = true, inplace::Bool = true)
-    seed, sparams, sx, sλ = layer_seed(layer, key, prototype)
+    seed, sparams, sx, sλ = seeded
 
     dλ = input_sensitivity ?
          build_nn_function(symbolic_derivative(seed, symbolic_differentials(sx)), sparams, sx, sλ;
@@ -321,6 +326,11 @@ generated from `seed` reaches into the parameter set of the *whole* network — 
 [`LayerStep`](@ref). `sx` and `sλ` are fresh for every layer, which is what keeps an expression built
 from this one dependent on that layer alone.
 
+`sx` is a plain vector, so this assumes the layer maps an array to an array and carries nothing
+alongside it. A layer that does not — one that passes data on to the next layer beside the state, and
+so returns something `scalar_expressions` has no method for — cannot be seeded this way at all;
+[`checked_layer_seed`](@ref) is what turns that into a decline rather than an exception.
+
 Separate from [`layer_step`](@ref) so that `scripts/codegen_comparison.jl` measures the symbolic
 material this construction actually holds, rather than a second copy of it that can drift.
 """
@@ -329,6 +339,39 @@ function layer_seed(layer::AbstractExplicitLayer, key::Symbol, prototype)
     sλ = Symbolics.variables(:λ, 1:output_dimension(layer))
     sparams = NetworkParameters{(key,)}((symbolic_variables(prototype, :W),))
     (sum(sλ .* scalar_expressions(layer(sx, sparams[key]))), sparams, sx, sλ)
+end
+
+"""
+    checked_layer_seed(layer, key, prototype)
+
+What [`layer_seed`](@ref) returns for `layer`, or `nothing` when the layer cannot be seeded at all.
+
+The seam is a plain vector of symbolic variables, so a layer that carries anything alongside the
+state has no seed. There are two ways for that to show, and both mean the same thing to the caller —
+decline, and let [`SymbolicPullback`](@ref) fall back to the monolithic construction:
+
+- the layer *returns* more than the state, so `scalar_expressions` has no method for its output. This
+  is `GeometricMachineLearning`'s `SymplecticEuler` with `return_parameters = true`, which threads the
+  parameters of the system on to the next layer and returns a `Tuple`;
+- the layer cannot be *applied* to the bare vector at the seam in the first place, which is what the
+  layer downstream of such a one does — its input is the tuple, and it has no method for anything
+  else.
+
+The second is why this catches rather than asking `applicable(scalar_expressions, layer(sx, ps))`:
+that predicate needs the layer to have been applied already, so it only covers the first.
+
+# Implementation
+
+The `try` covers building the seed and nothing else — the same line [`checked_guess`](@ref) draws one
+level up. Once a seed is in hand, differentiating it and generating code from it are this package's
+own work, and a failure there is a bug to surface rather than a reason to fall back.
+"""
+function checked_layer_seed(layer::AbstractExplicitLayer, key::Symbol, prototype)
+    try
+        layer_seed(layer, key, prototype)
+    catch
+        nothing
+    end
 end
 
 """
@@ -360,6 +403,11 @@ _has_known_dimensions(layer) =
 
 Whether composing the pullback layer by layer is the better choice for `nn`, which is what
 `layerwise = :auto` asks. True when the model decomposes into *more than one* step.
+
+This is a question about which construction is *preferable*, not about whether the layerwise one
+applies: the layers still have to be seedable ([`checked_layer_seed`](@ref)) and the loss still has to
+reduce to a seed ([`loss_seed`](@ref)), both of which are settled afterwards by
+[`layerwise_gradient_function`](@ref). So a `true` here can still be followed by a decline.
 
 # Implementation
 
@@ -485,26 +533,85 @@ end
 adjoint_step(::Tuple{}, x, ps, seed, output) = (seed(x, output, ps), ())
 
 """
-    layerwise_gradient_function(nn, loss; cse, inplace)
+    decline(demanded, why)
 
-Build the [`LayerwiseGradientFunction`](@ref) of `loss` for `nn`, or `nothing` when the layerwise
-construction does not apply — because the model does not decompose into steps
-([`symbolic_steps`](@ref)) or because the loss cannot be reduced to a seed ([`loss_seed`](@ref)).
+Refuse the layerwise construction, `why` saying what stood in the way.
+
+Returns `nothing` — the signal `layerwise = :auto` falls back to the monolithic construction on — or
+throws an `ArgumentError` naming `why`, when the caller asked for the construction by name with
+`layerwise = true`.
+
+# Implementation
+
+Both outcomes go through here so that [`layerwise_gradient_function`](@ref) has *one* decision path:
+the message is raised where the decline happens rather than reconstructed afterwards by a second
+traversal of the same checks, which could not help but drift from them.
+"""
+function decline(demanded::Bool, why::AbstractString)
+    demanded && throw(ArgumentError(
+        "`layerwise = true`, but the pullback cannot be built layer by layer for this network: " *
+        why * ". Pass `layerwise = :auto` to fall back to the monolithic construction."))
+    nothing
+end
+
+"""
+    unseedable_reason(steps, seeds)
+
+The `why` [`decline`](@ref) is given when one of a chain's layers cannot be seeded: the keys and types
+of every layer whose entry in `seeds` came back `nothing`.
+"""
+function unseedable_reason(steps::Tuple, seeds::Tuple)
+    named = join(("`$(steps[i][2])` (`$(nameof(typeof(steps[i][1])))`)"
+                  for i in eachindex(seeds) if isnothing(seeds[i])), ", ", " and ")
+    "the layers " * named * " cannot be seeded, because the seam the construction puts between two " *
+    "layers is a plain vector of symbolic variables: a layer has to map an array to an array and " *
+    "carry nothing alongside the state (see `layer_seed` and `checked_layer_seed`)"
+end
+
+"""
+    layerwise_gradient_function(nn, loss; demanded, cse, inplace)
+
+Build the [`LayerwiseGradientFunction`](@ref) of `loss` for `nn`, or [`decline`](@ref) when the
+layerwise construction does not apply. There are three ways for it not to:
+
+- the model does not decompose into steps ([`symbolic_steps`](@ref));
+- one of those steps cannot be seeded ([`checked_layer_seed`](@ref));
+- the loss cannot be reduced to a seed ([`loss_seed`](@ref)).
+
+`demanded = true` — which is `SymbolicPullback`'s `layerwise = true` — makes each of those an error
+naming the reason instead of the `nothing` that falls back.
+
+# Implementation
+
+The layers are checked before the loss because the check is cheaper: [`loss_seed`](@ref) builds a
+function, evaluates it at three points and then differentiates and builds again, whereas seeding a
+layer is one symbolic forward pass. So a chain that cannot be seeded declines before any code is
+generated at all. The order also decides which reason a model that declines on both counts reports.
 """
 function layerwise_gradient_function(nn::SymbolicNeuralNetwork, loss::NetworkLoss;
-                                     cse::Bool = true, inplace::Bool = true)
+                                     demanded::Bool = false, cse::Bool = true, inplace::Bool = true)
     steps = symbolic_steps(nn)
-    isnothing(steps) && return nothing
-
-    seed = loss_seed(loss, nn; cse = cse, inplace = inplace)
-    isnothing(seed) && return nothing
+    isnothing(steps) && return decline(demanded,
+        "the model does not decompose into a sequence of layers with known dimensions " *
+        "(see `symbolic_steps`)")
 
     sparams = params(nn)
+    seeds = ntuple(length(steps)) do i
+        layer, key = steps[i]
+        checked_layer_seed(layer, key, sparams[key])
+    end
+    any(isnothing, seeds) && return decline(demanded, unseedable_reason(steps, seeds))
+
+    seed = loss_seed(loss, nn; cse = cse, inplace = inplace)
+    isnothing(seed) && return decline(demanded,
+        "the loss cannot be expressed as a function of the prediction and the target " *
+        "(see `loss_expression`)")
+
     # `input_sensitivity = i > 1`: the sweep never asks the first layer for the sensitivity to its
     # input, so that derivative is not generated for it
     kernels = ntuple(length(steps)) do i
         layer, key = steps[i]
-        layer_step(layer, key, sparams[key]; input_sensitivity = i > 1, cse = cse, inplace = inplace)
+        layer_step(layer, key, seeds[i]; input_sensitivity = i > 1, cse = cse, inplace = inplace)
     end
     LayerwiseGradientFunction{keys(sparams)}(kernels, seed)
 end

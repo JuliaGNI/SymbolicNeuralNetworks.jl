@@ -12,11 +12,11 @@ using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: composes_layerwise, symbolic_steps, loss_seed, loss_expression,
                               passthrough_expression, represents_loss, reference_parameters,
                               layerwise_gradient_function, monolithic_gradient_function,
-                              PassThroughLayer, batched
+                              PassThroughLayer, batched, layer_seed, checked_layer_seed
 using AbstractNeuralNetworks
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, FeedForwardLoss, NetworkLoss,
                               UnknownArchitecture, AbstractExplicitLayer, input_dimension,
-                              output_dimension
+                              output_dimension, layers, Initializer, NeuralNetworkBackend
 using NeuralNetworkParameters: NetworkParameters, flatten, unflatten, parameterlayout
 using LinearAlgebra: norm
 using Symbolics
@@ -35,6 +35,19 @@ maximum_difference(a, b) =
     maximum(maximum(abs, a[k][f] .- b[k][f]) for k in keys(a) for f in keys(a[k]))
 
 gradient_of(pb, nn, input, output) = pb(params(nn), nn.model, (input, output))[2](1)
+
+# The error `layerwise = true` raises, caught rather than asserted with `@test_throws`, so that its
+# type *and* the reason it names are both checked without building the pullback twice. Each of the
+# three declines names a different one, and pinning that is what keeps a reason attached to the exit
+# it comes from.
+function layerwise_error(snn, loss)
+    try
+        SymbolicPullback(snn, loss; layerwise = true)
+        nothing
+    catch raised
+        raised
+    end
+end
 
 @testset "layerwise agrees with monolithic: $depth layers of width $width, $indim → $outdim" for
         (depth, width, indim, outdim) in ((2, 4, 2, 2), (3, 4, 3, 2), (4, 3, 2, 1), (2, 5, 1, 3))
@@ -148,7 +161,9 @@ AbstractNeuralNetworks.output_dimension(m::WholeChain) = output_dimension(m.chai
     @test isnothing(symbolic_steps(snn))
     @test !composes_layerwise(snn)
     @test isnothing(layerwise_gradient_function(snn, loss))
-    @test_throws ArgumentError SymbolicPullback(snn, loss; layerwise = true)
+    raised = layerwise_error(snn, loss)
+    @test raised isa ArgumentError
+    @test occursin("does not decompose", raised.msg)
 end
 
 # A loss that compares the prediction to the network's *input* reads as identically zero through a
@@ -175,7 +190,9 @@ struct SelfLoss <: NetworkLoss end
     @test isnothing(loss_expression(loss, ŷ, y))      # nothing declared
     @test isnothing(loss_seed(loss, snn))
     @test isnothing(layerwise_gradient_function(snn, loss))
-    @test_throws ArgumentError SymbolicPullback(snn, loss; layerwise = true)
+    raised = layerwise_error(snn, loss)
+    @test raised isa ArgumentError
+    @test occursin("loss cannot be expressed", raised.msg)
 
     # so `:auto` falls back, and does not return the zero gradient the guess would have given
     input, output = rand(2, 1), rand(2, 1)
@@ -234,7 +251,9 @@ struct ChainOnlyLoss <: NetworkLoss end
     @test_throws Exception passthrough_expression(loss, ŷ, y)
     @test isnothing(loss_seed(loss, snn))
     @test isnothing(layerwise_gradient_function(snn, loss))
-    @test_throws ArgumentError SymbolicPullback(snn, loss; layerwise = true)
+    raised = layerwise_error(snn, loss)
+    @test raised isa ArgumentError
+    @test occursin("loss cannot be expressed", raised.msg)
 
     # so `:auto` falls back and builds, where it used to propagate the exception, and what it falls
     # back to is the monolithic construction
@@ -246,6 +265,88 @@ struct ChainOnlyLoss <: NetworkLoss end
 
     # this loss is not additive over a batch, so `Zygote` is the reference on a single sample only —
     # the same statement the batch testset above pins down for `FeedForwardLoss`
+    one = (rand(2, 1), rand(2, 1))
+    @test maximum_difference(gradient_of(SymbolicPullback(snn, loss), nn, one...),
+                             zygote_gradient(loss, params(nn), c, one...)) < 1e-14
+end
+
+# Issue #54. A layer may pass data on to the next one alongside the state — `GeometricMachineLearning`'s
+# `SymplecticEuler` threads the parameters of the *system* through the chain that way — in which case
+# its output is a `Tuple` and not an array. The seam the layerwise construction puts between two layers
+# is a plain vector of symbolic variables, so such a layer has no seed: `λ · f(x; θ)` has nothing to
+# form. The chain nevertheless *decomposes*, so `composes_layerwise` says yes and `:auto` commits,
+# which is how a `MethodError` used to escape a keyword that promises a fallback.
+#
+# These two layers are the smallest model of that chain. `Seamed` says whether they declare the seam
+# interface; with `false` they do not, which is the case here — the case where it is declared is
+# further down.
+struct ThreadingLayer{M, N, C, Seamed} <: AbstractExplicitLayer{M, N} end
+struct JoiningLayer{M, N, C, Seamed} <: AbstractExplicitLayer{M, N} end
+
+const SeamLayer{M, N, C, S} = Union{ThreadingLayer{M, N, C, S}, JoiningLayer{M, N, C, S}}
+
+seam_chain(indim, width, outdim, carried, seamed) =
+    Chain(ThreadingLayer{indim, width, carried, seamed}(),
+          JoiningLayer{width, outdim, carried, seamed}())
+
+# The carried datum a layer supplies for itself when it is applied to a bare array, the way
+# `SymplecticEuler` defaults the parameters of the system to `NullParameters`. Deterministic, for the
+# reason `reference_parameters` is.
+default_carried(::SeamLayer{M, N, C, S}) where {M, N, C, S} = [cospi(i / 3) for i in 1:C]
+
+# The carried datum enters the state map, so a construction that dropped it is caught numerically and
+# not merely structurally — which is the mistake the monolithic path makes on a parametrized network.
+(layer::ThreadingLayer)(x::AbstractArray, ps) = layer((x, default_carried(layer)), ps)
+(::ThreadingLayer)(xc::Tuple, ps) = (tanh.(ps.W * first(xc) .+ ps.b .+ sum(last(xc))), last(xc))
+
+# Applied to a bare array the layer above defaults the carried datum, which is what lets the
+# *monolithic* construction build this chain. This one only ever sees the tuple the layer before it
+# produced, and so has no method for the bare vector at the seam at all — the second of the two ways a
+# layer can fail to be seeded, and the one `applicable(scalar_expressions, layer(sx, ps))` would miss.
+(::JoiningLayer)(xc::Tuple, ps) = tanh.(ps.W * first(xc) .+ ps.b .+ sum(last(xc)))
+
+function AbstractNeuralNetworks.initialparameters(::Random.AbstractRNG, ::Initializer,
+                                                 ::SeamLayer{M, N, C, S}, ::NeuralNetworkBackend,
+                                                 ::Type{T}; kwargs...) where {M, N, C, S, T}
+    (W = T[cospi((i + 2j) / 7) for i in 1:N, j in 1:M], b = T[sinpi(i / 5) for i in 1:N])
+end
+
+@testset "a layer that cannot be seeded" begin
+    c = seam_chain(2, 3, 2, 2, false)
+    nn = NeuralNetwork(c, Float64)
+    snn = SymbolicNeuralNetwork(nn)
+    loss = FeedForwardLoss()
+
+    # the chain does decompose, and both layers have known dimensions — the decline is not
+    # `symbolic_steps`', which is the whole point of the issue
+    @test length(symbolic_steps(snn)) == 2
+    @test composes_layerwise(snn)
+
+    sparams = params(snn)
+    l1, l2 = layers(c)
+    @test_throws Exception layer_seed(l1, :L1, sparams.L1)      # its output is a `Tuple`
+    @test_throws Exception layer_seed(l2, :L2, sparams.L2)      # its input cannot be a bare vector
+    @test isnothing(checked_layer_seed(l1, :L1, sparams.L1))
+    @test isnothing(checked_layer_seed(l2, :L2, sparams.L2))
+
+    @test isnothing(layerwise_gradient_function(snn, loss))
+    raised = layerwise_error(snn, loss)
+    @test raised isa ArgumentError
+    @test occursin("cannot be seeded", raised.msg)
+    # the message names the layers, since `layerwise = true` asked for this construction by name
+    @test occursin("`L1`", raised.msg) && occursin("`L2`", raised.msg)
+    @test occursin("ThreadingLayer", raised.msg) && occursin("JoiningLayer", raised.msg)
+
+    # so `:auto` builds, where it used to propagate a `MethodError`, and what it builds is the
+    # monolithic construction
+    input, output = rand(2, 4), rand(2, 4)
+    fallback = gradient_of(SymbolicPullback(snn, loss), nn, input, output)
+    monolithic = gradient_of(SymbolicPullback(snn, loss; layerwise = false), nn, input, output)
+    @test maximum_difference(fallback, monolithic) < 1e-14
+    @test typeof(fallback) == typeof(monolithic)
+
+    # and it is the right gradient. `FeedForwardLoss` is not additive over a batch, so `Zygote` is the
+    # reference on a single sample only
     one = (rand(2, 1), rand(2, 1))
     @test maximum_difference(gradient_of(SymbolicPullback(snn, loss), nn, one...),
                              zygote_gradient(loss, params(nn), c, one...)) < 1e-14

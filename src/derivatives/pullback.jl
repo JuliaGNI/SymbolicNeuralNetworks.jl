@@ -38,7 +38,7 @@ typeof(pb(ps, nn.model, (rand(2), rand(1)))[2](1))
 - `layerwise`: how the pullback is built (default `:auto`). With `:auto` it is composed layer by
   layer whenever that is the better choice ([`composes_layerwise`](@ref)), and built from one
   expression for the whole network otherwise. `true` demands the layerwise construction and errors
-  if it does not apply; `false` demands the monolithic one. See
+  if it does not apply, with a message naming the reason; `false` demands the monolithic one. See
   [`layerwise_gradient_function`](@ref) and [`monolithic_gradient_function`](@ref) — the two produce
   the same gradient, and differ by orders of magnitude in what it costs to build.
 - `cse`: perform *common subexpression elimination* when generating code (default `true`). This
@@ -119,13 +119,10 @@ function SymbolicPullback(nn::SymbolicNeuralNetwork, loss::NetworkLoss;
                           inplace::Bool = true)
     _check_layerwise(layerwise)
     if layerwise === true || (layerwise === :auto && composes_layerwise(nn))
-        gradient_function = layerwise_gradient_function(nn, loss; cse = cse, inplace = inplace)
-        isnothing(gradient_function) && layerwise === true && throw(ArgumentError(
-            "`layerwise = true`, but the pullback cannot be built layer by layer for this network: " *
-            "either the model does not decompose into a sequence of layers with known dimensions " *
-            "(see `symbolic_steps`), or the loss cannot be expressed as a function of the " *
-            "prediction and the target (see `loss_expression`). Pass `layerwise = :auto` to fall " *
-            "back to the monolithic construction."))
+        # `demanded`: with `layerwise = true` the construction raises where it would otherwise
+        # decline, naming the reason — see `decline`
+        gradient_function = layerwise_gradient_function(nn, loss; demanded = layerwise === true,
+                                                        cse = cse, inplace = inplace)
         isnothing(gradient_function) ||
             return SymbolicPullback(loss, ParameterGradient(gradient_function))
     end
