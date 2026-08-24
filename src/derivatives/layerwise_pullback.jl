@@ -272,6 +272,9 @@ chain declined if one of them cannot be, see [`checked_layer_seed`](@ref) — *b
 generated for any of them. Building a seed is one symbolic forward pass through one layer; generating
 its two kernels is the expensive half, and a chain that will be declined should not pay it.
 
+A seam whose variables are not pairwise distinct is refused here rather than declined; see
+[`_assert_distinct_seam_variables`](@ref).
+
 `input_sensitivity = false` leaves out the derivative with respect to the layer's *input*, for the
 first layer of a chain, whose sensitivity is that of the loss to the network's input — something a
 parameter gradient has no use for, and which [`sweep`](@ref) accordingly never asks for. Generating
@@ -309,6 +312,7 @@ the sweep costs two calls per layer whatever the batch size, with no per-sample 
 function layer_step(layer::AbstractExplicitLayer, key::Symbol, seeded::Tuple;
                     input_sensitivity::Bool = true, cse::Bool = true, inplace::Bool = true)
     seed, sparams, sdata, sλ = seeded
+    _assert_distinct_seam_variables(layer, sdata, sλ)
     # the state is the first of the seam's data variables, and the only one differentiated with
     # respect to: what a layer carries alongside it is data — see `seam_interface`
     sx = first(sdata)
@@ -319,6 +323,34 @@ function layer_step(layer::AbstractExplicitLayer, key::Symbol, seeded::Tuple;
     dθ = build_nn_function(symbolic_derivative(seed, symbolic_differentials(sparams[key])), sparams,
                            sdata..., sλ; reduce = +, cse = cse, inplace = inplace)
     LayerStep{key}(layer, dλ, dθ)
+end
+
+"""
+    _assert_distinct_seam_variables(layer, sdata, sλ)
+
+Reject a seam whose variables are not pairwise distinct, which is what a
+[`carried_variables`](@ref) that reuses the names [`layer_seed`](@ref) gives the state (`x`) or the
+sensitivities (`λ`) produces.
+
+Nothing further down would notice. `Symbolics.build_function` binds one symbolic array to two
+argument slots and the generated code reads both of them from the last one, so the kernels are built,
+they run, and they return a gradient that is simply wrong — the one failure this construction must
+not have, and the reason [`checked_guess`](@ref) and [`represents_loss`](@ref) exist one level up.
+
+# Implementation
+
+Here rather than in [`layer_seed`](@ref), because [`checked_layer_seed`](@ref) catches everything
+`layer_seed` throws and turns it into a decline. A layer whose `carried_variables` collides is a bug
+in that layer, not a chain to quietly fall back on, so the check belongs on the far side of that
+`try` — and this is where the variables are handed to `build_nn_function`, which is where the damage
+would be done.
+"""
+function _assert_distinct_seam_variables(layer, sdata::Tuple, sλ)
+    allunique(Iterators.flatten((sdata..., sλ))) || throw(ArgumentError(
+        "the seam of `$(nameof(typeof(layer)))` does not consist of distinct symbolic variables. " *
+        "`layer_seed` names the state `x` and the sensitivities `λ`, so `carried_variables` has to " *
+        "return variables of its own — see `seam_interface`."))
+    nothing
 end
 
 @doc raw"""
@@ -351,6 +383,12 @@ the same two kernels as any other, taking one more argument each.
 `(state, carried…)` that `carried_variables` declared — the constraint every generated function of
 this package imposes on its data arguments. For carried data that is the same for the whole batch that
 means broadcasting it out to one column per sample.
+
+`carried_variables` must return variables of its *own*: `layer_seed` names the state `x` and the
+sensitivities ``\lambda``, and a carried array that reuses either name is the same symbolic array
+rather than a second one. `layer_step` rejects that rather than letting it through, because nothing
+downstream would — `Symbolics.build_function` binds one array to two argument slots and the generated
+code reads both from the last one, which builds and runs and returns a wrong gradient.
 """
 function seam_interface end
 
@@ -367,7 +405,11 @@ SymbolicNeuralNetworks.carried_variables(layer::MyLayer) = (Symbolics.variables(
 ```
 
 The arrays are built here rather than passed in because their *shape* is the layer's own knowledge —
-this package knows only `input_dimension` and `output_dimension`, which describe the state.
+this package knows only `input_dimension` and `output_dimension`, which describe the state. Their
+*name* is the layer's own to choose too, and has to differ from the ones [`layer_seed`](@ref) uses
+itself — `x` for the state and `λ` for the sensitivities. Reusing one of those does not make a second
+array, it names the same one twice; [`layer_step`](@ref) refuses the seam rather than generating
+kernels that would quietly read the state where the carried datum should be.
 
 Return `()` when there is nothing to carry, rather than an empty array: there would be nothing to hand
 the generated kernels, and an empty array is not a usable data argument in any case. The seam is then

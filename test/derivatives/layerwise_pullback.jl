@@ -12,8 +12,8 @@ using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: composes_layerwise, symbolic_steps, loss_seed, loss_expression,
                               passthrough_expression, represents_loss, reference_parameters,
                               layerwise_gradient_function, monolithic_gradient_function,
-                              PassThroughLayer, batched, layer_seed, checked_layer_seed,
-                              scalar_expressions
+                              PassThroughLayer, batched, layer_seed, layer_step,
+                              checked_layer_seed, scalar_expressions
 using AbstractNeuralNetworks
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, FeedForwardLoss, NetworkLoss,
                               UnknownArchitecture, AbstractExplicitLayer, input_dimension,
@@ -464,6 +464,40 @@ SymbolicNeuralNetworks.seam_arguments(::SeamLayer{M, N, 0, true}, x::AbstractArr
     one = (rand(2, 1), rand(2, 1))
     @test maximum_difference(gradient_of(SymbolicPullback(snn, loss; layerwise = true), nn, one...),
                              zygote_gradient(loss, params(nn), c, one...)) < 1e-14
+end
+
+# `layer_seed` names the state `x` and the sensitivities `λ`, so a `carried_variables` that reuses one
+# of those names does not declare a second array — it names the same one twice. Nothing downstream
+# would notice: `Symbolics.build_function` binds it to two argument slots and the generated code reads
+# both from the last one, so the kernels build, they run, and the gradient is wrong. `layer_step`
+# refuses the seam, and refuses rather than declines, since this is a bug in the layer and not a chain
+# to fall back on.
+struct CollidingLayer{M, N} <: AbstractExplicitLayer{M, N} end
+
+(::CollidingLayer)(xc::Tuple, ps) = tanh.(ps.W * first(xc) .+ ps.b .+ sum(last(xc)))
+
+SymbolicNeuralNetworks.carried_variables(::CollidingLayer{M, N}) where {M, N} =
+    (Symbolics.variables(:x, 1:M),)                 # `x` is what the state is called
+SymbolicNeuralNetworks.seam_value(::CollidingLayer, sx, sc) = (sx, sc)
+SymbolicNeuralNetworks.seam_arguments(::CollidingLayer, x::Tuple) = (first(x), last(x))
+
+@testset "a seam whose variables are not distinct" begin
+    layer = CollidingLayer{2, 3}()
+    prototype = params(SymbolicNeuralNetwork(Chain(Dense(2, 3, tanh)))).L1
+
+    # it seeds — the collision is invisible at that point, which is why the check is not there
+    seeded = checked_layer_seed(layer, :L1, prototype)
+    @test !isnothing(seeded)
+
+    raised = try
+        layer_step(layer, :L1, seeded)
+        nothing
+    catch e
+        e
+    end
+    @test raised isa ArgumentError
+    @test occursin("CollidingLayer", raised.msg)
+    @test occursin("distinct", raised.msg)
 end
 
 # `AbstractNeuralNetworks`' losses take `input::ArrayOrNamedTuple`, so a model whose input carries data

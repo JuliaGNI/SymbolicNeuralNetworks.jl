@@ -88,6 +88,9 @@ that carries something else alongside the state can say so ([`seam_interface`](@
 - the chain's *last* layer has to return the model's output and nothing beside it, since that is what
   the loss and its seed compare against the target.
 - a layer that carries nothing declares `()`, not an empty array.
+- the carried variables must be named something of their own. `x` is the state and `λ` the
+  sensitivities, and reusing either name gives the same symbolic array a second slot rather than a
+  second array; the construction refuses such a seam rather than generating kernels for it.
 
 A layer that carries something and declares none of this makes the construction decline, and the
 monolithic path takes over. That path traces the chain from a plain vector, so a layer which

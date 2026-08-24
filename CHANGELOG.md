@@ -63,6 +63,13 @@ Resolves [#54](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/54).
   the parameters of the system to `NullParameters` — is differentiated with that default whatever the
   caller passes. Before this there was no construction that could be told otherwise.
 
+  `carried_variables` has to name its arrays something of its own: `layer_seed` calls the state `x`
+  and the sensitivities `λ`, and reusing either name gives one symbolic array two argument slots
+  rather than declaring a second array. `Symbolics.build_function` then makes the generated code read
+  both slots from the last one, so the kernels build, run and return a wrong gradient — so
+  `layer_step` rejects such a seam outright rather than declining, a decline being what a *layer*
+  that cannot be seeded deserves and not a layer whose declaration is wrong.
+
 - **`SymbolicPullback`'s input may be a `Tuple`**, so that a model whose layers thread a pair can be
   handed one. The output half stays an array or a `NamedTuple`: it is the target the seed compares the
   network's output to. Two methods rather than one wider signature, because
