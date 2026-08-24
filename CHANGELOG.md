@@ -45,6 +45,12 @@ Resolves [#54](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/54).
   environment could not resolve until `GeometricMachineLearning` 0.6 was registered, so the build
   never reached its cross-references.
 
+- **The API page was 2 KiB from taking the documentation build down.** `api.md` is one `@autodocs`
+  block over the whole package, so it grows with every docstring, and it had reached 198 KiB against
+  Documenter's `size_threshold` default of 200 KiB — a hard error rather than a warning. Raised to
+  512 KiB in `docs/make.jl`; `size_threshold_warn` is left at its default, so the page still says it
+  is large.
+
 ### Added
 
 - **A layer can declare how it meets the seam**, with four functions that each default to the

@@ -17,7 +17,12 @@ makedocs(;
         canonical="https://JuliaGNI.github.io/SymbolicNeuralNetworks.jl",
         edit_link="main",
         assets=String[],
-        mathengine = MathJax3()
+        mathengine = MathJax3(),
+        # `api.md` is one `@autodocs` block over the whole package, so it grows with every docstring
+        # and sits at 198 KiB against Documenter's 200 KiB default — which is a hard error, not a
+        # warning, and would have taken the build down on whichever docstring crossed it. The
+        # `size_threshold_warn` default of 100 KiB is left alone, so the page still says it is large.
+        size_threshold = 512 * 1024
     ),
     pages=[
         "Home" => "index.md",
