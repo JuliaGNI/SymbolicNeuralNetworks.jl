@@ -696,11 +696,13 @@ The `why` [`decline`](@ref) is given when one of a chain's layers cannot be seed
 of every layer whose entry in `seeds` came back `nothing`.
 """
 function unseedable_reason(steps::Tuple, seeds::Tuple)
-    named = join(("`$(steps[i][2])` (`$(nameof(typeof(steps[i][1])))`)"
-                  for i in eachindex(seeds) if isnothing(seeds[i])), ", ", " and ")
-    "the layers " * named * " cannot be seeded, because the seam the construction puts between two " *
-    "layers is a plain vector of symbolic variables: a layer has to map an array to an array and " *
-    "carry nothing alongside the state (see `layer_seed` and `checked_layer_seed`)"
+    unseedable = [i for i in eachindex(seeds) if isnothing(seeds[i])]
+    named = join(("`$(steps[i][2])` (`$(nameof(typeof(steps[i][1])))`)" for i in unseedable),
+                 ", ", " and ")
+    (length(unseedable) == 1 ? "the layer " : "the layers ") * named *
+    " cannot be seeded. The seam the construction puts between two layers is a plain vector of " *
+    "symbolic variables, so a layer has to map an array to an array unless it says otherwise — see " *
+    "`seam_interface`, `layer_seed` and `checked_layer_seed`"
 end
 
 """
