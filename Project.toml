@@ -13,16 +13,11 @@ SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
-# 0.7 moved the parameter container out to `NeuralNetworkParameters`, where it is called
-# `NetworkParameters`, and removed the old name from `AbstractNeuralNetworks` entirely. Earlier
-# versions are not supported: 0.6.4 was the first to define `input_dimension`/`output_dimension`,
-# and 0.3/0.4 are additionally missing `GenericActivation`/`TanhActivation`, so the package does not
-# even load against them
 AbstractNeuralNetworks = "0.7"
 Documenter = "1.8.0"
 ForwardDiff = "1"
 Latexify = "0.16"
-NeuralNetworkParameters = "0.1"
+NeuralNetworkParameters = "0.1, 0.2"
 RuntimeGeneratedFunctions = "0.5"
 SymbolicUtils = "4"
 Symbolics = "7"
