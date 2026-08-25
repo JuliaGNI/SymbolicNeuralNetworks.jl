@@ -506,7 +506,7 @@ function layer_seed(layer::AbstractExplicitLayer, key::Symbol, prototype)
     sx = Symbolics.variables(:x, 1:input_dimension(layer))
     sλ = Symbolics.variables(:λ, 1:output_dimension(layer))
     sdata = (sx, carried_variables(layer)...)
-    sparams = NetworkParameters{(key,)}((symbolic_variables(prototype, :W),))
+    sparams = NetworkParameters(NamedTuple{(key,)}((symbolic_variables(prototype, :W),)))
     value = layer(seam_value(layer, sdata...), sparams[key])
     (sum(sλ .* state_expressions(layer, value)), sparams, sdata, sλ)
 end

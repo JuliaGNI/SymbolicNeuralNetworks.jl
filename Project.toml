@@ -22,7 +22,13 @@ AbstractNeuralNetworks = "0.7"
 Documenter = "1.8.0"
 ForwardDiff = "1"
 Latexify = "0.16"
-NeuralNetworkParameters = "0.1"
+# Both, deliberately. The call sites here spell the constructor
+# `NetworkParameters(NamedTuple{keys}(vals))`, which compiles against either, and pinning 0.2 alone
+# is circular: the docs build the training guide against `GeometricMachineLearning`, whose released
+# 0.6.0 wants `GeometricOptimizers` 0.4 and so the 0.1 container. Allowing both is enough for what
+# this bound is for -- `GeometricOptimizers` 0.5 forces 0.2, and a package depending on it and on
+# this one then resolves, which it could not while this package allowed only 0.1
+NeuralNetworkParameters = "0.1, 0.2"
 RuntimeGeneratedFunctions = "0.5"
 SymbolicUtils = "4"
 Symbolics = "7"
