@@ -4,7 +4,7 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.7.0] — unreleased
+## [0.7.0] — 2026-08-25
 
 The seam between two layers, which 0.6.0 introduced as a plain vector, becomes something a layer can
 widen. That is what
