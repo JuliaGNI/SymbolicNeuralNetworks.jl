@@ -63,6 +63,30 @@ jobs:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v3
+      # `JULIA_PKG_SERVER: ""` above makes Pkg keep the General registry as a git clone and update it
+      # by fetch-and-rebase. `julia-actions/cache` keys its cache by workflow/job/os/version, so each
+      # matrix entry carries its own clone from run to run -- and once an entry's clone reaches a
+      # state that cannot fast-forward, it never recovers on its own:
+      #
+      #     ┌ Warning: Cannot perform fast-forward merge
+      #     │     — ~/.julia/registries/General — registry failed to rebase on origin/master
+      #
+      # Pkg carries on after printing that and resolves against whatever commit the clone stopped at,
+      # so the job dies with an "Unsatisfiable requirements" message that names a version bound and
+      # says nothing about the registry. That took the 1.13 and nightly jobs down on 750d073 while
+      # 1.10 and 1.12, whose caches held healthy clones, resolved the same bounds and passed.
+      #
+      # Resetting to `origin/master` is the same repair the clone needs locally; the registry is a
+      # pure mirror, so nothing is lost, and a clone that cannot even be reset is thrown away for
+      # `julia-buildpkg` to fetch again.
+      - name: Keep the cached General clone fast-forwardable
+        shell: bash
+        run: |
+          reg="$HOME/.julia/registries/General"
+          if [ -d "$reg/.git" ]; then
+            git -C "$reg" fetch --quiet origin && git -C "$reg" reset --hard --quiet origin/master \
+              || rm -rf "$reg" "$HOME/.julia/registries/General.toml"
+          fi
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
