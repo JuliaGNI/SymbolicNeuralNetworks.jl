@@ -184,18 +184,25 @@ vector, with no batch dimension to restore.
 Each entry is *copied* out of `out` rather than viewed into it, so that the entries are ordinary
 `Array`s and cannot alias each other.
 """
-unflatten_batch(layout::ParametersLayout, out::AbstractArray) =
+@inline unflatten_batch(layout::ParametersLayout, out::AbstractArray) =
     NetworkParameters(unflatten_batch(layout.inner, out))
-unflatten_batch(layout::NestedLayout, out::AbstractArray) =
-    NamedTuple{keys(layout.children)}(map(child -> unflatten_batch(child, out), values(layout.children)))
-unflatten_batch(layout::TupleLayout, out::AbstractArray) =
-    map(child -> unflatten_batch(child, out), layout.children)
-unflatten_batch(layout::WrappedLayout, out::AbstractArray) = unflatten_batch(layout.inner, out)
+@inline unflatten_batch(layout::NestedLayout, out::AbstractArray) =
+    NamedTuple{keys(layout.children)}(_unflatten_batch_children(values(layout.children), out))
+@inline unflatten_batch(layout::TupleLayout, out::AbstractArray) =
+    _unflatten_batch_children(layout.children, out)
+@inline unflatten_batch(layout::WrappedLayout, out::AbstractArray) = unflatten_batch(layout.inner, out)
 
-unflatten_batch(layout::LeafLayout, out::AbstractMatrix) =
+# `Base.tail` recursion rather than `map` over a closure, for the reason
+# `NeuralNetworkParameters._unflatten_children` gives: the closure over `out` is one heap allocation
+# per nesting level per call on Julia 1.10, which is what issue #55 measured.
+@inline _unflatten_batch_children(::Tuple{}, ::AbstractArray) = ()
+@inline _unflatten_batch_children(layouts::Tuple, out::AbstractArray) =
+    (unflatten_batch(first(layouts), out), _unflatten_batch_children(Base.tail(layouts), out)...)
+
+@inline unflatten_batch(layout::LeafLayout, out::AbstractMatrix) =
     reshape(out[parameterrange(layout), :], _batched_size(layout.size, size(out, 2))...)
 
-function unflatten_batch(layout::LeafLayout, out::AbstractArray{<:Any, 3})
+@inline function unflatten_batch(layout::LeafLayout, out::AbstractArray{<:Any, 3})
     # the same restriction the single-equation path applies in `_restore_batch_dimensions`: an entry
     # whose result is more than one column wide per sample has no room for a second batch dimension
     trailing_dimensions(layout.size) == 1 || throw(ArgumentError(two_batch_dimension_message(layout.size)))

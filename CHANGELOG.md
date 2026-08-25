@@ -11,9 +11,36 @@ widen. That is what
 [GML #245](https://github.com/JuliaGNI/GeometricMachineLearning.jl/issues/245) was waiting for, and
 along the way it fixes the promise 0.6.0 made and did not keep.
 
-Resolves [#54](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/54).
+Resolves [#54](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/54) and
+[#55](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/55).
 
 ### Fixed
+
+- **An equation set cost 1.85x the allocations to evaluate on Julia 1.10.** Splitting the flat result
+  of a jointly generated function back into the nesting of the parameters walks a
+  `NeuralNetworkParameters.ParameterLayout`, which 0.6.0 put in place of the local `FlatSlice` of
+  0.5.0. Both that walk — `unflatten_batch` here — and the `unflatten` it delegates the un-batched
+  case to upstream were written as `map` over a closure, one closure per nesting level per call.
+  Julia 1.11 and later elide it; 1.10 does not.
+
+  Nothing was type unstable, which is why the suite stayed green: `@inferred` passes on every version,
+  and `test/codegen/type_stability.jl` was the only thing measuring this path. What moved was 1056
+  bytes per `EquationSetFunction` call on 1.10 against 560 on 1.11 and later — enough that
+  `NonlinearIntegrators` 0.4.0 tripped its own allocation gate at 28 096 bytes per Newton residual
+  against 15 168 before, and shipped a 1.10-only ceiling to stay green
+  ([#55](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/55), reported from
+  [NonlinearIntegrators #86](https://github.com/JuliaGNI/NonlinearIntegrators.jl/pull/86)).
+
+  Both walks are `Base.tail` recursion now, which does not depend on the elision — the shape
+  `NeuralNetworkParameters` states as its house rule and uses for `flatten!`/`unflatten!` already. That
+  residual is back to 15 168 on 1.10, so the downstream ceiling can come out; 1.11, 1.12 and 1.13 are
+  byte-identical before and after. What remains between 1.10 and the rest is Julia's own `reshape`,
+  which costs 64 bytes on 1.10 and none later. The upstream half needs
+  `NeuralNetworkParameters` 0.2.1.
+
+  The report suspected `symbolic_parameter_gradient` and named `DQDθ`, `DVDθ` and `V_func`. It is the
+  first two: both are equation sets, and `V_func` is a single equation that does not go through this
+  path at all — and is not called by the affected integrators.
 
 - **`layerwise = :auto` declined instead of throwing when a layer cannot be seeded.** 0.6.0 said
   "`:auto` never raises where the monolithic construction would have built; only `layerwise = true`
@@ -52,6 +79,13 @@ Resolves [#54](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/54).
   is large.
 
 ### Added
+
+- **The suite measures what a generated function allocates**, in `test/codegen/allocations.jl`, with
+  the same ceilings on every Julia version. It pinned inference and nothing else before, which is how
+  #55 reached a dependent package's release rather than CI, on a matrix that already runs 1.10.
+  `scripts/allocation_comparison.jl` prints the per-layer figures the ceilings are set from and takes
+  a call apart — `promoted_eltype`, a bare kernel, an equation set, and the splitting on its own — so
+  that a regression can be attributed rather than just noticed.
 
 - **A layer can declare how it meets the seam**, with four functions that each default to the
   plain-vector construction, so nothing that worked before is affected:
