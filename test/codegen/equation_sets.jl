@@ -25,7 +25,7 @@ soutput = Symbolics.variables(:y, 1:2)
 
 "Rebuild a nested set from the results of applying `f` to each of its entries."
 rewrap(eqs::NamedTuple, values) = NamedTuple{keys(eqs)}(values)
-rewrap(eqs::NetworkParameters, values) = NetworkParameters{keys(eqs)}(values)
+rewrap(eqs::NetworkParameters, values) = NetworkParameters(NamedTuple{keys(eqs)}(values))
 
 "Build every entry of `eqs` as its own function — the reference the joint path has to reproduce."
 per_entry(eqs::Union{NamedTuple, NetworkParameters}, args...; kwargs...) =
