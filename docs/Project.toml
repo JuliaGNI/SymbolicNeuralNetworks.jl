@@ -15,6 +15,12 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 # first release that tracks `AbstractNeuralNetworks` 0.7, and also the first whose single generic
 # `optimization_step!` takes a `NetworkParameters` gradient directly, which is what let the
 # compatibility shim that used to sit in `make.jl` go away.
+#
+# This environment does not resolve at the moment: the root `Project.toml` requires
+# `NeuralNetworkParameters` 0.2.1 -- see the comment there -- and the released 0.6.0 pins
+# `NeuralNetworkParameters = "0.1"` (and `SymbolicNeuralNetworks = "0.6"`, which the 0.7.0 version
+# bump breaks anyway). Widen this bound when a release tracking the 0.2 container appears; recorded
+# under Open Issues -> Upstream in the changelog.
 GeometricMachineLearning = "0.6"
 
 [sources]
