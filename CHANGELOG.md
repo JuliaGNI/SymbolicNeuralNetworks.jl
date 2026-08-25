@@ -4,6 +4,21 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **`EquationSet` is gone; the type is `NeuralNetworkParameters.ParameterSet`.** It was
+  `Union{NamedTuple, NetworkParameters}` — the shape of a network's parameters, and so also the shape of
+  a symbolic derivative with respect to them. This package was the only one in the ecosystem to have
+  given that union a name; `AbstractNeuralNetworks` was spelling it out inline at eight sites,
+  `GeometricMachineLearning` at fifteen, and `GeometricOptimizers` had a third name for a narrower
+  version of it. 0.2.2 puts one name in the package that owns the type, and this adopts it.
+
+  Not a breaking change: `EquationSet` was never exported. `EquationSetFunction` and
+  `EquationSetArrayFunction` keep their names — they are named for what they carry, and only the shape
+  alias goes. Compat is `NeuralNetworkParameters = "0.2.2"`.
+
 ## [0.7.0] — 2026-08-25
 
 The seam between two layers, which 0.6.0 introduced as a plain vector, becomes something a layer can

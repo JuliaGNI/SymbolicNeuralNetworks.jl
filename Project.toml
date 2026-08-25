@@ -36,7 +36,7 @@ Latexify = "0.16"
 # container -- see the note there and under Open Issues in the changelog -- and the loss of the
 # slack a runner with a stale General clone used to resolve into. A single version is the price of a
 # gate whose figures only one version can deliver
-NeuralNetworkParameters = "0.2.1"
+NeuralNetworkParameters = "0.2.2"
 RuntimeGeneratedFunctions = "0.5"
 SymbolicUtils = "4"
 Symbolics = "7"

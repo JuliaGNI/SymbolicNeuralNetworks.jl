@@ -1,5 +1,5 @@
 """
-    build_nn_function(eqs::EquationSet, sparams, svariables...)
+    build_nn_function(eqs::ParameterSet, sparams, svariables...)
 
 Turn a whole set of equations into one executable function, whose result has the same nesting as
 `eqs`.
@@ -32,7 +32,7 @@ instead would re-derive everything the entries have in common — for a symbolic
 whole forward pass, once per parameter array — and would compile one `RuntimeGeneratedFunction` per
 entry rather than one in total.
 """
-function build_nn_function(eqs::EquationSet, sparams::NetworkParameters,
+function build_nn_function(eqs::ParameterSet, sparams::NetworkParameters,
                            svariables::SymbolicVariables...; kwargs...)
     flat, layout = flatten_equations(eqs)
     joint = build_nn_function(flat, sparams, svariables...; kwargs...)
@@ -40,11 +40,11 @@ function build_nn_function(eqs::EquationSet, sparams::NetworkParameters,
 end
 
 """
-    build_nn_function(eqs::AbstractArray{<:EquationSet}, sparams, svariables...)
+    build_nn_function(eqs::AbstractArray{<:ParameterSet}, sparams, svariables...)
 
 Turn an array of equation sets into an executable function that returns an array of results.
 
-Each entry of the array is built by the [`EquationSet`](@ref) method above, i.e. jointly; the
+Each entry of the array is built by the `ParameterSet` method above, i.e. jointly; the
 entries themselves are independent of each other and stay separate functions.
 
 # Examples
@@ -69,7 +69,7 @@ funcs([1.0, 2.0], params(nn))
  (b = [0.9576465981186686],)
 ```
 """
-function build_nn_function(eqs::AbstractArray{<:EquationSet}, sparams::NetworkParameters,
+function build_nn_function(eqs::AbstractArray{<:ParameterSet}, sparams::NetworkParameters,
                            svariables::SymbolicVariables...; kwargs...)
     functions = map(eq -> build_nn_function(eq, sparams, svariables...; kwargs...), eqs)
     EquationSetArrayFunction{length(svariables)}(functions)
@@ -78,7 +78,7 @@ end
 """
     EquationSetFunction{NDATA}(f, layout)
 
-The function [`build_nn_function`](@ref) returns for an [`EquationSet`](@ref): it evaluates the
+The function [`build_nn_function`](@ref) returns for a `ParameterSet`: it evaluates the
 jointly generated `f` and puts the flat result back into the nesting recorded in `layout`.
 """
 struct EquationSetFunction{NDATA, FT, LT} <: Function
@@ -97,7 +97,7 @@ EquationSetFunction{NDATA}(f::FT, layout::LT) where {NDATA, FT, LT} =
 """
     EquationSetArrayFunction{NDATA}(functions)
 
-The function [`build_nn_function`](@ref) returns for an array of [`EquationSet`](@ref)s: it
+The function [`build_nn_function`](@ref) returns for an array of `ParameterSet`s: it
 evaluates one [`EquationSetFunction`](@ref) per entry and collects the results.
 """
 struct EquationSetArrayFunction{NDATA, FT} <: Function
@@ -146,7 +146,7 @@ Each entry is normalised by [`scalar_expressions`](@ref) on the way in, which is
 fixed to `Num` rather than left to `NeuralNetworkParameters.parameter_eltype` to promote, so that it
 is the same type for every equation set — the code generation downstream dispatches on it.
 """
-flatten_equations(eqs::EquationSet) = flatten(Num, mapparameters(scalar_expressions, eqs))
+flatten_equations(eqs::ParameterSet) = flatten(Num, mapparameters(scalar_expressions, eqs))
 
 @doc raw"""
     split_result(layout, out)
