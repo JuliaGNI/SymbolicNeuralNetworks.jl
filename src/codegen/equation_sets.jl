@@ -159,8 +159,8 @@ which is what a summed batch or a single sample produces, is the case
 `NeuralNetworkParameters.unflatten` already covers: every entry simply keeps the shape of its
 equation. Anything else has a batch dimension and goes to [`unflatten_batch`](@ref).
 """
-split_result(layout::ParameterLayout, out::AbstractVector) = unflatten(layout, out)
-split_result(layout::ParameterLayout, out::AbstractArray) = unflatten_batch(layout, out)
+@inline split_result(layout::ParameterLayout, out::AbstractVector) = unflatten(layout, out)
+@inline split_result(layout::ParameterLayout, out::AbstractArray) = unflatten_batch(layout, out)
 
 @doc raw"""
     unflatten_batch(layout, out)
@@ -192,9 +192,20 @@ Each entry is *copied* out of `out` rather than viewed into it, so that the entr
     _unflatten_batch_children(layout.children, out)
 @inline unflatten_batch(layout::WrappedLayout, out::AbstractArray) = unflatten_batch(layout.inner, out)
 
-# `Base.tail` recursion rather than `map` over a closure, for the reason
-# `NeuralNetworkParameters._unflatten_children` gives: the closure over `out` is one heap allocation
-# per nesting level per call on Julia 1.10, which is what issue #55 measured.
+# `Base.tail` recursion rather than `map` over a closure, in the shape
+# `NeuralNetworkParameters._unflatten_children` states as the house rule for walking a layout.
+#
+# The two are equally inferable, but `map` leaves the closure over `out` to be elided and not every
+# version elides it. What that costs is a property of the *shape* of the layout rather than of its
+# depth or its size: on Julia 1.10, three leaves in two unequal groups — the shape a `Chain` of two
+# `Dense` layers has — cost 640 bytes a call through `map` and cost 368 through the recursion, while
+# the same three leaves laid out flat, or in three equal groups, cost 368 either way. Nesting alone
+# moves nothing; allocation is flat in depth and linear in the number of leaves on every version
+# measured. On 1.11 and later the recursion is neutral here throughout (416 bytes on every shape
+# tried, before and after), so this is a 1.10 saving with no cost elsewhere.
+#
+# It also keeps the walk off `Base`'s `Any32` fallback, which `map` drops to past 32 children and
+# which returns a tuple with no concrete type — see `test/codegen/allocations.jl`.
 @inline _unflatten_batch_children(::Tuple{}, ::AbstractArray) = ()
 @inline _unflatten_batch_children(layouts::Tuple, out::AbstractArray) =
     (unflatten_batch(first(layouts), out), _unflatten_batch_children(Base.tail(layouts), out)...)

@@ -20,6 +20,14 @@
 # (2) against (3) is what isolates the cause: if both regress it is in `promoted_eltype`, which they
 # share; if only (3) does it is in the layout.
 #
+# The `[single]` rows against the `[batch]` ones then say *whose* layout. A single sample takes
+# `split_result(layout, ::AbstractVector)`, which is `NeuralNetworkParameters.unflatten` end to end
+# and moves only with the `NeuralNetworkParameters` version; a batch takes `unflatten_batch`, which
+# is this package's and moves only with this package. Run the script against both to attribute a
+# figure to one side or the other — the two are independent, and on Julia 1.10 the fix for #55 needed
+# both halves. Downstream calls `DQDθ` on a length-one `Vector`, so the residual it reports is the
+# single-sample row and the upstream half is what moves it.
+#
 # The network is the one the downstream measurement uses — `NonlinearIntegrators`' `ShallowNet` basis,
 # `Chain(Dense(1, S, σ), Dense(S, 1, identity; use_bias = false))` at `S = 4`, called on a single
 # sample held in a length-one `Vector`.

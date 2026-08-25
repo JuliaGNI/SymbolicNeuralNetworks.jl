@@ -39,7 +39,7 @@ end
 @safetestset "Generated functions are type stable                                                    " begin
     include("codegen/type_stability.jl")
 end
-@safetestset "Generated functions do not allocate more than they must                               " begin
+@safetestset "Generated functions do not allocate more than they must                                " begin
     include("codegen/allocations.jl")
 end
 @safetestset "Jacobian                                                                               " begin

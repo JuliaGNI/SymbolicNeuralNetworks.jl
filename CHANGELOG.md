@@ -9,7 +9,9 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
 The seam between two layers, which 0.6.0 introduced as a plain vector, becomes something a layer can
 widen. That is what
 [GML #245](https://github.com/JuliaGNI/GeometricMachineLearning.jl/issues/245) was waiting for, and
-along the way it fixes the promise 0.6.0 made and did not keep.
+along the way it fixes the promise 0.6.0 made and did not keep. Separately, the walk that splits the
+result of a generated function is taken off a closure Julia 1.10 does not always elide, and the suite
+gains a gate that measures what a generated function allocates rather than only that it infers.
 
 Resolves [#54](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/54) and
 [#55](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/55).
@@ -19,9 +21,9 @@ Resolves [#54](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/54) 
 - **An equation set cost 1.85x the allocations to evaluate on Julia 1.10.** Splitting the flat result
   of a jointly generated function back into the nesting of the parameters walks a
   `NeuralNetworkParameters.ParameterLayout`, which 0.6.0 put in place of the local `FlatSlice` of
-  0.5.0. Both that walk — `unflatten_batch` here — and the `unflatten` it delegates the un-batched
-  case to upstream were written as `map` over a closure, one closure per nesting level per call.
-  Julia 1.11 and later elide it; 1.10 does not.
+  0.5.0. Both that walk — `unflatten_batch` here, for a batch — and the `unflatten` it delegates the
+  un-batched case to upstream were written as `map` over a closure, which Julia 1.10 does not always
+  elide.
 
   Nothing was type unstable, which is why the suite stayed green: `@inferred` passes on every version,
   and `test/codegen/type_stability.jl` was the only thing measuring this path. What moved was 1056
@@ -31,12 +33,34 @@ Resolves [#54](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/54) 
   ([#55](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/55), reported from
   [NonlinearIntegrators #86](https://github.com/JuliaGNI/NonlinearIntegrators.jl/pull/86)).
 
-  Both walks are `Base.tail` recursion now, which does not depend on the elision — the shape
-  `NeuralNetworkParameters` states as its house rule and uses for `flatten!`/`unflatten!` already. That
-  residual is back to 15 168 on 1.10, so the downstream ceiling can come out; 1.11, 1.12 and 1.13 are
-  byte-identical before and after. What remains between 1.10 and the rest is Julia's own `reshape`,
-  which costs 64 bytes on 1.10 and none later. The upstream half needs
-  `NeuralNetworkParameters` 0.2.1.
+  Both walks are `Base.tail` recursion now — the shape `NeuralNetworkParameters` states as its house
+  rule and uses for `flatten!`/`unflatten!` already — and the two halves are independent. Bytes per
+  call on Julia 1.10, on `Chain(Dense(1, 4, tanh), Dense(4, 1, identity; use_bias = false))`, with
+  each half varied on its own:
+
+  | | fixed, with 0.2.1 | fixed, with 0.2.0 | unfixed, with 0.2.1 | unfixed, with 0.2.0 |
+  |---|---|---|---|---|
+  | `DQDθ`, single sample | **768** | 1056 | **768** | 1056 |
+  | `DQDθ`, batch of 8 | **2032** | **2032** | 2320 | 2320 |
+  | `split_result`, single sample | **512** | 800 | **512** | 800 |
+  | `split_result`, batch of 8 | **1136** | **1136** | 1424 | 1424 |
+
+  So the un-batched rows are `NeuralNetworkParameters`' to move and the batched rows are this
+  package's, and neither half moves anything on 1.11, 1.12 or 1.13, where every cell of that table is
+  identical. What this walk costs turns out to be a property of the *shape* of the set rather than of
+  its depth: allocation is flat in nesting depth and linear in the number of leaves on every version
+  measured, and on 1.10 the recursion saves on some shapes — three leaves in two unequal groups, which
+  is what a two-layer `Chain` has, go from 640 bytes to 368 — and nothing on others.
+
+  `NonlinearIntegrators` calls `DQDθ` on a length-one `Vector`, so its residual takes the un-batched
+  path and it is the upstream half that puts it back at 15 168 on 1.10 and lets the downstream
+  ceiling come out. `Project.toml` therefore requires `NeuralNetworkParameters` 0.2.1, which is also
+  what the new ceilings in `test/codegen/allocations.jl` are reachable against.
+
+  `split_result`, the `unflatten_batch` methods and `_unflatten_batch_children` are marked `@inline`
+  alongside. That did not move the measurement — it is consistency with the rule the upstream walks
+  already follow, not a claimed effect. The rewrite does take the walk off `Base`'s `Any32` fallback,
+  which `map` drops to past 32 children and which returns a tuple with no concrete type.
 
   The report suspected `symbolic_parameter_gradient` and named `DQDθ`, `DVDθ` and `V_func`. It is the
   first two: both are equation sets, and `V_func` is a single equation that does not go through this
@@ -82,10 +106,12 @@ Resolves [#54](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/54) 
 
 - **The suite measures what a generated function allocates**, in `test/codegen/allocations.jl`, with
   the same ceilings on every Julia version. It pinned inference and nothing else before, which is how
-  #55 reached a dependent package's release rather than CI, on a matrix that already runs 1.10.
-  `scripts/allocation_comparison.jl` prints the per-layer figures the ceilings are set from and takes
-  a call apart — `promoted_eltype`, a bare kernel, an equation set, and the splitting on its own — so
-  that a regression can be attributed rather than just noticed.
+  #55 reached a dependent package's release rather than CI, on a matrix that already runs 1.10. The
+  same file asserts that the batched walk stays inferable past 32 children, which is the point `map`
+  used to drop to `Base`'s `Any32` fallback. `scripts/allocation_comparison.jl` prints the per-layer
+  figures the ceilings are set from and takes a call apart — `promoted_eltype`, a bare kernel, an
+  equation set, and the splitting on its own, single sample against batch — so that a regression can
+  be attributed rather than just noticed.
 
 - **A layer can declare how it meets the seam**, with four functions that each default to the
   plain-vector construction, so nothing that worked before is affected:
@@ -465,6 +491,21 @@ Things that came up during the 0.5/0.6 refactor and are **not** fixed.
 
 ### Upstream
 
+- **`docs/Project.toml` does not resolve.** `Project.toml` requires `NeuralNetworkParameters` 0.2.1,
+  because that is the release whose `unflatten` the ceilings in `test/codegen/allocations.jl` are
+  reachable against; the released `GeometricMachineLearning` 0.6.0, which the docs build the training
+  guide against, pins `NeuralNetworkParameters = "0.1"`:
+
+  ```
+  ERROR: Unsatisfiable requirements detected for package GeometricMachineLearning [194d25b2]:
+   ├─restricted to versions 0.6 by project, leaving only versions: 0.6.0
+   └─restricted by compatibility requirements with NeuralNetworkParameters [67f4d93a] to versions:
+     0.1.0 - 0.5.0 or uninstalled — no versions left
+  ```
+
+  The Documentation job stays red until a `GeometricMachineLearning` release tracks the 0.2
+  container. It is blocked at the 0.7.0 version bump regardless — GML 0.6.0 also pins
+  `SymbolicNeuralNetworks = "0.6"` — so the two unblock together.
 - [#40](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/40) —
   `test_symbolic_gradient2` remains disabled. The blocker is `AbstractNeuralNetworks.Dense`
   computing `ps.W * x`, which has no method for a three-dimensional `x`; that is the *reference*
