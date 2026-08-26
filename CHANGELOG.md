@@ -4,9 +4,14 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased] — 0.7.1
 
 ### Changed
+
+- **Julia 1.11 is the minimum**, up from the 1.10 LTS, in step with the rest of this family of
+  packages. It is what lets the item below be judged on its merits rather than against a 1.10-only
+  saving, and it retires the 1.10 columns from `test/codegen/allocations.jl` and the paragraph in
+  `scripts/allocation_comparison.jl` that explained them.
 
 - **`EquationSet` is gone; the type is `NeuralNetworkParameters.ParameterSet`.** It was
   `Union{NamedTuple, NetworkParameters}` — the shape of a network's parameters, and so also the shape of
@@ -18,6 +23,49 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
   Not a breaking change: `EquationSet` was never exported. `EquationSetFunction` and
   `EquationSetArrayFunction` keep their names — they are named for what they carry, and only the shape
   alias goes. Compat is `NeuralNetworkParameters = "0.2.2"`.
+
+### Fixed
+
+- **`unflatten_batch`'s across-children walk was superlinear in the width of one branch.** It was a
+  `Base.tail` recursion (`src/codegen/equation_sets.jl`), and `Base.tail` yields a new tuple type at
+  every level — so a branch of `k` children cost `k` specialisations over argument types each `O(k)`
+  long, and inference on that grew as `k³`. It is written out as a `@generated` flat body now, at
+  literal indices, exactly as `NeuralNetworkParameters._unflatten_children` is.
+
+  That is `NeuralNetworkParameters`' D12, found and fixed *there* in 0.2.2, and this walk had the same
+  shape for the same reason: an equation set is as wide as the parameter set it was differentiated
+  from, so the widths a consumer actually has are the widths this pays at.
+
+  It became a `Base.tail` chain for a good reason and the reason has expired. Issue **#55** was a
+  `map` over a closure that Julia 1.10 did not always elide — 640 bytes a call against 368 on a
+  `Chain` of two `Dense` layers — and the comment beside the chain recorded that on 1.11 and later it
+  was *neutral*, "a 1.10 saving with no cost elsewhere". With 1.10 gone the saving is gone and only
+  the cost is left, and the `@generated` body has neither: no closure to elide, one specialisation per
+  branch shape, and no `Any32` fallback.
+
+  First call, which is compilation plus a negligible run, on a flat set of `k` leaves —
+  `scripts/batched_walk_cost.jl`, committed as the harness, Julia 1.11.9:
+
+  | children | 0.7.0 | 0.7.1 |
+  |---|---|---|
+  | 32 | 0.21 s | 0.16 s |
+  | 64 | 0.42 s | 0.18 s |
+  | 128 | 1.33 s | **0.40 s** |
+  | 369 | 8.94 s | **1.49 s** |
+
+  369 is the width of the MNIST transformer in [GMLDatasets.jl](https://github.com/JuliaGNI/GMLDatasets.jl),
+  which is what made this worth fixing upstream rather than noting.
+
+  It allocates the same as before, which is the other half of the claim: this is a compile-time defect
+  and the run-time figures in `test/codegen/allocations.jl` do not move for it. They *do* move for
+  `NeuralNetworkParameters` 0.2.2, and downwards — the single-sample equation-set row from 768 bytes
+  to **560** and `split_result` on a sample from 512 to **352**, because upstream's written-out walks
+  materialise no temporary tuple per branch. The two ceilings come down with them, to 700 and 450.
+
+  `test/codegen/allocations.jl` measures on 1.11.9, 1.12.6 and 1.13.0-rc2; the only spread left is 96
+  bytes on the two batched rows, and every ceiling is set from the largest of the three. Its
+  "stays inferable past 32 children" testset goes to 128 rather than 40, which is a width where the
+  chain already cost a second of compilation.
 
 ## [0.7.0] — 2026-08-25
 

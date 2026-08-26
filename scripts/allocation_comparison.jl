@@ -2,8 +2,10 @@
 #
 # This is the reproducer for issue #55, which reported that on *Julia 1.10 only* the generated-kernel
 # path costs 1.85x the allocations it did before 0.6 — 28 096 bytes per `NonlinearIntegrators`
-# `residual!` call against 15 168, with 1.11 and later unchanged at 11 424. The report could not say
-# which of the generated functions regressed, so this script takes the call apart:
+# `residual!` call against 15 168, with 1.11 and later unchanged at 11 424. 1.10 is no longer a
+# supported version as of 0.7.1, so that particular gap can no longer be reproduced here; the script
+# is kept because the *breakdown* is what it is for, and because it is how a figure in
+# `test/codegen/allocations.jl` is attributed to a half. It takes the call apart:
 #
 #   1. Whether `promoted_eltype` folds to a constant — the element type the in-place path has to know
 #      *before* it can allocate the array its kernel writes into. It is measured through a wrapper
@@ -24,9 +26,11 @@
 # `split_result(layout, ::AbstractVector)`, which is `NeuralNetworkParameters.unflatten` end to end
 # and moves only with the `NeuralNetworkParameters` version; a batch takes `unflatten_batch`, which
 # is this package's and moves only with this package. Run the script against both to attribute a
-# figure to one side or the other — the two are independent, and on Julia 1.10 the fix for #55 needed
-# both halves. Downstream calls `DQDθ` on a length-one `Vector`, so the residual it reports is the
-# single-sample row and the upstream half is what moves it.
+# figure to one side or the other — the two are independent, and the fix for #55 needed both halves.
+# Downstream calls `DQDθ` on a length-one `Vector`, so the residual it reports is the single-sample
+# row and the upstream half is what moves it — which is why `NeuralNetworkParameters` 0.2.2, whose
+# written-out walks took that row from 768 bytes to 560, moves the downstream figure and this
+# package's own release does not.
 #
 # The network is the one the downstream measurement uses — `NonlinearIntegrators`' `ShallowNet` basis,
 # `Chain(Dense(1, S, σ), Dense(S, 1, identity; use_bias = false))` at `S = 4`, called on a single
