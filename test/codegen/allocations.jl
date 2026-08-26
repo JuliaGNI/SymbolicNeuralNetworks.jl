@@ -6,32 +6,44 @@
 # `map` over a closure on the per-call path, in two places: `unflatten_batch` here, and the
 # `unflatten` the un-batched case delegates to upstream. Julia 1.10 does not always elide that
 # closure, so the suite was green on every version while a dependent package measured 1.85x the
-# allocations on 1.10 and had to ship a version-conditional ceiling to stay green itself. Both walks
-# are `Base.tail` recursion now, which does not depend on the elision.
+# allocations on 1.10 and had to ship a version-conditional ceiling to stay green itself. Neither walk
+# is a `map` now: both are written out as `@generated` flat bodies at literal indices, which have no
+# closure to elide and so cannot depend on whether a version elides one. Each passed through a
+# `Base.tail` chain on the way — the upstream one until `NeuralNetworkParameters` 0.2.2, this one
+# until 0.7.1 — and left it for the reason `src/codegen/equation_sets.jl` records beside this walk.
 #
 # The two halves are separable, and the rows below say which is which:
 #
 #   * the *single-sample* rows go through `NeuralNetworkParameters.unflatten` and nothing of this
-#     package's, so they measure the upstream half — 1056 and 800 bytes against 768 and 512, and the
-#     figure depends only on which `NeuralNetworkParameters` is resolved. `Project.toml` pins 0.2.1
-#     for exactly this reason: against 0.2.0 or 0.1.1 the two ceilings here are unreachable.
+#     package's, so they measure the upstream half — 1056 and 800 bytes with #55 open, and the figure
+#     depends only on which `NeuralNetworkParameters` is resolved. `Project.toml` lower-bounds it at
+#     0.2.2 for exactly this reason: against 0.2.0 or 0.1.1 the two ceilings here are unreachable.
+#     0.2.2 moved them again, and downwards — 768 to 560 and 512 to 352 — because it writes its
+#     across-children walks out as `@generated` bodies instead of `Base.tail` chains and so
+#     materialises no temporary tuple per branch. The ceilings below came down with them.
+#
+#     That bound is a range and not a pin, so what has to hold is that *every* version it admits
+#     delivers these figures, not that one does. Both of the versions it currently admits were
+#     measured, and they agree: 0.2.2 and 0.2.3 give the same four numbers on all three Julias below.
+#     0.2.3 removes `LeafLayout`'s unread `prototype` field, which halves the node count of a
+#     layout's type and so moves what building one costs to *compile*; no `LeafLayout` is built per
+#     call, and nothing here moves. Re-measure when the range admits a version nobody has run.
 #   * the *batch* rows go through `unflatten_batch`, and their figure depends only on this package —
-#     2320 and 1424 against 2032 and 1136, on every `NeuralNetworkParameters` tried.
+#     2320 and 1424 with #55 open, 2048 and 1184 now, on every `NeuralNetworkParameters` tried. 0.7.1
+#     made that walk `@generated` too; that is a *compile*-cost fix and it moves these figures by
+#     nothing, which `scripts/batched_walk_cost.jl` is the harness for.
 #
 # The ceilings are the same on every Julia version, deliberately. A `VERSION`-conditional ceiling is
 # the accommodation issue #55 exists to remove, and one here would hide exactly the class of
-# regression that issue was. What separates the versions is not one thing: 1.10 costs 160 bytes more
-# than 1.11 on the single-sample split — five arrays at the 32 bytes of header 1.10 adds to each —
-# and 48 bytes *less* than 1.12 on the batched one. So each ceiling is set from the largest figure
+# regression that issue was. Measured on 1.11.9, 1.12.7 and 1.13.0-rc3, the only spread left is 96
+# bytes on the two batched rows, where 1.11 is the cheaper (1952 and 1088 against 2048 and 1184); the
+# four single-sample figures are identical on all three. Each ceiling is set from the largest figure
 # measured rather than from a rule about which version is dearest.
 #
 # Each ceiling sits between two measured figures: above the largest this call costs on any supported
 # Julia, and below what the same call cost while #55 was open. A gate that the regression it was
 # written for would have passed is not a gate, so the margin is deliberately narrower than the round
 # 1.5x it is tempting to reach for. Both bounds are recorded beside each number.
-#
-# The figures for 1.11 are measured by hand rather than in CI, whose matrix skips it —
-# `NonlinearIntegrators` records the same caveat against the budget it sets for `residual!`.
 #
 # A number here tripping therefore means one of two things: a genuine regression, or a new Julia that
 # costs more for reasons of its own. `scripts/allocation_comparison.jl` prints the same figures broken
@@ -88,8 +100,8 @@ end
 @testset "a single equation" begin
     f = build_nn_function(derivative(Jacobian(snn)), snn)
     # not a path #55 touched; these are floor checks, so the margin is the loose one
-    @test bytes_per_call(f, sample, ps) <= 220      # measured 128 (1.11-1.13) / 160 (1.10)
-    @test bytes_per_call(f, batch, ps) <= 220       # measured 144 (1.11-1.13) / 128 (1.10)
+    @test bytes_per_call(f, sample, ps) <= 220      # measured 128 on 1.11, 1.12 and 1.13
+    @test bytes_per_call(f, batch, ps) <= 220       # measured 144 on 1.11, 1.12 and 1.13
 end
 
 # An `EquationSetFunction`: the same, plus `split_result` putting the flat result back into the
@@ -98,25 +110,35 @@ end
     f = build_nn_function(symbolic_parameter_gradient(c(snn.input, params(snn))[1], snn), snn)
 
     # single sample: `NeuralNetworkParameters.unflatten`, so the upstream half of the fix
-    @test bytes_per_call(f, sample, ps) <= 880      # <= 768 measured, 1056 with #55 open
+    @test bytes_per_call(f, sample, ps) <= 700      # <= 560 measured, 1056 with #55 open
     # batch: `unflatten_batch`, so this package's half
     @test bytes_per_call(f, batch, ps) <= 2200      # <= 2048 measured, 2320 with #55 open
 
     # `split_result` on its own, on a result the kernel has already produced, so that a regression is
     # attributed to the splitting rather than to the kernel.
-    @test bytes_per_call(split_result, f.layout, f.f(sample, ps)) <= 620   # <= 512, was 800
+    @test bytes_per_call(split_result, f.layout, f.f(sample, ps)) <= 450   # <= 352, was 800
     @test bytes_per_call(split_result, f.layout, f.f(batch, ps)) <= 1300   # <= 1184, was 1424
 end
 
 # `map` drops to `Base`'s `Any32` fallback past 32 children, which returns a tuple with no concrete
-# type — so before the `Base.tail` recursion a parameter set with more than 32 layers, or a layer
-# with more than 32 entries, split through a type-unstable path. Nothing about it allocated
+# type — so before this walk stopped being a `map` a parameter set with more than 32 layers, or a
+# layer with more than 32 entries, split through a type-unstable path. Nothing about it allocated
 # differently enough for a ceiling above to notice, which is why it is asserted rather than measured.
+#
+# 128 and not the 40 this used to use, because there are now two cliffs to stay clear of and they are
+# in opposite directions. `Any32` is one. The other is the `Base.tail` chain that replaced the `map`:
+# it costs one specialisation per child over `O(k)`-long argument types, so inference on it grows as
+# `k³`, and at 128 children compiling this walk took 1.68 s against 0.39 s for the `@generated` body
+# that replaced it in 0.7.1 — 11.06 s against 1.36 s at the 369 of GMLDatasets' MNIST transformer.
+# `scripts/batched_walk_cost.jl` is the harness for those figures and is where a width beyond what a
+# test suite should pay for belongs. What is asserted here is what a test can assert without pinning a
+# wall clock: that the result is still concretely typed, and that the file completes at a width where
+# the chain was already a second and a half of compilation.
 @testset "the batched walk stays inferable past 32 children" begin
-    wide = NetworkParameters(NamedTuple{ntuple(i -> Symbol(:e, i), 40)}(ntuple(i -> [float(i)], 40)))
+    wide = NetworkParameters(NamedTuple{ntuple(i -> Symbol(:e, i), 128)}(ntuple(i -> [float(i)], 128)))
     _, layout = flatten(wide)
     out = rand(length(layout), 3)
 
     @test isconcretetype(only(Base.return_types(unflatten_batch, (typeof(layout), typeof(out)))))
-    @test unflatten_batch(layout, out).e40 == out[40:40, :]
+    @test unflatten_batch(layout, out).e128 == out[128:128, :]
 end

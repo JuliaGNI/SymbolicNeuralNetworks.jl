@@ -196,7 +196,7 @@ function parameter_arguments(sparams)
     Tuple(paths), Tuple(arrays)
 end
 
-function _collect_parameter_arguments!(paths, arrays, prefix::Tuple, sparams::EquationSet)
+function _collect_parameter_arguments!(paths, arrays, prefix::Tuple, sparams::ParameterSet)
     for key in keys(sparams)
         _collect_parameter_arguments!(paths, arrays, (prefix..., key), sparams[key])
     end

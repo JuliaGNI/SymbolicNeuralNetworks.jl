@@ -26,7 +26,7 @@ symbolic_differentials(svariables::Symbolics.Arr) = symbolic_differentials(colle
 # A nested set of variables is walked by `NeuralNetworkParameters.mapparameters`, which recurses
 # through the nesting and hands each leaf over as a whole — so the two methods above are all this
 # needs, whatever the parameters are nested in.
-symbolic_differentials(svariables::EquationSet) = mapparameters(symbolic_differentials, svariables)
+symbolic_differentials(svariables::ParameterSet) = mapparameters(symbolic_differentials, svariables)
 
 """
     symbolic_derivative(f, differentials)
@@ -37,5 +37,5 @@ parameters of a network" into "the derivative of `f` with respect to each of the
 """
 symbolic_derivative(f, differentials::AbstractArray) = [expand_derivatives(D(f)) for D in differentials]
 
-symbolic_derivative(f, differentials::EquationSet) =
+symbolic_derivative(f, differentials::ParameterSet) =
     mapparameters(D -> symbolic_derivative(f, D), differentials)

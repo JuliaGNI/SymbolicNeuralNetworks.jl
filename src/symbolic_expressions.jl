@@ -16,16 +16,13 @@ is accepted as well and normalised by [`scalar_expressions`](@ref).
 const SymbolicExpression = Union{Num, Symbolics.BasicSymbolic, AbstractArray{Num},
                                  AbstractArray{<:Symbolics.BasicSymbolic}, Symbolics.Arr{Num}}
 
-"""
-    EquationSet
-
-An arbitrarily nested `NamedTuple` or `NetworkParameters`.
-
-This is the shape of the parameters of a neural network, and therefore also the shape of a symbolic
-derivative with respect to them. [`build_nn_function`](@ref) builds a whole set of equations of this
-shape as one function; see [`flatten_equations`](@ref).
-"""
-const EquationSet = Union{NamedTuple, NetworkParameters}
+# `ParameterSet` used to be defined here, as `Union{NamedTuple, NetworkParameters}` -- the shape of the
+# parameters of a neural network, and therefore also the shape of a symbolic derivative with respect to
+# them. It is `NeuralNetworkParameters.ParameterSet` now, which is the same union in the package that
+# owns the type: this one had it under a name of its own, `AbstractNeuralNetworks` and
+# `GeometricMachineLearning` were spelling it out inline, and `GeometricOptimizers` had a third name for
+# a narrower version. What this package called an equation set is a parameter set that happens to hold
+# equations, so nothing is lost by naming it after the shape.
 
 """
     scalar_expressions(eq)

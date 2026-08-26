@@ -1,5 +1,5 @@
 """
-    build_nn_function(eqs::EquationSet, sparams, svariables...)
+    build_nn_function(eqs::ParameterSet, sparams, svariables...)
 
 Turn a whole set of equations into one executable function, whose result has the same nesting as
 `eqs`.
@@ -32,7 +32,7 @@ instead would re-derive everything the entries have in common — for a symbolic
 whole forward pass, once per parameter array — and would compile one `RuntimeGeneratedFunction` per
 entry rather than one in total.
 """
-function build_nn_function(eqs::EquationSet, sparams::NetworkParameters,
+function build_nn_function(eqs::ParameterSet, sparams::NetworkParameters,
                            svariables::SymbolicVariables...; kwargs...)
     flat, layout = flatten_equations(eqs)
     joint = build_nn_function(flat, sparams, svariables...; kwargs...)
@@ -40,11 +40,11 @@ function build_nn_function(eqs::EquationSet, sparams::NetworkParameters,
 end
 
 """
-    build_nn_function(eqs::AbstractArray{<:EquationSet}, sparams, svariables...)
+    build_nn_function(eqs::AbstractArray{<:ParameterSet}, sparams, svariables...)
 
 Turn an array of equation sets into an executable function that returns an array of results.
 
-Each entry of the array is built by the [`EquationSet`](@ref) method above, i.e. jointly; the
+Each entry of the array is built by the `ParameterSet` method above, i.e. jointly; the
 entries themselves are independent of each other and stay separate functions.
 
 # Examples
@@ -69,7 +69,7 @@ funcs([1.0, 2.0], params(nn))
  (b = [0.9576465981186686],)
 ```
 """
-function build_nn_function(eqs::AbstractArray{<:EquationSet}, sparams::NetworkParameters,
+function build_nn_function(eqs::AbstractArray{<:ParameterSet}, sparams::NetworkParameters,
                            svariables::SymbolicVariables...; kwargs...)
     functions = map(eq -> build_nn_function(eq, sparams, svariables...; kwargs...), eqs)
     EquationSetArrayFunction{length(svariables)}(functions)
@@ -78,7 +78,7 @@ end
 """
     EquationSetFunction{NDATA}(f, layout)
 
-The function [`build_nn_function`](@ref) returns for an [`EquationSet`](@ref): it evaluates the
+The function [`build_nn_function`](@ref) returns for a `ParameterSet`: it evaluates the
 jointly generated `f` and puts the flat result back into the nesting recorded in `layout`.
 """
 struct EquationSetFunction{NDATA, FT, LT} <: Function
@@ -97,7 +97,7 @@ EquationSetFunction{NDATA}(f::FT, layout::LT) where {NDATA, FT, LT} =
 """
     EquationSetArrayFunction{NDATA}(functions)
 
-The function [`build_nn_function`](@ref) returns for an array of [`EquationSet`](@ref)s: it
+The function [`build_nn_function`](@ref) returns for an array of `ParameterSet`s: it
 evaluates one [`EquationSetFunction`](@ref) per entry and collects the results.
 """
 struct EquationSetArrayFunction{NDATA, FT} <: Function
@@ -146,7 +146,7 @@ Each entry is normalised by [`scalar_expressions`](@ref) on the way in, which is
 fixed to `Num` rather than left to `NeuralNetworkParameters.parameter_eltype` to promote, so that it
 is the same type for every equation set — the code generation downstream dispatches on it.
 """
-flatten_equations(eqs::EquationSet) = flatten(Num, mapparameters(scalar_expressions, eqs))
+flatten_equations(eqs::ParameterSet) = flatten(Num, mapparameters(scalar_expressions, eqs))
 
 @doc raw"""
     split_result(layout, out)
@@ -187,28 +187,38 @@ Each entry is *copied* out of `out` rather than viewed into it, so that the entr
 @inline unflatten_batch(layout::ParametersLayout, out::AbstractArray) =
     NetworkParameters(unflatten_batch(layout.inner, out))
 @inline unflatten_batch(layout::NestedLayout, out::AbstractArray) =
-    NamedTuple{keys(layout.children)}(_unflatten_batch_children(values(layout.children), out))
+    NamedTuple{keys(layout.children)}(_unflatten_batch_children(layout.children, out))
 @inline unflatten_batch(layout::TupleLayout, out::AbstractArray) =
     _unflatten_batch_children(layout.children, out)
 @inline unflatten_batch(layout::WrappedLayout, out::AbstractArray) = unflatten_batch(layout.inner, out)
 
-# `Base.tail` recursion rather than `map` over a closure, in the shape
-# `NeuralNetworkParameters._unflatten_children` states as the house rule for walking a layout.
+# Written out as a `@generated` flat body, in the shape `NeuralNetworkParameters._unflatten_children`
+# states as the house rule for walking a layout. Neither of the two obvious alternatives will do, and
+# this walk has met both.
 #
-# The two are equally inferable, but `map` leaves the closure over `out` to be elided and not every
-# version elides it. What that costs is a property of the *shape* of the layout rather than of its
-# depth or its size: on Julia 1.10, three leaves in two unequal groups — the shape a `Chain` of two
-# `Dense` layers has — cost 640 bytes a call through `map` and cost 368 through the recursion, while
-# the same three leaves laid out flat, or in three equal groups, cost 368 either way. Nesting alone
-# moves nothing; allocation is flat in depth and linear in the number of leaves on every version
-# measured. On 1.11 and later the recursion is neutral here throughout (416 bytes on every shape
-# tried, before and after), so this is a 1.10 saving with no cost elsewhere.
+# `map` over a closure leaves the closure over `out` to be elided, and not every version elides it.
+# What that cost was a property of the *shape* of the layout rather than of its depth or its size: on
+# Julia 1.10 — the compat floor until 0.7.1 — three leaves in two unequal groups, the shape a `Chain`
+# of two `Dense` layers has, cost 640 bytes a call through `map` against 368 without it, while the
+# same three leaves laid out flat cost 368 either way. That is issue #55, and it is why this stopped
+# being a `map`.
 #
-# It also keeps the walk off `Base`'s `Any32` fallback, which `map` drops to past 32 children and
-# which returns a tuple with no concrete type — see `test/codegen/allocations.jl`.
-@inline _unflatten_batch_children(::Tuple{}, ::AbstractArray) = ()
-@inline _unflatten_batch_children(layouts::Tuple, out::AbstractArray) =
-    (unflatten_batch(first(layouts), out), _unflatten_batch_children(Base.tail(layouts), out)...)
+# A `Base.tail` chain, which is what it became, fixes that and buys a different problem: `Base.tail`
+# yields a new tuple type at every level, so a branch of `k` children costs `k` specialisations over
+# argument types each `O(k)` long and inference grows as `k³`. That is `NeuralNetworkParameters`'
+# D12, and this walk is exposed to it for the same reason that one was — an equation set is as wide as
+# the parameter set it was differentiated from, and a flat set of a few hundred entries is a shape a
+# consumer actually has. `NeuralNetworkParameters` 0.2.2 answered it by emitting the body at literal
+# indices, and this follows: at 369 children a first call goes from 11.06 s to 1.36 s, for which
+# `scripts/batched_walk_cost.jl` is the harness.
+#
+# One specialisation per branch shape, no closure to elide, no new tuple types, and no `Any32`: `map`
+# drops to that fallback past 32 children and it returns a tuple with no concrete type. See
+# `test/codegen/allocations.jl`.
+@generated function _unflatten_batch_children(layouts, out)
+    calls = [:(unflatten_batch(getfield(layouts, $i), out)) for i in 1:fieldcount(layouts)]
+    :(($(calls...),))
+end
 
 @inline unflatten_batch(layout::LeafLayout, out::AbstractMatrix) =
     reshape(out[parameterrange(layout), :], _batched_size(layout.size, size(out, 2))...)

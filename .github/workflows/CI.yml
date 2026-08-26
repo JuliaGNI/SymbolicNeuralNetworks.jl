@@ -33,7 +33,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - "1.10"
+          - "1.11"
           - "^1.12"
           - "^1.13.0-0"
         os:
@@ -74,7 +74,9 @@ jobs:
       # Pkg carries on after printing that and resolves against whatever commit the clone stopped at,
       # so the job dies with an "Unsatisfiable requirements" message that names a version bound and
       # says nothing about the registry. That took the 1.13 and nightly jobs down on 750d073 while
-      # 1.10 and 1.12, whose caches held healthy clones, resolved the same bounds and passed.
+      # the 1.10 and 1.12 entries of the matrix of the time, whose caches held healthy clones,
+      # resolved the same bounds and passed. 1.10 is no longer one of them; the failure mode is a
+      # property of the cache key, which is per matrix entry, and not of any particular version.
       #
       # Resetting to `origin/master` is the same repair the clone needs locally; the registry is a
       # pure mirror, so nothing is lost, and a clone that cannot even be reset is thrown away for

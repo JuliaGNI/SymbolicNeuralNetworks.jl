@@ -5,8 +5,10 @@ CurrentModule = SymbolicNeuralNetworks
 # Equation Sets
 
 [`build_nn_function`](@ref) also accepts a whole *set* of equations: an arbitrarily nested
-`NamedTuple` or `NetworkParameters` whose leaves are symbolic expressions. The result is one
-function whose output has the same nesting.
+`NamedTuple` or `NetworkParameters` whose leaves are symbolic expressions — a
+`NeuralNetworkParameters.ParameterSet`, which is the shape a network's parameters have and therefore
+the shape a derivative with respect to them has. The result is one function whose output has the
+same nesting.
 
 ```@example sets
 using SymbolicNeuralNetworks
