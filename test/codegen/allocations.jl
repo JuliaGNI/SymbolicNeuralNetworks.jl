@@ -6,18 +6,28 @@
 # `map` over a closure on the per-call path, in two places: `unflatten_batch` here, and the
 # `unflatten` the un-batched case delegates to upstream. Julia 1.10 does not always elide that
 # closure, so the suite was green on every version while a dependent package measured 1.85x the
-# allocations on 1.10 and had to ship a version-conditional ceiling to stay green itself. Both walks
-# are `Base.tail` recursion now, which does not depend on the elision.
+# allocations on 1.10 and had to ship a version-conditional ceiling to stay green itself. Neither walk
+# is a `map` now: both are written out as `@generated` flat bodies at literal indices, which have no
+# closure to elide and so cannot depend on whether a version elides one. Each passed through a
+# `Base.tail` chain on the way — the upstream one until `NeuralNetworkParameters` 0.2.2, this one
+# until 0.7.1 — and left it for the reason `src/codegen/equation_sets.jl` records beside this walk.
 #
 # The two halves are separable, and the rows below say which is which:
 #
 #   * the *single-sample* rows go through `NeuralNetworkParameters.unflatten` and nothing of this
 #     package's, so they measure the upstream half — 1056 and 800 bytes with #55 open, and the figure
-#     depends only on which `NeuralNetworkParameters` is resolved. `Project.toml` pins 0.2.2 for
-#     exactly this reason: against 0.2.0 or 0.1.1 the two ceilings here are unreachable. 0.2.2 moved
-#     them again, and downwards — 768 to 560 and 512 to 352 — because it writes its across-children
-#     walks out as `@generated` bodies instead of `Base.tail` chains and so materialises no temporary
-#     tuple per branch. The ceilings below came down with them.
+#     depends only on which `NeuralNetworkParameters` is resolved. `Project.toml` lower-bounds it at
+#     0.2.2 for exactly this reason: against 0.2.0 or 0.1.1 the two ceilings here are unreachable.
+#     0.2.2 moved them again, and downwards — 768 to 560 and 512 to 352 — because it writes its
+#     across-children walks out as `@generated` bodies instead of `Base.tail` chains and so
+#     materialises no temporary tuple per branch. The ceilings below came down with them.
+#
+#     That bound is a range and not a pin, so what has to hold is that *every* version it admits
+#     delivers these figures, not that one does. Both of the versions it currently admits were
+#     measured, and they agree: 0.2.2 and 0.2.3 give the same four numbers on all three Julias below.
+#     0.2.3 removes `LeafLayout`'s unread `prototype` field, which halves the node count of a
+#     layout's type and so moves what building one costs to *compile*; no `LeafLayout` is built per
+#     call, and nothing here moves. Re-measure when the range admits a version nobody has run.
 #   * the *batch* rows go through `unflatten_batch`, and their figure depends only on this package —
 #     2320 and 1424 with #55 open, 2048 and 1184 now, on every `NeuralNetworkParameters` tried. 0.7.1
 #     made that walk `@generated` too; that is a *compile*-cost fix and it moves these figures by
@@ -25,7 +35,7 @@
 #
 # The ceilings are the same on every Julia version, deliberately. A `VERSION`-conditional ceiling is
 # the accommodation issue #55 exists to remove, and one here would hide exactly the class of
-# regression that issue was. Measured on 1.11.9, 1.12.6 and 1.13.0-rc2, the only spread left is 96
+# regression that issue was. Measured on 1.11.9, 1.12.7 and 1.13.0-rc3, the only spread left is 96
 # bytes on the two batched rows, where 1.11 is the cheaper (1952 and 1088 against 2048 and 1184); the
 # four single-sample figures are identical on all three. Each ceiling is set from the largest figure
 # measured rather than from a rule about which version is dearest.
@@ -118,12 +128,12 @@ end
 # 128 and not the 40 this used to use, because there are now two cliffs to stay clear of and they are
 # in opposite directions. `Any32` is one. The other is the `Base.tail` chain that replaced the `map`:
 # it costs one specialisation per child over `O(k)`-long argument types, so inference on it grows as
-# `k³`, and at 128 children compiling this walk took 1.33 s against 0.40 s for the `@generated` body
-# that replaced it in 0.7.1 — 8.94 s against 1.49 s at the 369 of GMLDatasets' MNIST transformer.
+# `k³`, and at 128 children compiling this walk took 1.68 s against 0.39 s for the `@generated` body
+# that replaced it in 0.7.1 — 11.06 s against 1.36 s at the 369 of GMLDatasets' MNIST transformer.
 # `scripts/batched_walk_cost.jl` is the harness for those figures and is where a width beyond what a
 # test suite should pay for belongs. What is asserted here is what a test can assert without pinning a
 # wall clock: that the result is still concretely typed, and that the file completes at a width where
-# the chain was already a second of compilation.
+# the chain was already a second and a half of compilation.
 @testset "the batched walk stays inferable past 32 children" begin
     wide = NetworkParameters(NamedTuple{ntuple(i -> Symbol(:e, i), 128)}(ntuple(i -> [float(i)], 128)))
     _, layout = flatten(wide)

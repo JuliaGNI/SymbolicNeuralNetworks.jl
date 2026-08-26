@@ -209,7 +209,8 @@ Each entry is *copied* out of `out` rather than viewed into it, so that the entr
 # D12, and this walk is exposed to it for the same reason that one was — an equation set is as wide as
 # the parameter set it was differentiated from, and a flat set of a few hundred entries is a shape a
 # consumer actually has. `NeuralNetworkParameters` 0.2.2 answered it by emitting the body at literal
-# indices, and this follows.
+# indices, and this follows: at 369 children a first call goes from 11.06 s to 1.36 s, for which
+# `scripts/batched_walk_cost.jl` is the harness.
 #
 # One specialisation per branch shape, no closure to elide, no new tuple types, and no `Any32`: `map`
 # drops to that fallback past 32 children and it returns a tuple with no concrete type. See

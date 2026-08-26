@@ -84,7 +84,7 @@ function measurements()
 
     # `DQDθ` downstream: the gradient of a *scalar* entry of the output with respect to the
     # parameters, so `symbolic_parameter_gradient` returns one parameter-shaped set rather than an
-    # array of them, and `build_nn_function` takes its `EquationSet` method.
+    # array of them, and `build_nn_function` takes its `ParameterSet` method.
     dqdθ = build_nn_function(symbolic_parameter_gradient(c(sinput, sparams)[1], snn), snn)
     # `V_func` downstream: a 1x1 array of `Num`, so this is a bare `InPlaceBatchedFunction`.
     v_func = build_nn_function(derivative(Jacobian(snn)), snn)

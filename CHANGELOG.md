@@ -4,13 +4,19 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — 0.7.1
+## [0.7.1] — 2026-08-26
 
 ### Changed
 
-- **Julia 1.11 is the minimum**, up from the 1.10 LTS, in step with the rest of this family of
-  packages. It is what lets the item below be judged on its merits rather than against a 1.10-only
-  saving, and it retires the 1.10 columns from `test/codegen/allocations.jl` and the paragraph in
+- **Julia 1.11 is the minimum**, up from the 1.10 LTS. This is forced rather than elective:
+  `NeuralNetworkParameters` 0.2.2 declares `julia = "1.11"` itself, so the moment the item below
+  tightens the bound to it, there is no 1.10 resolution left to support — declaring `julia = "1.10"`
+  alongside it would only have made the resolver say so less clearly. It is a lower-bound raise and
+  therefore not breaking under Pkg's semantics: a 1.10 user is simply never offered 0.7.1, which is
+  why it rides in a patch.
+
+  It also lets the fix below be judged on its merits rather than against a 1.10-only saving, and it
+  retires the 1.10 columns from `test/codegen/allocations.jl` and the paragraph in
   `scripts/allocation_comparison.jl` that explained them.
 
 - **`EquationSet` is gone; the type is `NeuralNetworkParameters.ParameterSet`.** It was
@@ -22,7 +28,9 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
 
   Not a breaking change: `EquationSet` was never exported. `EquationSetFunction` and
   `EquationSetArrayFunction` keep their names — they are named for what they carry, and only the shape
-  alias goes. Compat is `NeuralNetworkParameters = "0.2.2"`.
+  alias goes. Compat is `NeuralNetworkParameters = "0.2.2"`, which is a range and not a pin — 0.2.3
+  is registered and resolves under it. Both members were measured against the ceilings in
+  `test/codegen/allocations.jl` and they agree to the byte, so the bound stays as wide as it reads.
 
 ### Fixed
 
@@ -44,14 +52,14 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
   branch shape, and no `Any32` fallback.
 
   First call, which is compilation plus a negligible run, on a flat set of `k` leaves —
-  `scripts/batched_walk_cost.jl`, committed as the harness, Julia 1.11.9:
+  `scripts/batched_walk_cost.jl`, committed as the harness, one process per row, Julia 1.11.9:
 
   | children | 0.7.0 | 0.7.1 |
   |---|---|---|
-  | 32 | 0.21 s | 0.16 s |
-  | 64 | 0.42 s | 0.18 s |
-  | 128 | 1.33 s | **0.40 s** |
-  | 369 | 8.94 s | **1.49 s** |
+  | 32 | 0.23 s | 0.12 s |
+  | 64 | 0.56 s | 0.25 s |
+  | 128 | 1.68 s | **0.39 s** |
+  | 369 | 11.06 s | **1.36 s** |
 
   369 is the width of the MNIST transformer in [GMLDatasets.jl](https://github.com/JuliaGNI/GMLDatasets.jl),
   which is what made this worth fixing upstream rather than noting.
@@ -62,10 +70,11 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
   to **560** and `split_result` on a sample from 512 to **352**, because upstream's written-out walks
   materialise no temporary tuple per branch. The two ceilings come down with them, to 700 and 450.
 
-  `test/codegen/allocations.jl` measures on 1.11.9, 1.12.6 and 1.13.0-rc2; the only spread left is 96
-  bytes on the two batched rows, and every ceiling is set from the largest of the three. Its
-  "stays inferable past 32 children" testset goes to 128 rather than 40, which is a width where the
-  chain already cost a second of compilation.
+  `test/codegen/allocations.jl` measures on 1.11.9, 1.12.7 and 1.13.0-rc3, against
+  `NeuralNetworkParameters` 0.2.2 and 0.2.3 alike; the only spread left is 96 bytes on the two
+  batched rows, and every ceiling is set from the largest figure measured. Its "stays inferable past
+  32 children" testset goes to 128 rather than 40, which is a width where the chain already cost a
+  second and a half of compilation.
 
 ## [0.7.0] — 2026-08-25
 
