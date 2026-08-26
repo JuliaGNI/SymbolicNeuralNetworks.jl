@@ -13,29 +13,10 @@ SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
-# 0.7 moved the parameter container out to `NeuralNetworkParameters`, where it is called
-# `NetworkParameters`, and removed the old name from `AbstractNeuralNetworks` entirely. Earlier
-# versions are not supported: 0.6.4 was the first to define `input_dimension`/`output_dimension`,
-# and 0.3/0.4 are additionally missing `GenericActivation`/`TanhActivation`, so the package does not
-# even load against them. 0.7.1 rather than 0.7 because 0.7.0 pins the 0.1 container, which the
-# bound below rules out anyway -- naming it here is what makes the resolver say so
 AbstractNeuralNetworks = "0.7.1"
 Documenter = "1.8.0"
 ForwardDiff = "1"
 Latexify = "0.16"
-# 0.2.1 and not 0.2, and not "0.1, 0.2". The call sites here spell the constructor
-# `NetworkParameters(NamedTuple{keys}(vals))`, which compiles against any of them, so this is not a
-# bound about what loads. It is a bound about what `test/codegen/allocations.jl` measures: the
-# un-batched half of `split_result` is `NeuralNetworkParameters.unflatten` end to end, and 0.2.1 is
-# the release that took its `map` over a closure off the per-call path (NeuralNetworkParameters#13).
-# Against 0.2.0 or 0.1.1 two of that file's four ceilings fail on Julia 1.10 -- 1056 against 880 and
-# 800 against 620 -- so a range that admits them is a range in which the suite does not hold.
-#
-# This reverses what `3cfe7f7` decided, and pays what that commit declined to pay. The cost is
-# `docs/Project.toml`, which cannot resolve until a `GeometricMachineLearning` release tracks the 0.2
-# container -- see the note there and under Open Issues in the changelog -- and the loss of the
-# slack a runner with a stale General clone used to resolve into. A single version is the price of a
-# gate whose figures only one version can deliver
 NeuralNetworkParameters = "0.2.2"
 RuntimeGeneratedFunctions = "0.5"
 SymbolicUtils = "4"
