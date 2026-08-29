@@ -4,6 +4,26 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1]
+
+### Fixed
+
+- **Three docstrings were orphaned, and the documentation build had been failing on them.** Splitting
+  `flatten_equations`, `flatten_gradient` and `flat_parameter_gradient` into a method per shape put
+  the explanatory comment *between* each docstring and the first method it documents. A docstring
+  attaches to whatever follows it immediately, so a comment in between detaches it — the `@docs`
+  blocks then rendered nothing and every `@ref` to those three names dangled. The comments go above
+  their docstrings now.
+
+  This did not show up before 0.8.0 was released, because the docs job could not resolve its
+  environment at all until `GeometricMachineLearning` 0.7.0 existed; a build that stops at
+  `Configure doc environment` never reaches `CrossReferences`. One failing check hid another.
+
+- **The `EquationSet` docstring's `@extref` had nothing to resolve against.** This package configures
+  no `DocumenterInterLinks` inventories, so `[…](@extref)` fails the build at `CrossReferences`. It is
+  a plain link to the `NeuralNetworkParameters` documentation instead — one cross-reference does not
+  justify the machinery.
+
 ## [0.8.0]
 
 **`EquationSet` is back, and it is not a parameter set.** An equation set is a keyed bundle of symbolic

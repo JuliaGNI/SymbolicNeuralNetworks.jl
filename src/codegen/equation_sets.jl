@@ -135,6 +135,10 @@ EquationSetArrayFunction{NDATA}(functions::FT) where {NDATA, FT} = EquationSetAr
 (f::EquationSetArrayFunction{2})(input, output, ps) = [g(input, output, ps) for g in f.functions]
 (f::EquationSetArrayFunction)(args...) = [g(args...) for g in f.functions]
 
+# Two methods, because two shapes genuinely arrive here. An [`EquationSet`](@ref) is what a caller
+# writes; a `NetworkParameters` is what a symbolic *gradient* is, since it has the shape of the
+# parameters it was taken with respect to. `flatten` and `mapparameters` handle either, so the body is
+# shared rather than the signature widened — the two are different questions and say so.
 @doc raw"""
     flatten_equations(eqs)
 
@@ -171,10 +175,6 @@ Each entry is normalised by [`scalar_expressions`](@ref) on the way in, which is
 fixed to `Num` rather than left to `NeuralNetworkParameters.parameter_eltype` to promote, so that it
 is the same type for every equation set — the code generation downstream dispatches on it.
 """
-# Two methods, because two shapes genuinely arrive here. An [`EquationSet`](@ref) is what a caller
-# writes; a `NetworkParameters` is what a symbolic *gradient* is, since it has the shape of the
-# parameters it was taken with respect to. `flatten` and `mapparameters` handle either, so the body is
-# shared rather than the signature widened — the two are different questions and say so.
 flatten_equations(eqs::EquationSet) = _flatten_equations(eqs)
 flatten_equations(eqs::NetworkParameters) = _flatten_equations(eqs)
 
