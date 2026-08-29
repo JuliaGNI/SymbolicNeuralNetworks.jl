@@ -11,17 +11,17 @@ Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
-# The docs build the training guide against `GeometricMachineLearning`'s optimizers. 0.6 is the
-# first release that tracks `AbstractNeuralNetworks` 0.7, and also the first whose single generic
-# `optimization_step!` takes a `NetworkParameters` gradient directly, which is what let the
-# compatibility shim that used to sit in `make.jl` go away.
+# The docs build the training guide against `GeometricMachineLearning`'s optimizers. 0.7 is the first
+# release that tracks `AbstractNeuralNetworks` 0.8 and `SymbolicNeuralNetworks` 0.8, which is what
+# this package is; 0.6.0 and 0.6.1 both pin `AbstractNeuralNetworks = "0.7"` and so cannot resolve
+# beside it.
 #
-# This environment does not resolve at the moment: the root `Project.toml` requires
-# `NeuralNetworkParameters` 0.2.1 -- see the comment there -- and the released 0.6.0 pins
-# `NeuralNetworkParameters = "0.1"` (and `SymbolicNeuralNetworks = "0.6"`, which the 0.7.0 version
-# bump breaks anyway). Widen this bound when a release tracking the 0.2 container appears; recorded
-# under Open Issues -> Upstream in the changelog.
-GeometricMachineLearning = "0.6"
+# **This environment does not resolve until `GeometricMachineLearning` 0.7.0 is registered**, and
+# that release requires this one -- the package dependency runs this way and the *documentation*
+# dependency runs back, so one of the two has to be published with its docs job red. It is this one,
+# because the cycle is only in the docs: nothing in `src/` here depends on
+# `GeometricMachineLearning` at all.
+GeometricMachineLearning = "0.7"
 
 [sources]
 SymbolicNeuralNetworks = {path = ".."}

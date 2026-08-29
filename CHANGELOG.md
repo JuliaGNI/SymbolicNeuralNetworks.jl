@@ -4,6 +4,36 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0]
+
+**`EquationSet` is back, and it is not a parameter set.** An equation set is a keyed bundle of symbolic
+*expressions* a caller writes by hand:
+
+```julia
+eqs = (a = c(nn.input, params(nn)), b = c(nn.input, params(nn)) .^ 2)
+```
+
+It shares its shape with a set of parameters and is otherwise unrelated — a parameter set is the thing
+a network is evaluated *at*. An earlier release deleted this name in favour of
+`NeuralNetworkParameters.ParameterSet` on the strength of that shared shape; the two concepts were
+merged, not deduplicated. `ParameterSet` is gone in `NeuralNetworkParameters` 0.3.0, and this package
+gets its own name back. `EquationSet` is exported, since it is the shape a caller writes.
+
+`build_nn_function`, `flatten_equations` and `symbolic_differentials` take an `EquationSet`;
+`symbolic_parameter_gradient`, `_collect_parameter_arguments!` and `flat_parameter_gradient` take a
+`NetworkParameters`.
+
+**Where both genuinely arrive, there are two methods.** A symbolic *gradient* is parameter-shaped — it
+has the shape of the parameters it was taken with respect to — while holding expressions, so
+`flatten_equations`, `flatten_gradient` and `build_nn_function` each have an `EquationSet` method and a
+`NetworkParameters` method sharing a body. Conversely `symbolic_parameter_gradient` and
+`symbolic_differentials` accept an `EquationSet`, because the degrees of freedom of an expression that
+is not a network's forward pass are a set of symbolic variables a caller wrote out.
+
+`EquationSet` is an alias for `NamedTuple`, so a method taking one is a method on `Base.NamedTuple` —
+permissible only because every function here is this package's own. Do not extend a foreign generic on
+it.
+
 ## [0.7.1] — 2026-08-26
 
 ### Changed
