@@ -166,3 +166,33 @@ end
     @test result[1].a ≈ c(input, ps)
     @test result[2].b ≈ c(input, ps) .^ 3
 end
+
+# The parameter-shaped methods, which nothing above reaches. `build_nn_function` has a method for an
+# `EquationSet` — what a caller writes — and one for a `NetworkParameters` of expressions, which is
+# what a symbolic *gradient* is: it has the shape of the parameters it was taken with respect to. The
+# two share a body and are written out separately because they answer different questions, so the
+# second needs exercising on its own or the split is only half tested.
+#
+# This is the capability `ParameterSet` used to provide by admitting both shapes in one signature.
+@testset "build_nn_function takes a parameter-shaped set of expressions" begin
+    c = Chain(Dense(2, 1, tanh))
+    snn = SymbolicNeuralNetwork(c)
+    ps = params(snn)
+    x = [0.5, -0.25]
+    input = rand(2)
+
+    # a scalar expression differentiates to one parameter-shaped set ...
+    scalar = symbolic_parameter_gradient(sum(c(snn.input, ps)), snn)
+    @test scalar isa NetworkParameters
+    f = build_nn_function(scalar, ps, snn.input)
+    out = f(input, params(NeuralNetwork(c, Float64)))
+    @test keys(out) == keys(scalar)
+
+    # ... and an array-valued one to an array of them, which is the `AbstractArray` method
+    arr = symbolic_parameter_gradient(c(snn.input, ps), snn)
+    @test arr isa AbstractArray{<:NetworkParameters}
+    fs = build_nn_function(arr, ps, snn.input)
+    outs = fs(input, params(NeuralNetwork(c, Float64)))
+    @test length(outs) == length(arr)
+    @test keys(first(outs)) == keys(first(arr))
+end
