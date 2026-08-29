@@ -197,14 +197,19 @@ function parameter_arguments(sparams)
 end
 
 # This one recurses through `keys`/`getindex` itself rather than through `mapparameters`, so it meets a
-# container's *layers* — plain `NamedTuple`s — on the way down and needs a method for each shape.
+# container's *layers* — plain `NamedTuple`s — on the way down and needs a method for each shape. Both
+# defer to one body, as every other per-shape pair in this release does: the two are one behaviour
+# reached by two different callers, and factoring it out is what keeps an edit from landing in one and
+# not the other.
 function _collect_parameter_arguments!(paths, arrays, prefix::Tuple, sparams::NetworkParameters)
-    for key in keys(sparams)
-        _collect_parameter_arguments!(paths, arrays, (prefix..., key), sparams[key])
-    end
+    _collect_parameter_arguments_tree!(paths, arrays, prefix, sparams)
 end
 
 function _collect_parameter_arguments!(paths, arrays, prefix::Tuple, sparams::NamedTuple)
+    _collect_parameter_arguments_tree!(paths, arrays, prefix, sparams)
+end
+
+function _collect_parameter_arguments_tree!(paths, arrays, prefix::Tuple, sparams)
     for key in keys(sparams)
         _collect_parameter_arguments!(paths, arrays, (prefix..., key), sparams[key])
     end
