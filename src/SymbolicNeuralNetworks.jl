@@ -19,7 +19,7 @@ module SymbolicNeuralNetworks
     # the same shape as a parameter set, so `flatten`/`unflatten` and `ParameterLayout` serve both
     # (see `flatten_equations`). The import is selective rather than a bare `using` so that it stays
     # visible which names in this module are somebody else's.
-    import NeuralNetworkParameters: NetworkParameters, ParameterSet, ParameterLayout, ParametersLayout,
+    import NeuralNetworkParameters: NetworkParameters, ParameterLayout, ParametersLayout,
                                     NestedLayout, TupleLayout, WrappedLayout, LeafLayout,
                                     FlatParameters, flatten, unflatten, parameterlayout,
                                     parameterrange, flatlength, parameter_eltype, mapparameters
@@ -37,6 +37,9 @@ module SymbolicNeuralNetworks
 
     export AbstractSymbolicNeuralNetwork
     export SymbolicNeuralNetwork
+    # `EquationSet` is exported because it is the shape a caller writes by hand and hands to
+    # `build_nn_function`; naming it in a signature of their own is the point of it having a name.
+    export EquationSet
     export build_nn_function
     export build_flat_function
     export flat_parameter_gradient

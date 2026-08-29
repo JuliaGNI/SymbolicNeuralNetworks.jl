@@ -1,6 +1,6 @@
 name = "SymbolicNeuralNetworks"
 uuid = "aed23131-dcd0-47ca-8090-d21e605652e3"
-version = "0.7.1"
+version = "0.8.0"
 authors = ["Michael Kraus"]
 
 [deps]
@@ -13,11 +13,11 @@ SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
-AbstractNeuralNetworks = "0.7.1"
+AbstractNeuralNetworks = "0.8"
 Documenter = "1.8.0"
 ForwardDiff = "1"
 Latexify = "0.16"
-NeuralNetworkParameters = "0.2.2"
+NeuralNetworkParameters = "0.3"
 RuntimeGeneratedFunctions = "0.5"
 SymbolicUtils = "4"
 Symbolics = "7"

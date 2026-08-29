@@ -16,13 +16,28 @@ is accepted as well and normalised by [`scalar_expressions`](@ref).
 const SymbolicExpression = Union{Num, Symbolics.BasicSymbolic, AbstractArray{Num},
                                  AbstractArray{<:Symbolics.BasicSymbolic}, Symbolics.Arr{Num}}
 
-# `ParameterSet` used to be defined here, as `Union{NamedTuple, NetworkParameters}` -- the shape of the
-# parameters of a neural network, and therefore also the shape of a symbolic derivative with respect to
-# them. It is `NeuralNetworkParameters.ParameterSet` now, which is the same union in the package that
-# owns the type: this one had it under a name of its own, `AbstractNeuralNetworks` and
-# `GeometricMachineLearning` were spelling it out inline, and `GeometricOptimizers` had a third name for
-# a narrower version. What this package called an equation set is a parameter set that happens to hold
-# equations, so nothing is lost by naming it after the shape.
+"""
+    EquationSet
+
+A keyed set of symbolic expressions: a `NamedTuple` whose values are expressions, arrays of them, or
+further sets. It is what a caller writes by hand and hands to [`build_nn_function`](@ref) —
+
+```julia
+eqs = (a = c(nn.input, params(nn)), b = c(nn.input, params(nn)) .^ 2)
+```
+
+— and it is **not** a set of parameters, which is a
+[`NeuralNetworkParameters.NetworkParameters`](@extref). The two share a shape and nothing else: a
+parameter set is the thing a network is evaluated *at*, and an equation set is a bundle of expressions
+that happen to be keyed. Naming them apart is what keeps a signature honest about which it wants; the
+one place both arrive is a symbolic *gradient*, which is parameter-shaped and holds expressions, and
+[`flatten_equations`](@ref) has a method for each.
+
+An alias for `NamedTuple` rather than a type of its own, so a method taking one is a method on
+`Base.NamedTuple` — permissible only because the functions here are this package's. Do not extend a
+foreign generic on it.
+"""
+const EquationSet = NamedTuple
 
 """
     scalar_expressions(eq)

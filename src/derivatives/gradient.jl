@@ -86,9 +86,8 @@ such parameter sets, one per entry of `f`.
 
 The second form is what the degrees of freedom of an expression that is not a network's forward pass
 go through: nothing here reads the model, only the parameters. `sparams` is anything
-[`symbolic_differentials`](@ref) can walk, i.e. a `NetworkParameters` or a nested `NamedTuple` of
-symbolic leaves — the same `ParameterSet` the parameters of a
-[`SymbolicNeuralNetwork`](@ref) are allowed to be.
+[`symbolic_differentials`](@ref) can walk: a `NetworkParameters`, which is what the parameters of a
+[`SymbolicNeuralNetwork`](@ref) are, or an [`EquationSet`](@ref) of symbolic leaves.
 
 This is used by [`Gradient`](@ref) and by [`SymbolicPullback`](@ref).
 
@@ -113,7 +112,18 @@ function symbolic_parameter_gradient(f, nn::AbstractSymbolicNeuralNetwork)
     symbolic_parameter_gradient(f, params(nn))
 end
 
-function symbolic_parameter_gradient(f, sparams::ParameterSet)
+function symbolic_parameter_gradient(f, sparams::NetworkParameters)
+    _symbolic_parameter_gradient(f, sparams)
+end
+
+# The degrees of freedom of an expression that is not a network's forward pass, which a caller writes
+# out as a nested set of symbolic variables rather than getting from a `SymbolicNeuralNetwork`. Nothing
+# here reads a model, so the shape is all that is required of it.
+function symbolic_parameter_gradient(f, sparams::EquationSet)
+    _symbolic_parameter_gradient(f, sparams)
+end
+
+function _symbolic_parameter_gradient(f, sparams)
     differentials = symbolic_differentials(sparams)
     _parameter_gradient(scalar_expressions(f), differentials)
 end

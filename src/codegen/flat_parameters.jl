@@ -26,12 +26,12 @@ built_function(input, output, w)
 equation was built from — or a `NeuralNetworkParameters.FlatParameters`, which carries its own.
 
 Takes the same keyword arguments as [`build_nn_function`](@ref), and accepts everything it accepts,
-including a `ParameterSet`.
+including a `NetworkParameters`.
 
 The third form — the symbolic parameters and the symbolic data variables given directly rather than
 taken from a network — is the one for degrees of freedom that are *not* a network's parameters:
 nothing here reads a model. It is what [`flat_parameter_gradient`](@ref)'s second form pairs with.
-Unlike that one it needs a `NetworkParameters` rather than any `ParameterSet`, because
+Unlike that one it needs a `NetworkParameters` specifically, because
 [`build_nn_function`](@ref) dispatches on one.
 
 # Examples
@@ -139,7 +139,7 @@ parameter set it belongs to.
 
 The `sparams` form is the one for degrees of freedom that are not a network's parameters: nothing in
 either function reads a model, so an expression over any `NetworkParameters` of symbolic leaves goes
-through both. Here `sparams` may be any `ParameterSet`, as with
+through both. Here `sparams` is a `NetworkParameters`, as with
 [`symbolic_parameter_gradient`](@ref); [`build_flat_function`](@ref) is the narrower of the two and
 wants a `NetworkParameters`.
 
@@ -181,7 +181,7 @@ size(flat_parameter_gradient(c(snn.input, params(snn)), snn))
 (3, 9)
 ```
 """
-function flat_parameter_gradient(f, dof::Union{AbstractSymbolicNeuralNetwork, ParameterSet})
+function flat_parameter_gradient(f, dof::Union{AbstractSymbolicNeuralNetwork, NetworkParameters, EquationSet})
     flatten_gradient(symbolic_parameter_gradient(f, dof))
 end
 
@@ -192,7 +192,11 @@ Lay a symbolic parameter derivative out flat: a single parameter-shaped set beco
 array of them — which is what differentiating an array-valued expression gives, one set per entry —
 becomes a matrix with one row per entry. See [`flat_parameter_gradient`](@ref).
 """
-flatten_gradient(gradient::ParameterSet) = first(flatten_equations(gradient))
+# Both shapes, for the same reason `flatten_equations` takes both: a gradient taken with respect to a
+# network's parameters is a `NetworkParameters`, and one taken with respect to a caller's own set of
+# symbolic variables has that set's shape.
+flatten_gradient(gradient::NetworkParameters) = first(flatten_equations(gradient))
+flatten_gradient(gradient::EquationSet) = first(flatten_equations(gradient))
 
 function flatten_gradient(gradient::AbstractArray)
     isempty(gradient) && throw(ArgumentError(

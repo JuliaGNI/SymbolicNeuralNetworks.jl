@@ -196,7 +196,15 @@ function parameter_arguments(sparams)
     Tuple(paths), Tuple(arrays)
 end
 
-function _collect_parameter_arguments!(paths, arrays, prefix::Tuple, sparams::ParameterSet)
+# This one recurses through `keys`/`getindex` itself rather than through `mapparameters`, so it meets a
+# container's *layers* — plain `NamedTuple`s — on the way down and needs a method for each shape.
+function _collect_parameter_arguments!(paths, arrays, prefix::Tuple, sparams::NetworkParameters)
+    for key in keys(sparams)
+        _collect_parameter_arguments!(paths, arrays, (prefix..., key), sparams[key])
+    end
+end
+
+function _collect_parameter_arguments!(paths, arrays, prefix::Tuple, sparams::NamedTuple)
     for key in keys(sparams)
         _collect_parameter_arguments!(paths, arrays, (prefix..., key), sparams[key])
     end
