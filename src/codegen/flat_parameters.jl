@@ -115,6 +115,12 @@ function Base.show(io::IO, f::FlatParameterFunction{NDATA}) where {NDATA}
     print(io, "FlatParameterFunction ", arguments, " over ", flatlength(f.layout), " parameters")
 end
 
+# A method per shape rather than one signature over a union, as everywhere else in this release. The
+# three answer different questions that share a body: a network carries its own parameters, a
+# `NetworkParameters` is a set of degrees of freedom a network was evaluated at, and an
+# [`EquationSet`](@ref) is one a caller wrote out. A union over `EquationSet` would additionally be a
+# signature on `Base.NamedTuple`, which is permissible here only because the function is this
+# package's — but saying which shape arrived costs one line each and is what the rest of the file does.
 @doc raw"""
     flat_parameter_gradient(f, nn)
     flat_parameter_gradient(f, sparams)
@@ -183,18 +189,15 @@ size(flat_parameter_gradient(c(snn.input, params(snn)), snn))
 (3, 9)
 ```
 """
-# A method per shape rather than one signature over a union, as everywhere else in this release. The
-# three answer different questions that share a body: a network carries its own parameters, a
-# `NetworkParameters` is a set of degrees of freedom a network was evaluated at, and an
-# [`EquationSet`](@ref) is one a caller wrote out. A union over `EquationSet` would additionally be a
-# signature on `Base.NamedTuple`, which is permissible here only because the function is this
-# package's — but saying which shape arrived costs one line each and is what the rest of the file does.
 flat_parameter_gradient(f, dof::AbstractSymbolicNeuralNetwork) = _flat_parameter_gradient(f, dof)
 flat_parameter_gradient(f, dof::NetworkParameters) = _flat_parameter_gradient(f, dof)
 flat_parameter_gradient(f, dof::EquationSet) = _flat_parameter_gradient(f, dof)
 
 _flat_parameter_gradient(f, dof) = flatten_gradient(symbolic_parameter_gradient(f, dof))
 
+# Both shapes, for the same reason `flatten_equations` takes both: a gradient taken with respect to a
+# network's parameters is a `NetworkParameters`, and one taken with respect to a caller's own set of
+# symbolic variables has that set's shape.
 """
     flatten_gradient(gradient)
 
@@ -202,9 +205,6 @@ Lay a symbolic parameter derivative out flat: a single parameter-shaped set beco
 array of them — which is what differentiating an array-valued expression gives, one set per entry —
 becomes a matrix with one row per entry. See [`flat_parameter_gradient`](@ref).
 """
-# Both shapes, for the same reason `flatten_equations` takes both: a gradient taken with respect to a
-# network's parameters is a `NetworkParameters`, and one taken with respect to a caller's own set of
-# symbolic variables has that set's shape.
 flatten_gradient(gradient::NetworkParameters) = first(flatten_equations(gradient))
 flatten_gradient(gradient::EquationSet) = first(flatten_equations(gradient))
 

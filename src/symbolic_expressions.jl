@@ -27,7 +27,10 @@ eqs = (a = c(nn.input, params(nn)), b = c(nn.input, params(nn)) .^ 2)
 ```
 
 — and it is **not** a set of parameters, which is a
-[`NeuralNetworkParameters.NetworkParameters`](@extref). The two share a shape and nothing else: a
+[`NeuralNetworkParameters.NetworkParameters`](https://juliagni.github.io/NeuralNetworkParameters.jl/stable/representations/).
+A plain link and not an `@extref`: this package configures no `DocumenterInterLinks` inventories, so
+an `@extref` here has nothing to resolve against and fails the build at `CrossReferences`. The two
+share a shape and nothing else: a
 parameter set is the thing a network is evaluated *at*, and an equation set is a bundle of expressions
 that happen to be keyed. Naming them apart is what keeps a signature honest about which it wants; the
 one place both arrive is a symbolic *gradient*, which is parameter-shaped and holds expressions, and
