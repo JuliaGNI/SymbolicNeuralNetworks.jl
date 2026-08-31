@@ -18,10 +18,12 @@
 # emits roughly 440 MB of code and takes minutes, which is exactly the point being made.
 
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: generated_expression, parameter_arguments, symbolic_parameter_gradient,
+using SymbolicNeuralNetworks: generated_expression, parameter_arguments,
+                              symbolic_parameter_gradient,
                               symbolic_derivative, symbolic_differentials, layer_seed
 using AbstractNeuralNetworks
-using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, FeedForwardLoss, params, output_dimension
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, FeedForwardLoss, params,
+                              output_dimension
 using NeuralNetworkParameters: NetworkParameters
 using Symbolics
 using Printf
@@ -32,8 +34,9 @@ Random.seed!(123)
 const RUN_EVERYTHING = "--all" ∈ ARGS
 const ARCHITECTURES = ((5, 10, 1), (5, 10, 10, 1), (5, 10, 10, 10, 1))
 # the networks of issue #49: depth at a fixed width, then width at a fixed depth
-const LAYERWISE_ARCHITECTURES = ((2, 4, 2), (2, 4, 4, 2), (2, 4, 4, 4, 2), (2, 4, 4, 4, 4, 2),
-                                 (2, 4, 4, 4, 4, 4, 2), (2, 8, 8, 8, 2), (2, 16, 16, 16, 2))
+const LAYERWISE_ARCHITECTURES = (
+    (2, 4, 2), (2, 4, 4, 2), (2, 4, 4, 4, 2), (2, 4, 4, 4, 4, 2),
+    (2, 4, 4, 4, 4, 4, 2), (2, 8, 8, 8, 2), (2, 16, 16, 16, 2))
 # generating the pullback of a three-hidden-layer network without CSE is not practical
 const MAX_LAYERS_WITHOUT_CSE = 3
 const BATCH_SIZE = 100
@@ -53,9 +56,10 @@ function measure_codegen(dims, cse::Bool)
     seconds = 0.0
     characters = 0
     for layer in keys(gradient), array in keys(gradient[layer])
+
         eq = gradient[layer][array]
         seconds += @elapsed code = generated_expression(eq, (snn.input, soutput), arrays;
-                                                        inplace = false, cse = cse)
+            inplace = false, cse = cse)
         characters += length(string(code))
     end
     (; seconds, characters)
@@ -69,7 +73,7 @@ function measure_pullback(dims, cse::Bool; layerwise = :auto)
     ps = params(nn)
 
     construction = @elapsed pb = SymbolicPullback(snn, FeedForwardLoss(); cse = cse,
-                                                 layerwise = layerwise)
+        layerwise = layerwise)
 
     input = rand(dims[1], BATCH_SIZE)
     output = rand(dims[end], BATCH_SIZE)
@@ -139,15 +143,18 @@ measure_pullback(ARCHITECTURES[1], true; layerwise = false)
 measure_pullback(ARCHITECTURES[1], true; layerwise = true)
 
 println("Code generation for the pullback, summed over all parameter blocks")
-@printf("%-20s %12s %12s %14s %14s %8s\n", "layers", "no cse (s)", "cse (s)", "no cse (chars)", "cse (chars)", "ratio")
+@printf("%-20s %12s %12s %14s %14s %8s\n",
+    "layers", "no cse (s)", "cse (s)", "no cse (chars)", "cse (chars)", "ratio")
 for dims in ARCHITECTURES
     with = measure_codegen(dims, true)
     if skip_without_cse(dims)
-        @printf("%-20s %12s %12.3f %14s %14d %8s\n", dims, "skipped", with.seconds, "skipped", with.characters, "-")
+        @printf("%-20s %12s %12.3f %14s %14d %8s\n",
+            dims, "skipped", with.seconds, "skipped", with.characters, "-")
     else
         without = measure_codegen(dims, false)
         @printf("%-20s %12.3f %12.3f %14d %14d %8.1f\n",
-            dims, without.seconds, with.seconds, without.characters, with.characters,
+            dims, without.seconds, with.seconds, without.characters,
+            with.characters,
             without.characters / with.characters)
     end
 end
@@ -156,20 +163,24 @@ println("\nSymbolicPullback: construction, then one batch")
 @printf("%-20s %12s %12s %12s\n", "layers", "build (s)", "eval (ms)", "alloc (KiB)")
 for dims in ARCHITECTURES
     result = measure_pullback(dims, true; layerwise = false)
-    @printf("%-20s %12.2f %12.3f %12.1f\n", dims, result.construction, result.seconds * 1e3, result.bytes / 1024)
+    @printf("%-20s %12.2f %12.3f %12.1f\n", dims, result.construction, result.seconds * 1e3,
+        result.bytes / 1024)
 end
 
 println("\nSymbolic material held by each construction, in expression nodes")
-@printf("%-24s %8s %14s %12s %10s\n", "layers", "params", "monolithic", "layerwise", "ratio")
+@printf("%-24s %8s %14s %12s %10s\n", "layers", "params", "monolithic", "layerwise",
+    "ratio")
 for dims in LAYERWISE_ARCHITECTURES
     layerwise = layerwise_nodes(dims)
     if skip_monolithic(dims)
-        @printf("%-24s %8d %14s %12d %10s\n", dims, parameterlength(chain(dims)), "skipped",
-                layerwise, "-")
+        @printf("%-24s %8d %14s %12d %10s\n",
+            dims, parameterlength(chain(dims)), "skipped",
+            layerwise, "-")
     else
         monolithic = monolithic_nodes(dims)
-        @printf("%-24s %8d %14d %12d %10.1f\n", dims, parameterlength(chain(dims)), monolithic,
-                layerwise, monolithic / layerwise)
+        @printf("%-24s %8d %14d %12d %10.1f\n",
+            dims, parameterlength(chain(dims)), monolithic,
+            layerwise, monolithic / layerwise)
     end
 end
 
@@ -179,11 +190,11 @@ for dims in LAYERWISE_ARCHITECTURES
     layerwise = measure_pullback(dims, true; layerwise = true)
     if skip_monolithic(dims)
         @printf("%-24s %8d %14s %12.2f\n", dims, parameterlength(chain(dims)), "skipped",
-                layerwise.construction)
+            layerwise.construction)
     else
         monolithic = measure_pullback(dims, true; layerwise = false)
         @printf("%-24s %8d %14.2f %12.2f\n", dims, parameterlength(chain(dims)),
-                monolithic.construction, layerwise.construction)
+            monolithic.construction, layerwise.construction)
     end
 end
 

@@ -9,13 +9,15 @@
 # correctly; getting that wrong would produce a plausible but wrong gradient.
 
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: composes_layerwise, symbolic_steps, loss_seed, loss_expression,
+using SymbolicNeuralNetworks: composes_layerwise, symbolic_steps, loss_seed,
+                              loss_expression,
                               passthrough_expression, represents_loss, reference_parameters,
                               layerwise_gradient_function, monolithic_gradient_function,
                               PassThroughLayer, batched, layer_seed, layer_step,
                               checked_layer_seed, scalar_expressions
 using AbstractNeuralNetworks
-using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, FeedForwardLoss, NetworkLoss,
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, FeedForwardLoss,
+                              NetworkLoss,
                               UnknownArchitecture, AbstractExplicitLayer, input_dimension,
                               output_dimension, layers, Initializer, NeuralNetworkBackend,
                               ArrayOrNamedTuple
@@ -30,11 +32,13 @@ Random.seed!(123)
 # This used to be `GeometricMachineLearning.ZygotePullback`; inlined for the same reason
 # `test/derivatives/pullback.jl` inlines it — so the suite does not depend on a package that depends
 # on this one.
-zygote_gradient(loss, ps, model, input, output) =
+function zygote_gradient(loss, ps, model, input, output)
     params(Zygote.gradient(p -> loss(model, p, input, output), ps)[1])
+end
 
-maximum_difference(a, b) =
+function maximum_difference(a, b)
     maximum(maximum(abs, a[k][f] .- b[k][f]) for k in keys(a) for f in keys(a[k]))
+end
 
 gradient_of(pb, nn, input, output) = pb(params(nn), nn.model, (input, output))[2](1)
 
@@ -51,9 +55,8 @@ function layerwise_error(snn, loss)
     end
 end
 
-@testset "layerwise agrees with monolithic: $depth layers of width $width, $indim → $outdim" for
-        (depth, width, indim, outdim) in ((2, 4, 2, 2), (3, 4, 3, 2), (4, 3, 2, 1), (2, 5, 1, 3))
-
+@testset "layerwise agrees with monolithic: $depth layers of width $width, $indim → $outdim" for (depth, width, indim, outdim) in ((
+    2, 4, 2, 2), (3, 4, 3, 2), (4, 3, 2, 1), (2, 5, 1, 3))
     hidden = ntuple(_ -> Dense(width, width, tanh), depth - 1)
     c = Chain(Dense(indim, width, tanh), hidden[1:(end - 1)]..., Dense(width, outdim, tanh))
     nn = NeuralNetwork(c, Float64)
@@ -64,8 +67,8 @@ end
     monolithic = SymbolicPullback(snn, loss; layerwise = false)
 
     for (input, output) in ((rand(indim), rand(outdim)),           # a single sample
-                            (rand(indim, 1), rand(outdim, 1)),     # a batch of one
-                            (rand(indim, 6), rand(outdim, 6)))     # a batch
+        (rand(indim, 1), rand(outdim, 1)),     # a batch of one
+        (rand(indim, 6), rand(outdim, 6)))     # a batch
         gl = gradient_of(layerwise, nn, input, output)
         gm = gradient_of(monolithic, nn, input, output)
         @test keys(gl) == keys(gm)
@@ -83,7 +86,8 @@ end
 
     input, output = rand(3, 1), rand(2, 1)
     symbolic = gradient_of(SymbolicPullback(snn, loss; layerwise = true), nn, input, output)
-    @test maximum_difference(symbolic, zygote_gradient(loss, params(nn), c, input, output)) < 1e-14
+    @test maximum_difference(symbolic, zygote_gradient(
+        loss, params(nn), c, input, output)) < 1e-14
 end
 
 # `SymbolicPullback` differentiates the loss of one sample and sums over the batch, so for a loss that
@@ -117,7 +121,8 @@ end
 
     flat, layout = flatten(params(nn))
     reference = ForwardDiff.gradient(flat) do w
-        sum(loss(c, unflatten(layout, w), input[:, k:k], output[:, k:k]) for k in axes(input, 2))
+        sum(loss(c, unflatten(layout, w), input[:, k:k], output[:, k:k])
+        for k in axes(input, 2))
     end
     @test maximum_difference(symbolic, params(unflatten(layout, reference))) < 1e-12
 end
@@ -157,7 +162,7 @@ AbstractNeuralNetworks.output_dimension(m::WholeChain) = output_dimension(m.chai
     nn = NeuralNetwork(c, Float64)
     reference = SymbolicNeuralNetwork(nn)
     snn = SymbolicNeuralNetwork(UnknownArchitecture(), WholeChain(c), params(reference),
-                                reference.input)
+        reference.input)
     loss = FeedForwardLoss()
 
     @test isnothing(symbolic_steps(snn))
@@ -173,9 +178,11 @@ end
 # the difference between falling back and returning a gradient of zero.
 struct SelfLoss <: NetworkLoss end
 
-(::SelfLoss)(model::Union{Chain, AbstractExplicitLayer},
-             ps::Union{NetworkParameters, NamedTuple},
-             input::AbstractArray, output::AbstractArray) = norm(model(input, ps) - input) / norm(input)
+function (::SelfLoss)(model::Union{Chain, AbstractExplicitLayer},
+        ps::Union{NetworkParameters, NamedTuple},
+        input::AbstractArray, output::AbstractArray)
+    norm(model(input, ps) - input) / norm(input)
+end
 
 @testset "a loss the pass-through stand-in misrepresents" begin
     c = Chain(Dense(2, 3, tanh), Dense(3, 2, tanh))
@@ -187,8 +194,9 @@ struct SelfLoss <: NetworkLoss end
     # check rejects it
     ŷ, y = Symbolics.variables(:x, 1:2), Symbolics.variables(:y, 1:2)
     guess = passthrough_expression(loss, ŷ, y)
-    @test iszero(build_nn_function(guess, NetworkParameters(NamedTuple()), ŷ, y)(rand(2), rand(2),
-                                                                                params(nn)))
+    @test iszero(build_nn_function(guess, NetworkParameters(NamedTuple()), ŷ, y)(
+        rand(2), rand(2),
+        params(nn)))
     @test isnothing(loss_expression(loss, ŷ, y))      # nothing declared
     @test isnothing(loss_seed(loss, snn))
     @test isnothing(layerwise_gradient_function(snn, loss))
@@ -199,7 +207,8 @@ struct SelfLoss <: NetworkLoss end
     # so `:auto` falls back, and does not return the zero gradient the guess would have given
     input, output = rand(2, 1), rand(2, 1)
     fallback = gradient_of(SymbolicPullback(snn, loss), nn, input, output)
-    @test maximum_difference(fallback, zygote_gradient(loss, params(nn), c, input, output)) < 1e-14
+    @test maximum_difference(fallback, zygote_gradient(
+        loss, params(nn), c, input, output)) < 1e-14
     @test maximum(abs, fallback.L1.W) > 1e-6
 end
 
@@ -208,9 +217,11 @@ end
 # expression is used as given rather than checked against the four-argument form.
 struct DeclaredSelfLoss <: NetworkLoss end
 
-(::DeclaredSelfLoss)(model::Union{Chain, AbstractExplicitLayer},
-                     ps::Union{NetworkParameters, NamedTuple},
-                     input::AbstractArray, output::AbstractArray) = norm(model(input, ps) - input) / norm(input)
+function (::DeclaredSelfLoss)(model::Union{Chain, AbstractExplicitLayer},
+        ps::Union{NetworkParameters, NamedTuple},
+        input::AbstractArray, output::AbstractArray)
+    norm(model(input, ps) - input) / norm(input)
+end
 SymbolicNeuralNetworks.loss_expression(::DeclaredSelfLoss, ŷ, y) = norm(ŷ - y) / norm(y)
 
 @testset "a loss that declares its expression" begin
@@ -225,7 +236,8 @@ SymbolicNeuralNetworks.loss_expression(::DeclaredSelfLoss, ŷ, y) = norm(ŷ - y)
     # on autoencoder data — target equal to input — the declared expression is the loss
     input = rand(2, 1)
     symbolic = gradient_of(pb, nn, input, input)
-    @test maximum_difference(symbolic, zygote_gradient(loss, params(nn), c, input, input)) < 1e-14
+    @test maximum_difference(symbolic, zygote_gradient(loss, params(nn), c, input, input)) <
+          1e-14
 end
 
 # The pass-through stand-in can fail in a third way, besides being right and being wrong: a
@@ -238,9 +250,10 @@ struct ChainOnlyLoss <: NetworkLoss end
 
 # typed on the parameters as well, so that this is strictly more specific than the generic method
 # upstream rather than ambiguous with it
-(::ChainOnlyLoss)(model::Chain, ps::Union{NamedTuple, NetworkParameters},
-                  input::AbstractArray, output::AbstractArray) =
+function (::ChainOnlyLoss)(model::Chain, ps::Union{NamedTuple, NetworkParameters},
+        input::AbstractArray, output::AbstractArray)
     norm(model(input, ps) - output) / norm(output)
+end
 
 @testset "a loss the pass-through stand-in cannot even be applied to" begin
     c = Chain(Dense(2, 3, tanh), Dense(3, 2, tanh))
@@ -269,7 +282,7 @@ struct ChainOnlyLoss <: NetworkLoss end
     # the same statement the batch testset above pins down for `FeedForwardLoss`
     one = (rand(2, 1), rand(2, 1))
     @test maximum_difference(gradient_of(SymbolicPullback(snn, loss), nn, one...),
-                             zygote_gradient(loss, params(nn), c, one...)) < 1e-14
+        zygote_gradient(loss, params(nn), c, one...)) < 1e-14
 end
 
 # Issue #54. A layer may pass data on to the next one alongside the state — `GeometricMachineLearning`'s
@@ -287,9 +300,10 @@ struct JoiningLayer{M, N, C, Seamed} <: AbstractExplicitLayer{M, N} end
 
 const SeamLayer{M, N, C, S} = Union{ThreadingLayer{M, N, C, S}, JoiningLayer{M, N, C, S}}
 
-seam_chain(indim, width, outdim, carried, seamed) =
+function seam_chain(indim, width, outdim, carried, seamed)
     Chain(ThreadingLayer{indim, width, carried, seamed}(),
-          JoiningLayer{width, outdim, carried, seamed}())
+        JoiningLayer{width, outdim, carried, seamed}())
+end
 
 # The carried datum a layer supplies for itself when it is applied to a bare array, the way
 # `SymplecticEuler` defaults the parameters of the system to `NullParameters`. Deterministic, for the
@@ -299,7 +313,9 @@ default_carried(::SeamLayer{M, N, C, S}) where {M, N, C, S} = [cospi(i / 3) for 
 # The carried datum enters the state map, so a construction that dropped it is caught numerically and
 # not merely structurally — which is the mistake the monolithic path makes on a parametrized network.
 (layer::ThreadingLayer)(x::AbstractArray, ps) = layer((x, default_carried(layer)), ps)
-(::ThreadingLayer)(xc::Tuple, ps) = (tanh.(ps.W * first(xc) .+ ps.b .+ sum(last(xc))), last(xc))
+function (::ThreadingLayer)(xc::Tuple, ps)
+    (tanh.(ps.W * first(xc) .+ ps.b .+ sum(last(xc))), last(xc))
+end
 
 # Applied to a bare array the layer above defaults the carried datum, which is what lets the
 # *monolithic* construction build this chain. This one only ever sees the tuple the layer before it
@@ -308,8 +324,8 @@ default_carried(::SeamLayer{M, N, C, S}) where {M, N, C, S} = [cospi(i / 3) for 
 (::JoiningLayer)(xc::Tuple, ps) = tanh.(ps.W * first(xc) .+ ps.b .+ sum(last(xc)))
 
 function AbstractNeuralNetworks.initialparameters(::Random.AbstractRNG, ::Initializer,
-                                                 ::SeamLayer{M, N, C, S}, ::NeuralNetworkBackend,
-                                                 ::Type{T}; kwargs...) where {M, N, C, S, T}
+        ::SeamLayer{M, N, C, S}, ::NeuralNetworkBackend,
+        ::Type{T}; kwargs...) where {M, N, C, S, T}
     (W = T[cospi((i + 2j) / 7) for i in 1:N, j in 1:M], b = T[sinpi(i / 5) for i in 1:N])
 end
 
@@ -351,20 +367,28 @@ end
     # reference on a single sample only
     one = (rand(2, 1), rand(2, 1))
     @test maximum_difference(gradient_of(SymbolicPullback(snn, loss), nn, one...),
-                             zygote_gradient(loss, params(nn), c, one...)) < 1e-14
+        zygote_gradient(loss, params(nn), c, one...)) < 1e-14
 end
 
 # The other half of issue #54: the seam can be *widened* to carry what a layer passes alongside the
 # state, and then this chain composes layer by layer after all. Four methods say how — see
 # `seam_interface` — and they are declared here for the `Seamed = true` layers only, so that the pair
 # above goes on standing for a layer that has not declared them.
-SymbolicNeuralNetworks.carried_variables(::SeamLayer{M, N, C, true}) where {M, N, C} =
+function SymbolicNeuralNetworks.carried_variables(::SeamLayer{
+        M, N, C, true}) where {M, N, C}
     (Symbolics.variables(:c, 1:C),)
-SymbolicNeuralNetworks.seam_value(::SeamLayer{M, N, C, true}, sx, sc) where {M, N, C} = (sx, sc)
+end
+function SymbolicNeuralNetworks.seam_value(::SeamLayer{M, N, C, true}, sx, sc) where {
+        M, N, C}
+    (sx, sc)
+end
 # only the layer that returns the pair needs this one; the other returns the state alone, which is the
 # default
-SymbolicNeuralNetworks.state_expressions(::ThreadingLayer{M, N, C, true}, y) where {M, N, C} =
+function SymbolicNeuralNetworks.state_expressions(
+        ::ThreadingLayer{
+            M, N, C, true}, y) where {M, N, C}
     scalar_expressions(first(y))
+end
 
 # `seam_arguments` has to hand the kernels a carried datum with the state's rank and batch size — the
 # constraint every generated function of the package puts on its data arguments — which for data that
@@ -372,11 +396,14 @@ SymbolicNeuralNetworks.state_expressions(::ThreadingLayer{M, N, C, true}, y) whe
 match_batch(carried, ::AbstractVector) = carried
 match_batch(carried, state::AbstractMatrix) = repeat(carried, 1, size(state, 2))
 
-SymbolicNeuralNetworks.seam_arguments(::SeamLayer{M, N, C, true}, x::Tuple) where {M, N, C} =
+function SymbolicNeuralNetworks.seam_arguments(::SeamLayer{M, N, C, true}, x::Tuple) where {
+        M, N, C}
     (first(x), match_batch(last(x), first(x)))
-SymbolicNeuralNetworks.seam_arguments(layer::SeamLayer{M, N, C, true},
-                                      x::AbstractArray) where {M, N, C} =
+end
+function SymbolicNeuralNetworks.seam_arguments(layer::SeamLayer{M, N, C, true},
+        x::AbstractArray) where {M, N, C}
     (x, match_batch(default_carried(layer), x))
+end
 
 @testset "a layer that declares the seam interface" begin
     c = seam_chain(2, 3, 2, 2, true)
@@ -415,13 +442,14 @@ SymbolicNeuralNetworks.seam_arguments(layer::SeamLayer{M, N, C, true},
     # `FeedForwardLoss` is not additive over a batch, so `Zygote` is the reference on a single sample
     one = (rand(2, 1), rand(2, 1))
     @test maximum_difference(gradient_of(layerwise, nn, one...),
-                             zygote_gradient(loss, params(nn), c, one...)) < 1e-14
+        zygote_gradient(loss, params(nn), c, one...)) < 1e-14
 
     # over a batch the reference is the sum of the per-sample gradients, here from `ForwardDiff` over
     # the flat parameter vector
     flat, layout = flatten(params(nn))
     reference = ForwardDiff.gradient(flat) do w
-        sum(loss(c, unflatten(layout, w), input[:, k:k], output[:, k:k]) for k in axes(input, 2))
+        sum(loss(c, unflatten(layout, w), input[:, k:k], output[:, k:k])
+        for k in axes(input, 2))
     end
     @test maximum_difference(gl, params(unflatten(layout, reference))) < 1e-12
 end
@@ -435,10 +463,17 @@ end
 # so `seam_value` supplies it as a constant rather than as a variable. Nothing varies, so nothing
 # needs a variable; the constant is folded into the expression like any other.
 SymbolicNeuralNetworks.carried_variables(::SeamLayer{M, N, 0, true}) where {M, N} = ()
-SymbolicNeuralNetworks.seam_value(layer::SeamLayer{M, N, 0, true}, sx) where {M, N} =
+function SymbolicNeuralNetworks.seam_value(layer::SeamLayer{M, N, 0, true}, sx) where {M, N}
     (sx, default_carried(layer))
-SymbolicNeuralNetworks.seam_arguments(::SeamLayer{M, N, 0, true}, x::Tuple) where {M, N} = (first(x),)
-SymbolicNeuralNetworks.seam_arguments(::SeamLayer{M, N, 0, true}, x::AbstractArray) where {M, N} = (x,)
+end
+function SymbolicNeuralNetworks.seam_arguments(::SeamLayer{M, N, 0, true}, x::Tuple) where {
+        M, N}
+    (first(x),)
+end
+function SymbolicNeuralNetworks.seam_arguments(::SeamLayer{M, N, 0, true}, x::AbstractArray) where {
+        M, N}
+    (x,)
+end
 
 @testset "a layer that carries nothing" begin
     c = seam_chain(2, 3, 2, 0, true)
@@ -462,8 +497,9 @@ SymbolicNeuralNetworks.seam_arguments(::SeamLayer{M, N, 0, true}, x::AbstractArr
     @test typeof(gl) == typeof(gm)
 
     one = (rand(2, 1), rand(2, 1))
-    @test maximum_difference(gradient_of(SymbolicPullback(snn, loss; layerwise = true), nn, one...),
-                             zygote_gradient(loss, params(nn), c, one...)) < 1e-14
+    @test maximum_difference(
+        gradient_of(SymbolicPullback(snn, loss; layerwise = true), nn, one...),
+        zygote_gradient(loss, params(nn), c, one...)) < 1e-14
 end
 
 # `layer_seed` names the state `x` and the sensitivities `λ`, so a `carried_variables` that reuses one
@@ -476,8 +512,9 @@ struct CollidingLayer{M, N} <: AbstractExplicitLayer{M, N} end
 
 (::CollidingLayer)(xc::Tuple, ps) = tanh.(ps.W * first(xc) .+ ps.b .+ sum(last(xc)))
 
-SymbolicNeuralNetworks.carried_variables(::CollidingLayer{M, N}) where {M, N} =
-    (Symbolics.variables(:x, 1:M),)                 # `x` is what the state is called
+function SymbolicNeuralNetworks.carried_variables(::CollidingLayer{M, N}) where {M, N}
+    (Symbolics.variables(:x, 1:M),)
+end                 # `x` is what the state is called
 SymbolicNeuralNetworks.seam_value(::CollidingLayer, sx, sc) = (sx, sc)
 SymbolicNeuralNetworks.seam_arguments(::CollidingLayer, x::Tuple) = (first(x), last(x))
 
@@ -511,11 +548,16 @@ carrying_loss(model, ps, input, output) = norm(model(input, ps) - output) / norm
 # has two: a method more specific than the generic one upstream in its *model* argument and less
 # specific in its input would be ambiguous with it rather than an override. The second signature is
 # upstream's exactly, on this loss type.
-(::CarryingLoss)(model::Chain, ps::Union{NetworkParameters, NamedTuple}, input::Tuple,
-                 output::AbstractArray) = carrying_loss(model, ps, input, output)
-(::CarryingLoss)(model::Union{Chain, AbstractExplicitLayer}, ps::Union{NetworkParameters, NamedTuple},
-                 input::ArrayOrNamedTuple, output::ArrayOrNamedTuple) =
+function (::CarryingLoss)(
+        model::Chain, ps::Union{NetworkParameters, NamedTuple}, input::Tuple,
+        output::AbstractArray)
     carrying_loss(model, ps, input, output)
+end
+function (::CarryingLoss)(model::Union{Chain, AbstractExplicitLayer},
+        ps::Union{NetworkParameters, NamedTuple},
+        input::ArrayOrNamedTuple, output::ArrayOrNamedTuple)
+    carrying_loss(model, ps, input, output)
+end
 
 # What the interface is *for*: the carried datum reaches the derivative. The monolithic construction
 # traces the chain from a plain vector, so it can only ever differentiate the map in which every layer

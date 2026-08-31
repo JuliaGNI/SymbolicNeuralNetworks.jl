@@ -6,9 +6,11 @@
 # that is correct for the first sample of a batch, which makes the bug invisible in a smoke test.
 
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: postwalk, callee_name, function_arguments_and_body, function_expression,
+using SymbolicNeuralNetworks: postwalk, callee_name, function_arguments_and_body,
+                              function_expression,
                               argument_substitutions, access_expression, substitute_symbols,
-                              use_generic_array_constructor, use_base_mapreduce, index_by_batch,
+                              use_generic_array_constructor, use_base_mapreduce,
+                              index_by_batch,
                               accumulate_into_output
 using Test
 # `SymbolicUtils` is reached through the package rather than imported, so that the test suite does
@@ -30,7 +32,9 @@ end
 end
 
 @testset "function_arguments_and_body" begin
-    expr = :(function (u, v); u + v; end)
+    expr = :(function (u, v)
+        ;u + v;
+    end)
     names, body = function_arguments_and_body(expr)
     @test names == [:u, :v]
     # round-trip: renaming the arguments is all `function_expression` has to do
@@ -38,12 +42,15 @@ end
     @test function_arguments_and_body(function_expression((:a, :b), body))[1] == [:a, :b]
 
     @test_throws ArgumentError function_arguments_and_body(:(x + 1))
-    @test_throws ArgumentError function_arguments_and_body(:(function f(u); u; end))
+    @test_throws ArgumentError function_arguments_and_body(:(function f(u)
+        ;u;
+    end))
 end
 
 @testset "argument_substitutions maps arguments by position" begin
-    substitutions = argument_substitutions([:a, :b, :c, :d], (:x1, :x2), ((:L1, :W), (:L1, :b));
-                                           output_name = nothing)
+    substitutions = argument_substitutions(
+        [:a, :b, :c, :d], (:x1, :x2), ((:L1, :W), (:L1, :b));
+        output_name = nothing)
     @test substitutions[:a] == :x1
     @test substitutions[:b] == :x2
     @test substitutions[:c] == :(ps.L1.W)
@@ -70,10 +77,10 @@ end
     @test substitute_symbols(:a, Dict{Symbol, Any}(:a => :(ps.a), :ps => :nope)) == :(ps.a)
 end
 
-@testset "use_generic_array_constructor ($form)" for (form, expr) in
-        ("symbol callee" => :((SymbolicUtils.Code.create_array)(typeof(ˍ₋arg1), nothing, Val{1}(), a)),
-         "function callee" => Expr(:call, SymbolicUtils.Code.create_array,
-                                   Expr(:call, :typeof, :ˍ₋arg1), :nothing, :(Val{1}()), :a))
+@testset "use_generic_array_constructor ($form)" for (form, expr) in ("symbol callee" =>
+    :((SymbolicUtils.Code.create_array)(typeof(ˍ₋arg1), nothing, Val{1}(), a)),
+    "function callee" => Expr(:call, SymbolicUtils.Code.create_array,
+    Expr(:call, :typeof, :ˍ₋arg1), :nothing, :(Val{1}()), :a))
     rewritten = use_generic_array_constructor(expr)
     @test rewritten.args[2] === :Array
     @test rewritten.args[3:end] == expr.args[3:end]
@@ -82,19 +89,22 @@ end
 
 @testset "use_generic_array_constructor leaves other calls alone" begin
     @test use_generic_array_constructor(:(f(typeof(x), y))) == :(f(typeof(x), y))
-    @test use_generic_array_constructor(:(create_array(Array, y))) == :(create_array(Array, y))
+    @test use_generic_array_constructor(:(create_array(Array, y))) ==
+          :(create_array(Array, y))
 end
 
 @testset "use_base_mapreduce" begin
-    @test use_base_mapreduce(:(Symbolics._mapreduce(identity, +, x, Colon(), (:init => false,)))) ==
+    @test use_base_mapreduce(:(Symbolics._mapreduce(
+        identity, +, x, Colon(), (:init => false,)))) ==
           :(mapreduce(identity, +, x; dims = Colon()))
     @test use_base_mapreduce(:(mapreduce(identity, +, x))) == :(mapreduce(identity, +, x))
 end
 
 @testset "index_by_batch ($form)" for (form, expr, expected) in [
-        ("ref form", :(x1[1] + x1[2]), :(x1[1, k] + x1[2, k])),
-        ("getindex symbol", :(getindex(x1, 1)), :(getindex(x1, 1, k))),
-        ("getindex object", Expr(:call, Base.getindex, :x1, 1), Expr(:call, Base.getindex, :x1, 1, :k))]
+    ("ref form", :(x1[1] + x1[2]), :(x1[1, k] + x1[2, k])),
+    ("getindex symbol", :(getindex(x1, 1)), :(getindex(x1, 1, k))),
+    ("getindex object", Expr(:call, Base.getindex, :x1, 1),
+        Expr(:call, Base.getindex, :x1, 1, :k))]
     @test index_by_batch(expr, (:x1,)) == expected
 end
 
@@ -111,7 +121,8 @@ end
 end
 
 @testset "accumulate_into_output, reduce = hcat" begin
-    @test accumulate_into_output(:(out[1] = a), :out, hcat, 1) == :(out[1 + (k - 1) * 1] = a)
+    @test accumulate_into_output(:(out[1] = a), :out, hcat, 1) ==
+          :(out[1 + (k - 1) * 1] = a)
     body = Expr(:block, :(out[1] = a), :(out[2] = b))
     @test accumulate_into_output(body, :out, hcat, 2) ==
           Expr(:block, :(out[1 + (k - 1) * 2] = a), :(out[2 + (k - 1) * 2] = b))
@@ -119,7 +130,8 @@ end
 
 @testset "accumulate_into_output, reduce = +" begin
     body = Expr(:block, :(out[1] = a), :(out[2] = b))
-    @test accumulate_into_output(body, :out, +, 2) == Expr(:block, :(out[1] += a), :(out[2] += b))
+    @test accumulate_into_output(body, :out, +, 2) ==
+          Expr(:block, :(out[1] += a), :(out[2] += b))
 end
 
 # Without this check a rule that stopped matching would leave a kernel that still compiles and runs,

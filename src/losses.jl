@@ -11,9 +11,12 @@ The `FeedForwardLoss` of `AbstractNeuralNetworks`, evaluated on symbolic argumen
     The loss is normalised by `norm(output)`, so a target that is identically zero makes the
     generated function return `NaN`/`Inf`.
 """
-function (::FeedForwardLoss)(model::Union{AbstractNeuralNetworks.Chain, AbstractNeuralNetworks.AbstractExplicitLayer},
-                             params::NetworkParameters,
-                             input::SymbolicExpression,
-                             output::SymbolicExpression)
-    norm(scalar_expressions(model(input, params)) - scalar_expressions(output)) / norm(scalar_expressions(output))
+function (::FeedForwardLoss)(
+        model::Union{
+            AbstractNeuralNetworks.Chain, AbstractNeuralNetworks.AbstractExplicitLayer},
+        params::NetworkParameters,
+        input::SymbolicExpression,
+        output::SymbolicExpression)
+    norm(scalar_expressions(model(input, params)) - scalar_expressions(output)) /
+    norm(scalar_expressions(output))
 end

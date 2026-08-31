@@ -33,7 +33,7 @@ whole forward pass, once per parameter array — and would compile one `RuntimeG
 entry rather than one in total.
 """
 function build_nn_function(eqs::EquationSet, sparams::NetworkParameters,
-                           svariables::SymbolicVariables...; kwargs...)
+        svariables::SymbolicVariables...; kwargs...)
     _build_equation_set_function(eqs, sparams, svariables...; kwargs...)
 end
 
@@ -43,7 +43,7 @@ end
 # for each shape, so the two share a body. Written as two methods because they are two questions: one
 # takes what a caller wrote, the other what `symbolic_parameter_gradient` returned.
 function build_nn_function(eqs::NetworkParameters, sparams::NetworkParameters,
-                           svariables::SymbolicVariables...; kwargs...)
+        svariables::SymbolicVariables...; kwargs...)
     _build_equation_set_function(eqs, sparams, svariables...; kwargs...)
 end
 
@@ -84,14 +84,15 @@ funcs([1.0, 2.0], params(nn))
 ```
 """
 function build_nn_function(eqs::AbstractArray{<:EquationSet}, sparams::NetworkParameters,
-                           svariables::SymbolicVariables...; kwargs...)
+        svariables::SymbolicVariables...; kwargs...)
     _build_equation_set_array(eqs, sparams, svariables...; kwargs...)
 end
 
 # The array counterpart of the gradient shape above: differentiating an array-valued expression gives
 # one parameter-shaped set per entry.
-function build_nn_function(eqs::AbstractArray{<:NetworkParameters}, sparams::NetworkParameters,
-                           svariables::SymbolicVariables...; kwargs...)
+function build_nn_function(
+        eqs::AbstractArray{<:NetworkParameters}, sparams::NetworkParameters,
+        svariables::SymbolicVariables...; kwargs...)
     _build_equation_set_array(eqs, sparams, svariables...; kwargs...)
 end
 
@@ -111,11 +112,14 @@ struct EquationSetFunction{NDATA, FT, LT} <: Function
     layout::LT
 end
 
-EquationSetFunction{NDATA}(f::FT, layout::LT) where {NDATA, FT, LT} =
+function EquationSetFunction{NDATA}(f::FT, layout::LT) where {NDATA, FT, LT}
     EquationSetFunction{NDATA, FT, LT}(f, layout)
+end
 
 (f::EquationSetFunction{1})(input, ps) = split_result(f.layout, f.f(input, ps))
-(f::EquationSetFunction{2})(input, output, ps) = split_result(f.layout, f.f(input, output, ps))
+function (f::EquationSetFunction{2})(input, output, ps)
+    split_result(f.layout, f.f(input, output, ps))
+end
 # beyond the two common arities the arguments are collected, as for `AbstractBatchedFunction`
 (f::EquationSetFunction)(args...) = split_result(f.layout, f.f(args...))
 
@@ -129,10 +133,14 @@ struct EquationSetArrayFunction{NDATA, FT} <: Function
     functions::FT
 end
 
-EquationSetArrayFunction{NDATA}(functions::FT) where {NDATA, FT} = EquationSetArrayFunction{NDATA, FT}(functions)
+function EquationSetArrayFunction{NDATA}(functions::FT) where {NDATA, FT}
+    EquationSetArrayFunction{NDATA, FT}(functions)
+end
 
 (f::EquationSetArrayFunction{1})(input, ps) = [g(input, ps) for g in f.functions]
-(f::EquationSetArrayFunction{2})(input, output, ps) = [g(input, output, ps) for g in f.functions]
+function (f::EquationSetArrayFunction{2})(input, output, ps)
+    [g(input, output, ps) for g in f.functions]
+end
 (f::EquationSetArrayFunction)(args...) = [g(args...) for g in f.functions]
 
 # Two methods, because two shapes genuinely arrive here. An [`EquationSet`](@ref) is what a caller
@@ -216,12 +224,12 @@ vector, with no batch dimension to restore.
 Each entry is *copied* out of `out` rather than viewed into it, so that the entries are ordinary
 `Array`s and cannot alias each other.
 """
-@inline unflatten_batch(layout::ParametersLayout, out::AbstractArray) =
-    NetworkParameters(unflatten_batch(layout.inner, out))
-@inline unflatten_batch(layout::NestedLayout, out::AbstractArray) =
-    NamedTuple{keys(layout.children)}(_unflatten_batch_children(layout.children, out))
-@inline unflatten_batch(layout::TupleLayout, out::AbstractArray) =
-    _unflatten_batch_children(layout.children, out)
+@inline unflatten_batch(layout::ParametersLayout, out::AbstractArray) = NetworkParameters(unflatten_batch(
+    layout.inner, out))
+@inline unflatten_batch(layout::NestedLayout,
+    out::AbstractArray) = NamedTuple{keys(layout.children)}(_unflatten_batch_children(layout.children, out))
+@inline unflatten_batch(layout::TupleLayout, out::AbstractArray) = _unflatten_batch_children(
+    layout.children, out)
 @inline unflatten_batch(layout::WrappedLayout, out::AbstractArray) = unflatten_batch(layout.inner, out)
 
 # Written out as a `@generated` flat body, in the shape `NeuralNetworkParameters._unflatten_children`
@@ -252,13 +260,14 @@ Each entry is *copied* out of `out` rather than viewed into it, so that the entr
     :(($(calls...),))
 end
 
-@inline unflatten_batch(layout::LeafLayout, out::AbstractMatrix) =
-    reshape(out[parameterrange(layout), :], _batched_size(layout.size, size(out, 2))...)
+@inline unflatten_batch(layout::LeafLayout, out::AbstractMatrix) = reshape(
+    out[parameterrange(layout), :], _batched_size(layout.size, size(out, 2))...)
 
 @inline function unflatten_batch(layout::LeafLayout, out::AbstractArray{<:Any, 3})
     # the same restriction the single-equation path applies in `_restore_batch_dimensions`: an entry
     # whose result is more than one column wide per sample has no room for a second batch dimension
-    trailing_dimensions(layout.size) == 1 || throw(ArgumentError(two_batch_dimension_message(layout.size)))
+    trailing_dimensions(layout.size) == 1 ||
+        throw(ArgumentError(two_batch_dimension_message(layout.size)))
     out[parameterrange(layout), :, :]
 end
 
@@ -266,4 +275,6 @@ _flat_entries(eq::AbstractArray) = vec(eq)
 _flat_entries(eq) = [eq]
 
 _batched_size(::Tuple{}, batch_size::Integer) = (1, batch_size)
-_batched_size(size::Tuple, batch_size::Integer) = (size[1], prod(Base.tail(size)) * batch_size)
+function _batched_size(size::Tuple, batch_size::Integer)
+    (size[1], prod(Base.tail(size)) * batch_size)
+end

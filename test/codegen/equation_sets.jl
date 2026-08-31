@@ -8,9 +8,11 @@
 # entries are included: they used to make the whole set fall back to a separate per-entry code path.
 
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: flatten_equations, split_result, unflatten_batch, symbolic_parameter_gradient
+using SymbolicNeuralNetworks: flatten_equations, split_result, unflatten_batch,
+                              symbolic_parameter_gradient
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
-using NeuralNetworkParameters: NetworkParameters, LeafLayout, NestedLayout, parameterrange, unflatten
+using NeuralNetworkParameters: NetworkParameters, LeafLayout, NestedLayout, parameterrange,
+                               unflatten
 using Symbolics
 using Test
 import Random
@@ -28,12 +30,14 @@ rewrap(eqs::NamedTuple, values) = NamedTuple{keys(eqs)}(values)
 rewrap(eqs::NetworkParameters, values) = NetworkParameters(NamedTuple{keys(eqs)}(values))
 
 "Build every entry of `eqs` as its own function — the reference the joint path has to reproduce."
-per_entry(eqs::Union{NamedTuple, NetworkParameters}, args...; kwargs...) =
+function per_entry(eqs::Union{NamedTuple, NetworkParameters}, args...; kwargs...)
     rewrap(eqs, Tuple(per_entry(eq, args...; kwargs...) for eq in values(eqs)))
+end
 per_entry(eq, args...; kwargs...) = build_nn_function(eq, args...; kwargs...)
 
-evaluate_entries(fs::Union{NamedTuple, NetworkParameters}, args...) =
+function evaluate_entries(fs::Union{NamedTuple, NetworkParameters}, args...)
     rewrap(fs, Tuple(evaluate_entries(f, args...) for f in values(fs)))
+end
 evaluate_entries(f, args...) = f(args...)
 
 function compare_entries(joint, reference)
@@ -59,12 +63,13 @@ end
     @test parameterrange(layout.children.b) == 3:4
     # the ranges must tile the flat vector exactly, without gaps or overlap
     @test vcat(collect(parameterrange(layout.children.a)),
-               collect(parameterrange(layout.children.b))) == 1:length(flat)
+        collect(parameterrange(layout.children.b))) == 1:length(flat)
     # the flat vector is in the order the layout says it is
     @test all(isequal.(flat[parameterrange(layout.children.a)], eqs.a))
 
     # a scalar entry occupies a single slot and is recorded with an empty size
-    _, scalar_layout = flatten_equations((a = c(snn.input, params(snn)), s = sum(c(snn.input, params(snn)))))
+    _, scalar_layout = flatten_equations((
+        a = c(snn.input, params(snn)), s = sum(c(snn.input, params(snn)))))
     @test scalar_layout.children.s.size == ()
     @test length(parameterrange(scalar_layout.children.s)) == 1
 end
@@ -72,8 +77,8 @@ end
 @testset "the flat result is split into the layout of each batch shape" begin
     # the layout a set of one vector-, one matrix- and one scalar-valued entry flattens to
     layout = last(flatten_equations((vector = Symbolics.variables(:a, 1:2),
-                                     matrix = Symbolics.variables(:b, 1:2, 1:3),
-                                     scalar = Symbolics.variable(:c))))
+        matrix = Symbolics.variables(:b, 1:2, 1:3),
+        scalar = Symbolics.variable(:c))))
     @test map(parameterrange, values(layout.children)) == (1:2, 3:8, 9:9)
 
     single = collect(1.0:9.0)                       # a single sample, or reduce = +
@@ -88,7 +93,7 @@ end
 
     two_dimensional = repeat(collect(1.0:9.0), 1, 2, 3)
     vector_only = last(flatten_equations((vector = Symbolics.variables(:a, 1:2),
-                                          scalar = Symbolics.variable(:c))))
+        scalar = Symbolics.variable(:c))))
     @test size(split_result(vector_only, two_dimensional).vector) == (2, 2, 3)
     @test size(split_result(vector_only, two_dimensional).scalar) == (1, 2, 3)
     # a matrix-valued entry has no room for a second batch dimension, exactly as when it is built on
@@ -121,7 +126,8 @@ end
     joint = build_nn_function(eqs, params(snn), snn.input, soutput; reduce = reduction)
     reference = per_entry(eqs, params(snn), snn.input, soutput; reduce = reduction)
 
-    for (input, output) in ((rand(3, 6), rand(2, 6)), (rand(3, 1), rand(2, 1)), (rand(3), rand(2)))
+    for (input, output) in ((rand(3, 6), rand(2, 6)), (rand(3, 1), rand(2, 1)), (
+        rand(3), rand(2)))
         compare_entries(joint(input, output, ps), evaluate_entries(reference, input, output, ps))
     end
 end

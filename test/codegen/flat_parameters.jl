@@ -4,7 +4,8 @@
 # usable for the thing it exists for: differentiating with respect to a vector.
 
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: flatten_gradient, symbolic_parameter_gradient, FlatParameterFunction
+using SymbolicNeuralNetworks: flatten_gradient, symbolic_parameter_gradient,
+                              FlatParameterFunction
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, FeedForwardLoss
 using NeuralNetworkParameters: NetworkParameters, FlatParameters, flatten, unflatten,
                                parameterlayout, flatlength
@@ -61,9 +62,10 @@ end
 
     @test f(input, output, w) ≈ loss(c, ps, input, output)
     gradient = ForwardDiff.gradient(v -> f(input, output, v), w)
-    reference = build_nn_function(flat_parameter_gradient(loss(snn.model, params(snn), snn.input,
-                                                              soutput), snn),
-                                 params(snn), snn.input, soutput)(input, output, ps)
+    reference = build_nn_function(
+        flat_parameter_gradient(loss(snn.model, params(snn), snn.input,
+                soutput), snn),
+        params(snn), snn.input, soutput)(input, output, ps)
     @test gradient ≈ reference
 end
 
@@ -104,7 +106,7 @@ end
 # through both. This is what `docs/src/guide/flat_parameters.md` claims at the end, exercised.
 @testset "degrees of freedom that are not a network's" begin
     dof = NetworkParameters((scale = Symbolics.variables(:s, 1:2),
-                             offset = Symbolics.variables(:o, 1:2, 1:2)))
+        offset = Symbolics.variables(:o, 1:2, 1:2)))
     sinput = Symbolics.variables(:t, 1:2)
     # a nonlinear expression over `dof` that no `Chain` produces
     equation = dof.offset * (dof.scale .* sinput) .- sin.(dof.scale)
@@ -118,9 +120,10 @@ end
     v, dof_layout = flatten(numbers)
     t = rand(2)
 
-    reference(u) = let p = unflatten(dof_layout, u)
-        p.offset * (p.scale .* t) .- sin.(p.scale)
-    end
+    reference(u) =
+        let p = unflatten(dof_layout, u)
+            p.offset * (p.scale .* t) .- sin.(p.scale)
+        end
     @test residual(t, v) ≈ reference(v)
     @test jacobian(t, v) ≈ ForwardDiff.jacobian(reference, v)
 end

@@ -45,7 +45,8 @@
 # on each Julia version of interest; the point of the script is the difference between them.
 
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: Jacobian, derivative, symbolic_parameter_gradient, promoted_eltype,
+using SymbolicNeuralNetworks: Jacobian, derivative, symbolic_parameter_gradient,
+                              promoted_eltype,
                               split_result
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
 using NeuralNetworkParameters: NetworkParameters
@@ -96,13 +97,15 @@ function measurements()
     flat_sample = dqdθ.f(sample, ps)
     flat_batch = dqdθ.f(batch, ps)
 
-    (("promoted_eltype folds",        bytes_per_call(eltype_folds, sample, ps)),
-     ("V_func(x, ps)      [single]",  bytes_per_call(v_func, sample, ps)),
-     ("DQDθ(x, ps)        [single]",  bytes_per_call(dqdθ, sample, ps)),
-     ("split_result       [single]",  bytes_per_call(split_result, dqdθ.layout, flat_sample)),
-     ("V_func(x, ps)      [batch]",   bytes_per_call(v_func, batch, ps)),
-     ("DQDθ(x, ps)        [batch]",   bytes_per_call(dqdθ, batch, ps)),
-     ("split_result       [batch]",   bytes_per_call(split_result, dqdθ.layout, flat_batch)))
+    (("promoted_eltype folds", bytes_per_call(eltype_folds, sample, ps)),
+        ("V_func(x, ps)      [single]", bytes_per_call(v_func, sample, ps)),
+        ("DQDθ(x, ps)        [single]", bytes_per_call(dqdθ, sample, ps)),
+        ("split_result       [single]",
+            bytes_per_call(split_result, dqdθ.layout, flat_sample)),
+        ("V_func(x, ps)      [batch]", bytes_per_call(v_func, batch, ps)),
+        ("DQDθ(x, ps)        [batch]", bytes_per_call(dqdθ, batch, ps)),
+        ("split_result       [batch]",
+            bytes_per_call(split_result, dqdθ.layout, flat_batch)))
 end
 
 println("Julia $(VERSION), hidden width $(HIDDEN), batch $(BATCH_SIZE), " *

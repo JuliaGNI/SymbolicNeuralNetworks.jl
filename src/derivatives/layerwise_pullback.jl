@@ -102,7 +102,7 @@ expression is used as given.
 called exactly like the per-layer kernels of the sweep.
 """
 function loss_seed(loss::NetworkLoss, nn::AbstractSymbolicNeuralNetwork;
-                   cse::Bool = true, inplace::Bool = true)
+        cse::Bool = true, inplace::Bool = true)
     n = output_dimension(nn.model)
     sŷ = Symbolics.variables(:x, 1:n)
     sy = Symbolics.variables(:y, 1:n)
@@ -114,8 +114,9 @@ function loss_seed(loss::NetworkLoss, nn::AbstractSymbolicNeuralNetwork;
         isnothing(expression) && return nothing
     end
 
-    build_nn_function(symbolic_derivative(expression, symbolic_differentials(sŷ)), sparams, sŷ, sy;
-                      reduce = hcat, cse = cse, inplace = inplace)
+    build_nn_function(
+        symbolic_derivative(expression, symbolic_differentials(sŷ)), sparams, sŷ, sy;
+        reduce = hcat, cse = cse, inplace = inplace)
 end
 
 """
@@ -146,7 +147,7 @@ has been believed, differentiating it and generating code from it are this packa
 failure there is a bug to surface rather than a reason to fall back.
 """
 function checked_guess(loss::NetworkLoss, nn::AbstractSymbolicNeuralNetwork, ŷ, y;
-                       cse::Bool = true, inplace::Bool = true)
+        cse::Bool = true, inplace::Bool = true)
     sparams = NetworkParameters(NamedTuple())
     try
         expression = passthrough_expression(loss, ŷ, y)
@@ -252,8 +253,9 @@ struct LayerStep{Key, LT, FT, GT}
     dθ::GT
 end
 
-LayerStep{Key}(layer::LT, dλ::FT, dθ::GT) where {Key, LT, FT, GT} =
+function LayerStep{Key}(layer::LT, dλ::FT, dθ::GT) where {Key, LT, FT, GT}
     LayerStep{Key, LT, FT, GT}(layer, dλ, dθ)
+end
 
 """
     step_parameters(step, ps)
@@ -310,7 +312,7 @@ per-sample gradients — which is what [`SymbolicPullback`](@ref) means by the p
 the sweep costs two calls per layer whatever the batch size, with no per-sample loop.
 """
 function layer_step(layer::AbstractExplicitLayer, key::Symbol, seeded::Tuple;
-                    input_sensitivity::Bool = true, cse::Bool = true, inplace::Bool = true)
+        input_sensitivity::Bool = true, cse::Bool = true, inplace::Bool = true)
     seed, sparams, sdata, sλ = seeded
     _assert_distinct_seam_variables(layer, sdata, sλ)
     # the state is the first of the seam's data variables, and the only one differentiated with
@@ -318,10 +320,12 @@ function layer_step(layer::AbstractExplicitLayer, key::Symbol, seeded::Tuple;
     sx = first(sdata)
 
     dλ = input_sensitivity ?
-         build_nn_function(symbolic_derivative(seed, symbolic_differentials(sx)), sparams, sdata...,
-                           sλ; reduce = hcat, cse = cse, inplace = inplace) : nothing
-    dθ = build_nn_function(symbolic_derivative(seed, symbolic_differentials(sparams[key])), sparams,
-                           sdata..., sλ; reduce = +, cse = cse, inplace = inplace)
+         build_nn_function(
+        symbolic_derivative(seed, symbolic_differentials(sx)), sparams, sdata...,
+        sλ; reduce = hcat, cse = cse, inplace = inplace) : nothing
+    dθ = build_nn_function(
+        symbolic_derivative(seed, symbolic_differentials(sparams[key])), sparams,
+        sdata..., sλ; reduce = +, cse = cse, inplace = inplace)
     LayerStep{key}(layer, dλ, dθ)
 end
 
@@ -566,8 +570,9 @@ function symbolic_steps(nn::AbstractSymbolicNeuralNetwork)
     ntuple(i -> (ls[i], ks[i]), length(ks))
 end
 
-_has_known_dimensions(layer) =
+function _has_known_dimensions(layer)
     applicable(input_dimension, layer) && applicable(output_dimension, layer)
+end
 
 @doc raw"""
     composes_layerwise(nn)
@@ -632,11 +637,13 @@ struct LayerwiseGradientFunction{Keys, ST, SDT} <: Function
     seed::SDT
 end
 
-LayerwiseGradientFunction{Keys}(steps::ST, seed::SDT) where {Keys, ST, SDT} =
+function LayerwiseGradientFunction{Keys}(steps::ST, seed::SDT) where {Keys, ST, SDT}
     LayerwiseGradientFunction{Keys, ST, SDT}(steps, seed)
+end
 
 function (g::LayerwiseGradientFunction{Keys})(input, output, ps) where {Keys}
-    NetworkParameters(NamedTuple{Keys}(sweep(g.steps, batched(input), ps, g.seed, batched(output))))
+    NetworkParameters(NamedTuple{Keys}(sweep(
+        g.steps, batched(input), ps, g.seed, batched(output))))
 end
 
 @doc raw"""
@@ -732,7 +739,8 @@ traversal of the same checks, which could not help but drift from them.
 function decline(demanded::Bool, why::AbstractString)
     demanded && throw(ArgumentError(
         "`layerwise = true`, but the pullback cannot be built layer by layer for this network: " *
-        why * ". Pass `layerwise = :auto` to fall back to the monolithic construction."))
+        why *
+        ". Pass `layerwise = :auto` to fall back to the monolithic construction."))
     nothing
 end
 
@@ -744,8 +752,9 @@ of every layer whose entry in `seeds` came back `nothing`.
 """
 function unseedable_reason(steps::Tuple, seeds::Tuple)
     unseedable = [i for i in eachindex(seeds) if isnothing(seeds[i])]
-    named = join(("`$(steps[i][2])` (`$(nameof(typeof(steps[i][1])))`)" for i in unseedable),
-                 ", ", " and ")
+    named = join(
+        ("`$(steps[i][2])` (`$(nameof(typeof(steps[i][1])))`)" for i in unseedable),
+        ", ", " and ")
     (length(unseedable) == 1 ? "the layer " : "the layers ") * named *
     " cannot be seeded. The seam the construction puts between two layers is a plain vector of " *
     "symbolic variables, so a layer has to map an array to an array unless it says otherwise — see " *
@@ -773,7 +782,7 @@ layer is one symbolic forward pass. So a chain that cannot be seeded declines be
 generated at all. The order also decides which reason a model that declines on both counts reports.
 """
 function layerwise_gradient_function(nn::SymbolicNeuralNetwork, loss::NetworkLoss;
-                                     demanded::Bool = false, cse::Bool = true, inplace::Bool = true)
+        demanded::Bool = false, cse::Bool = true, inplace::Bool = true)
     steps = symbolic_steps(nn)
     isnothing(steps) && return decline(demanded,
         "the model does not decompose into a sequence of layers with known dimensions " *
@@ -795,7 +804,8 @@ function layerwise_gradient_function(nn::SymbolicNeuralNetwork, loss::NetworkLos
     # input, so that derivative is not generated for it
     kernels = ntuple(length(steps)) do i
         layer, key = steps[i]
-        layer_step(layer, key, seeds[i]; input_sensitivity = i > 1, cse = cse, inplace = inplace)
+        layer_step(
+            layer, key, seeds[i]; input_sensitivity = i > 1, cse = cse, inplace = inplace)
     end
     LayerwiseGradientFunction{keys(sparams)}(kernels, seed)
 end

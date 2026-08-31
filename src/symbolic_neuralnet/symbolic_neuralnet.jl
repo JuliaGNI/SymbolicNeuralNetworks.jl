@@ -41,9 +41,9 @@ symbolic variables. The parameters are named `W_1`, `W_2`, … in the order in w
 the parameter set, the input entries `x₁`, `x₂`, ….
 """
 struct SymbolicNeuralNetwork{AT,
-                             MT,
-                             PT <: Union{NetworkParameters, NamedTuple},
-                             IT <: AbstractVector{Num}} <: AbstractSymbolicNeuralNetwork{AT}
+    MT,
+    PT <: Union{NetworkParameters, NamedTuple},
+    IT <: AbstractVector{Num}} <: AbstractSymbolicNeuralNetwork{AT}
     architecture::AT
     model::MT
     params::PT

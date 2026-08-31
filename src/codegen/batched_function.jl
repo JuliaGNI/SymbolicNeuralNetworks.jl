@@ -74,7 +74,9 @@ struct InPlaceBatchedFunction{NDATA, R, KT, N} <: AbstractBatchedFunction{NDATA,
 end
 
 for T in (:OutOfPlaceBatchedFunction, :InPlaceBatchedFunction)
-    @eval function $T{NDATA}(kernel::KT, equation_size::NTuple{N, Int}, reduction::R) where {NDATA, KT, N, R}
+    @eval function $T{NDATA}(
+            kernel::KT, equation_size::NTuple{
+                N, Int}, reduction::R) where {NDATA, KT, N, R}
         $T{NDATA, R, KT, N}(kernel, equation_size, reduction)
     end
 end
@@ -96,8 +98,9 @@ end
 function Base.show(io::IO, f::AbstractBatchedFunction{NDATA}) where {NDATA}
     arguments = NDATA == 1 ? "(input, ps)" :
                 NDATA == 2 ? "(input, output, ps)" : "(x1, …, x$(NDATA), ps)"
-    print(io, nameof(typeof(f)), " ", arguments, " for an equation of size ", f.equation_size,
-          ", reduced with ", f.reduction)
+    print(
+        io, nameof(typeof(f)), " ", arguments, " for an equation of size ", f.equation_size,
+        ", reduced with ", f.reduction)
 end
 
 """
@@ -113,7 +116,9 @@ function evaluate_batch end
 # The result keeps the shape of the equation rather than being given a batch dimension, as the
 # equation may itself be matrix-valued.
 
-function evaluate_batch(f::AbstractBatchedFunction, data::NTuple{N, AbstractVector}, ps) where {N}
+function evaluate_batch(
+        f::AbstractBatchedFunction, data::NTuple{
+            N, AbstractVector}, ps) where {N}
     evaluate_sample(f, map(_as_column, data), ps)
 end
 
@@ -131,19 +136,24 @@ _as_column(x::AbstractVector) = reshape(x, length(x), 1)
 
 # --- a batch of samples ------------------------------------------------------------------------
 
-function evaluate_batch(f::OutOfPlaceBatchedFunction, data::NTuple{N, AbstractMatrix}, ps) where {N}
+function evaluate_batch(
+        f::OutOfPlaceBatchedFunction, data::NTuple{
+            N, AbstractMatrix}, ps) where {N}
     columns = _batch_axis(data)
     # `Base.reduce` has nothing to fold for an empty batch; the allocators produce the same empty
     # result the in-place path returns for one.
-    isempty(columns) && return allocate_batch_output(promoted_eltype(data..., ps), f.equation_size,
-                                                     0, f.reduction)
+    isempty(columns) &&
+        return allocate_batch_output(promoted_eltype(data..., ps), f.equation_size,
+            0, f.reduction)
     # `Base.reduce(hcat, ::Vector)` sizes the result once (linear in the batch size), whereas
     # `mapreduce(…, hcat, …)` folds left to right and recopies the growing accumulator once per
     # column (quadratic in it).
     Base.reduce(f.reduction, [f.kernel(data..., ps, k) for k in columns])
 end
 
-function evaluate_batch(f::InPlaceBatchedFunction, data::NTuple{N, AbstractMatrix}, ps) where {N}
+function evaluate_batch(
+        f::InPlaceBatchedFunction, data::NTuple{
+            N, AbstractMatrix}, ps) where {N}
     columns = _batch_axis(data)
     out = allocate_batch_output(promoted_eltype(data..., ps), f.equation_size, length(columns), f.reduction)
     for k in columns
@@ -163,13 +173,17 @@ end
 # The two trailing dimensions are flattened into one, the result of which is unflattened again when
 # the samples were concatenated (with `+` they were summed, so there is no batch dimension left).
 
-function evaluate_batch(f::AbstractBatchedFunction, data::NTuple{N, AbstractArray{<:Number, 3}}, ps) where {N}
+function evaluate_batch(
+        f::AbstractBatchedFunction, data::NTuple{
+            N, AbstractArray{<:Number, 3}}, ps) where {N}
     batch_size = (size(first(data), 2), size(first(data), 3))
     flattened = evaluate_batch(f, map(_flatten_batch_dimensions, data), ps)
     _restore_batch_dimensions(flattened, f.equation_size, f.reduction, batch_size)
 end
 
-_flatten_batch_dimensions(x::AbstractArray{<:Number, 3}) = reshape(x, size(x, 1), size(x, 2) * size(x, 3))
+function _flatten_batch_dimensions(x::AbstractArray{<:Number, 3})
+    reshape(x, size(x, 1), size(x, 2) * size(x, 3))
+end
 
 # --- anything else ------------------------------------------------------------------------------
 # Less specific than the three methods above, so it is only reached when the data arguments do not
@@ -186,7 +200,8 @@ end
 _restore_batch_dimensions(out, ::Tuple, ::typeof(+), ::Tuple) = out
 
 function _restore_batch_dimensions(out, equation_size::Tuple, ::typeof(hcat), batch_size::Tuple)
-    trailing_dimensions(equation_size) == 1 || throw(ArgumentError(two_batch_dimension_message(equation_size)))
+    trailing_dimensions(equation_size) == 1 ||
+        throw(ArgumentError(two_batch_dimension_message(equation_size)))
     reshape(out, size(out, 1), batch_size...)
 end
 
@@ -207,10 +222,11 @@ The error text for an equation whose result already uses the second dimension. S
 [`unflatten_batch`](@ref), so that an entry of an equation set is rejected in the same words as the
 same equation built on its own.
 """
-two_batch_dimension_message(equation_size::Tuple) =
+function two_batch_dimension_message(equation_size::Tuple)
     "an equation of size $(equation_size) cannot be evaluated on a batch with two batch " *
     "dimensions: concatenating the results already uses the second dimension. Reshape the " *
     "input into a matrix, or use `reduce = +`."
+end
 
 # --- allocating the result ----------------------------------------------------------------------
 
@@ -249,14 +265,17 @@ A scalar-valued equation — `equation_size == ()` — counts as one of size ``m
 ``1\times{}N`` matrix and `+` a number. Those two methods are only reached for an *empty* batch: the
 in-place path, which is what allocates a result up front, does not exist for a scalar equation.
 """
-allocate_batch_output(::Type{T}, ::Tuple{}, ::Integer, ::typeof(+)) where {T} =
-    zero(_float_if_integer(T))
-allocate_batch_output(::Type{T}, equation_size::Tuple, ::Integer, ::typeof(+)) where {T} =
+allocate_batch_output(::Type{T}, ::Tuple{}, ::Integer, ::typeof(+)) where {T} = zero(_float_if_integer(T))
+function allocate_batch_output(::Type{T}, equation_size::Tuple, ::Integer, ::typeof(+)) where {T}
     zeros(_float_if_integer(T), equation_size...)
-allocate_batch_output(::Type{T}, ::Tuple{}, batch_size::Integer, ::typeof(hcat)) where {T} =
+end
+function allocate_batch_output(::Type{T}, ::Tuple{}, batch_size::Integer, ::typeof(hcat)) where {T}
     Array{_float_if_integer(T)}(undef, 1, batch_size)
-allocate_batch_output(::Type{T}, equation_size::Tuple, batch_size::Integer, ::typeof(hcat)) where {T} =
-    Array{_float_if_integer(T)}(undef, equation_size[1], trailing_dimensions(equation_size) * batch_size)
+end
+function allocate_batch_output(::Type{T}, equation_size::Tuple, batch_size::Integer, ::typeof(hcat)) where {T}
+    Array{_float_if_integer(T)}(undef, equation_size[1], trailing_dimensions(equation_size) *
+                                                         batch_size)
+end
 
 """
     allocate_single_output(T, equation_size, reduction)
@@ -265,10 +284,12 @@ Allocate the result of evaluating an equation of size `equation_size` for a sing
 [`allocate_batch_output`](@ref) this keeps the shape of the equation, as the result may itself be a
 matrix.
 """
-allocate_single_output(::Type{T}, equation_size::Tuple, ::typeof(+)) where {T} =
+function allocate_single_output(::Type{T}, equation_size::Tuple, ::typeof(+)) where {T}
     zeros(_float_if_integer(T), equation_size...)
-allocate_single_output(::Type{T}, equation_size::Tuple, ::typeof(hcat)) where {T} =
+end
+function allocate_single_output(::Type{T}, equation_size::Tuple, ::typeof(hcat)) where {T}
     Array{_float_if_integer(T)}(undef, equation_size...)
+end
 
 """
     _float_if_integer(T)

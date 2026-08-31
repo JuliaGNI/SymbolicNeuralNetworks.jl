@@ -59,8 +59,10 @@ function first_call(f, args...)
     round(time() - t; digits = 2)
 end
 
-flat_set(k::Integer) =
-    NetworkParameters(NamedTuple{Tuple(Symbol(:e, i) for i in 1:k)}(Tuple([float(i)] for i in 1:k)))
+function flat_set(k::Integer)
+    NetworkParameters(NamedTuple{Tuple(Symbol(:e, i) for i in 1:k)}(Tuple([float(i)]
+    for i in 1:k)))
+end
 
 # The child: one width, one process, one timed call.
 function measure(k::Integer)

@@ -68,7 +68,8 @@ true
 derivative(g::Gradient) = g.∇
 
 function Gradient(f, nn::SymbolicNeuralNetwork)
-    f isa AbstractArray || @warn "You should only use `Gradient` together with array expressions! Maybe you wanted to use `SymbolicPullback`."
+    f isa AbstractArray ||
+        @warn "You should only use `Gradient` together with array expressions! Maybe you wanted to use `SymbolicPullback`."
     Gradient(f, symbolic_parameter_gradient(f, nn), nn)
 end
 
@@ -128,5 +129,7 @@ function _symbolic_parameter_gradient(f, sparams)
     _parameter_gradient(scalar_expressions(f), differentials)
 end
 
-_parameter_gradient(f::AbstractArray, differentials) = [symbolic_derivative(entry, differentials) for entry in f]
+function _parameter_gradient(f::AbstractArray, differentials)
+    [symbolic_derivative(entry, differentials) for entry in f]
+end
 _parameter_gradient(f, differentials) = symbolic_derivative(f, differentials)

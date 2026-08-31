@@ -83,15 +83,18 @@ function build_nn_function(eq, nn::AbstractSymbolicNeuralNetwork, soutput::Symbo
 end
 
 function build_nn_function(eq::SymbolicExpression, sparams::NetworkParameters,
-                           svariables::SymbolicVariables...;
-                           reduce = hcat, cse::Bool = true, inplace::Bool = true)
+        svariables::SymbolicVariables...;
+        reduce = hcat, cse::Bool = true, inplace::Bool = true)
     reduction = _check_reduction(reduce)
     equation = scalar_expressions(eq)
     variables = map(scalar_expressions, svariables)
     ndata = length(variables)
 
-    kernel! = inplace ? build_kernel!(equation, sparams, variables...; reduction = reduction, cse = cse) : nothing
-    isnothing(kernel!) || return InPlaceBatchedFunction{ndata}(kernel!, _equation_size(equation), reduction)
+    kernel! = inplace ?
+              build_kernel!(
+        equation, sparams, variables...; reduction = reduction, cse = cse) : nothing
+    isnothing(kernel!) ||
+        return InPlaceBatchedFunction{ndata}(kernel!, _equation_size(equation), reduction)
 
     kernel = build_kernel(equation, sparams, variables...; cse = cse)
     OutOfPlaceBatchedFunction{ndata}(kernel, _equation_size(equation), reduction)

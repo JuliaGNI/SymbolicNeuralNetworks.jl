@@ -1,6 +1,7 @@
 using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: symbolic_parameter_gradient, PullbackFunction
-using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, FeedForwardLoss, output_dimension
+using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, FeedForwardLoss,
+                              output_dimension
 using Symbolics
 using Test
 import Zygote, Random
@@ -11,7 +12,9 @@ Random.seed!(123)
 # inlined here so that the test suite does not depend on `GeometricMachineLearning`: that package has
 # a compat bound on `SymbolicNeuralNetworks`, so depending on it in the other direction means neither
 # can be released without the other having been released first.
-zygote_pullback(loss, ps, model, input_output::Tuple) = Zygote.pullback(p -> loss(model, p, input_output...), ps)
+function zygote_pullback(loss, ps, model, input_output::Tuple)
+    Zygote.pullback(p -> loss(model, p, input_output...), ps)
+end
 
 compare_values(arr1::Array, arr2::Array) = @test arr1 ≈ arr2
 function compare_values(nt1::NamedTuple, nt2::NamedTuple)
@@ -21,8 +24,8 @@ function compare_values(nt1::NamedTuple, nt2::NamedTuple)
     end
 end
 
-@testset "single sample: input_dim = $input_dim, output_dim = $output_dim" for
-        input_dim in (2, 3), output_dim in (1, 2)
+@testset "single sample: input_dim = $input_dim, output_dim = $output_dim" for input_dim in (2, 3),
+    output_dim in (1, 2)
 
     c = Chain(Dense(input_dim, output_dim, tanh))
     nn = NeuralNetwork(c)
@@ -81,7 +84,8 @@ end
 
     soutput = Symbolics.variables(:y, 1:output_dimension(nn.model))
     gradient = symbolic_parameter_gradient(loss(nn.model, params(snn), snn.input, soutput), snn)
-    by_hand = build_nn_function(gradient, params(snn), snn.input, soutput; reduce = +)(input_output..., params(nn))
+    by_hand = build_nn_function(gradient, params(snn), snn.input, soutput; reduce = +)(
+        input_output..., params(nn))
 
     @test from_pullback == params(by_hand)
 end

@@ -14,7 +14,7 @@ of scalar expressions (see [`symbolic_variables`](@ref)), but a `Symbolics.Arr` 
 is accepted as well and normalised by [`scalar_expressions`](@ref).
 """
 const SymbolicExpression = Union{Num, Symbolics.BasicSymbolic, AbstractArray{Num},
-                                 AbstractArray{<:Symbolics.BasicSymbolic}, Symbolics.Arr{Num}}
+    AbstractArray{<:Symbolics.BasicSymbolic}, Symbolics.Arr{Num}}
 
 """
     EquationSet
@@ -61,5 +61,9 @@ _collect_if_array(eq) = eq
 
 # `Latexify` does not know how to print the activation function wrappers of `AbstractNeuralNetworks`,
 # which show up in symbolic expressions that have not been expanded.
-_latexraw(args::AbstractNeuralNetworks.GenericActivation; kwargs...) = _latexraw(args.σ; kwargs...)
-_latexraw(args::AbstractNeuralNetworks.TanhActivation; kwargs...) = _latexraw(tanh; kwargs...)
+function _latexraw(args::AbstractNeuralNetworks.GenericActivation; kwargs...)
+    _latexraw(args.σ; kwargs...)
+end
+function _latexraw(args::AbstractNeuralNetworks.TanhActivation; kwargs...)
+    _latexraw(tanh; kwargs...)
+end

@@ -1,5 +1,6 @@
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: Gradient, derivative, symbolic_differentials, symbolic_derivative,
+using SymbolicNeuralNetworks: Gradient, derivative, symbolic_differentials,
+                              symbolic_derivative,
                               symbolic_parameter_gradient, build_kernel
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
 using NeuralNetworkParameters: NetworkParameters
@@ -31,7 +32,8 @@ end
 The kernel evaluates the gradient for one sample of a batch; compare it against `Zygote` for each
 sample separately, which is what checks that the batch index is threaded through correctly.
 """
-function test_symbolic_gradient(input_dim = 3, output_dim = 1, hidden_dim = 2, T = Float64, batch_size = 3)
+function test_symbolic_gradient(
+        input_dim = 3, output_dim = 1, hidden_dim = 2, T = Float64, batch_size = 3)
     c = Chain(Dense(input_dim, hidden_dim, tanh), Dense(hidden_dim, output_dim, tanh))
     nn = NeuralNetwork(c)
     snn = SymbolicNeuralNetwork(c)
@@ -42,6 +44,7 @@ function test_symbolic_gradient(input_dim = 3, output_dim = 1, hidden_dim = 2, T
     for k in 1:batch_size
         zgrad = Zygote.gradient(p -> norm(c(input[:, k], p)) ^ 2, params(nn))[1]
         for layer in keys(sgrad), array in keys(sgrad[layer])
+
             kernel = build_kernel(sgrad[layer][array], params(snn), snn.input)
             @test kernel(input, params(nn), k) ≈ zgrad[layer][array]
         end
@@ -66,10 +69,13 @@ end
     # therefore assembled sample by sample rather than by calling the chain on the whole batch.
     input = rank == 2 ? rand(input_dim, 4) : rand(input_dim, 2, 2)
     samples = reshape(input, input_dim, :)
-    reference = Zygote.gradient(p -> sum(norm(c(samples[:, k], p)) ^ 2 for k in axes(samples, 2)), params(nn))[1]
+    reference = Zygote.gradient(
+        p -> sum(norm(c(samples[:, k], p)) ^ 2
+        for k in axes(samples, 2)), params(nn))[1]
 
     result = f(input, params(nn))
     for layer in keys(reference), array in keys(reference[layer])
+
         @test result[layer][array] ≈ reference[layer][array]
     end
 end

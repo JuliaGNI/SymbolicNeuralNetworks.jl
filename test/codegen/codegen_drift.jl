@@ -19,7 +19,8 @@
 # which the rules must survive too.
 
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: Jacobian, derivative, generated_expression, parameter_arguments,
+using SymbolicNeuralNetworks: Jacobian, derivative, generated_expression,
+                              parameter_arguments,
                               function_arguments_and_body, callee_name, postwalk,
                               use_generic_array_constructor
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
@@ -47,10 +48,13 @@ function collect_nodes(predicate, expr)
 end
 
 "Every single-index read `name[i]` / `getindex(name, i)` in `expr`."
-reads_of(expr, name::Symbol) = collect_nodes(expr) do node
-    node isa Expr || return false
-    (node.head === :ref && length(node.args) == 2 && node.args[1] === name) ||
-        (callee_name(node) === :getindex && length(node.args) == 3 && node.args[2] === name)
+function reads_of(expr, name::Symbol)
+    collect_nodes(expr) do node
+        node isa Expr || return false
+        (node.head === :ref && length(node.args) == 2 && node.args[1] === name) ||
+            (callee_name(node) === :getindex && length(node.args) == 3 &&
+             node.args[2] === name)
+    end
 end
 
 "Every occurrence of the symbol `name` in `expr`, whether it is a read or not."
@@ -58,14 +62,14 @@ occurrences_of(expr, name::Symbol) = collect_nodes(node -> node === name, expr)
 
 function build(equation, svariables...; inplace, cse)
     _, arrays = parameter_arguments(params(snn))
-    generated_expression(Symbolics.scalarize(equation), svariables, arrays; inplace = inplace, cse = cse)
+    generated_expression(
+        Symbolics.scalarize(equation), svariables, arrays; inplace = inplace, cse = cse)
 end
 
-@testset "out-of-place codegen, $ndata data argument(s), cse = $cse" for
-        (ndata, equation, svariables) in
-            [(1, c(snn.input, params(snn)), (snn.input,)),
-             (2, (c(snn.input, params(snn)) - soutput) .^ 2, (snn.input, soutput))],
-        cse in (false, true)
+@testset "out-of-place codegen, $ndata data argument(s), cse = $cse" for (ndata, equation, svariables) in [
+        (1, c(snn.input, params(snn)), (snn.input,)),
+        (2, (c(snn.input, params(snn)) - soutput) .^ 2, (snn.input, soutput))],
+    cse in (false, true)
 
     expression = build(equation, svariables...; inplace = false, cse = cse)
     names, body = function_arguments_and_body(expression)
@@ -91,12 +95,12 @@ end
     @test occursin("##cse#", string(body)) == cse
 end
 
-@testset "in-place codegen, $ndata data argument(s), $name, cse = $cse" for
-        (ndata, name, equation, svariables) in
-            [(1, "vector-valued", c(snn.input, params(snn)), (snn.input,)),
-             (1, "matrix-valued", derivative(Jacobian(snn)), (snn.input,)),
-             (2, "vector-valued", (c(snn.input, params(snn)) - soutput) .^ 2, (snn.input, soutput))],
-        cse in (false, true)
+@testset "in-place codegen, $ndata data argument(s), $name, cse = $cse" for (ndata, name, equation, svariables) in [
+        (1, "vector-valued", c(snn.input, params(snn)), (snn.input,)),
+        (1, "matrix-valued", derivative(Jacobian(snn)), (snn.input,)),
+        (2, "vector-valued", (c(snn.input, params(snn)) - soutput) .^ 2,
+            (snn.input, soutput))],
+    cse in (false, true)
 
     expression = build(equation, svariables...; inplace = true, cse = cse)
     @test !isnothing(expression)

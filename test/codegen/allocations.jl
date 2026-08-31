@@ -55,7 +55,8 @@
 # figure that has nothing to do with the call.
 
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: Jacobian, derivative, symbolic_parameter_gradient, promoted_eltype,
+using SymbolicNeuralNetworks: Jacobian, derivative, symbolic_parameter_gradient,
+                              promoted_eltype,
                               split_result, unflatten_batch
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
 using NeuralNetworkParameters: NetworkParameters, flatten
@@ -139,6 +140,7 @@ end
     _, layout = flatten(wide)
     out = rand(length(layout), 3)
 
-    @test isconcretetype(only(Base.return_types(unflatten_batch, (typeof(layout), typeof(out)))))
+    @test isconcretetype(only(Base.return_types(unflatten_batch, (
+        typeof(layout), typeof(out)))))
     @test unflatten_batch(layout, out).e128 == out[128:128, :]
 end

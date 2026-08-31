@@ -18,8 +18,8 @@ nn = NeuralNetwork(c)
 ps = params(nn)
 soutput = Symbolics.variables(:y, 1:2)
 
-@testset "one data argument, reduce = $reduction, inplace = $inplace" for
-        reduction in (hcat, +), inplace in (true, false)
+@testset "one data argument, reduce = $reduction, inplace = $inplace" for reduction in (hcat, +),
+    inplace in (true, false)
 
     f = build_nn_function(c(snn.input, params(snn)), snn; reduce = reduction, inplace = inplace)
     @test f isa AbstractBatchedFunction
@@ -35,11 +35,11 @@ end
     @inferred f(rand(3), ps)
 end
 
-@testset "two data arguments, reduce = $reduction, inplace = $inplace" for
-        reduction in (hcat, +), inplace in (true, false)
+@testset "two data arguments, reduce = $reduction, inplace = $inplace" for reduction in (hcat, +),
+    inplace in (true, false)
 
     f = build_nn_function((c(snn.input, params(snn)) - soutput) .^ 2, snn, soutput;
-                          reduce = reduction, inplace = inplace)
+        reduce = reduction, inplace = inplace)
     @inferred f(rand(3, 5), rand(2, 5), ps)
     @inferred f(rand(3), rand(2), ps)
 end

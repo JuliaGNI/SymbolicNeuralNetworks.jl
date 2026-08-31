@@ -113,10 +113,13 @@ very small networks where the binding overhead is not amortised.
 """
 function build_kernel(equation, sparams::NetworkParameters, svariables...; cse::Bool = true)
     paths, arrays = parameter_arguments(sparams)
-    expression = generated_expression(equation, svariables, arrays; inplace = false, cse = cse)
+    expression = generated_expression(
+        equation, svariables, arrays; inplace = false, cse = cse)
     data_names = _data_names(svariables)
     body = _rewrite_body(expression, data_names, paths, nothing)
-    @RuntimeGeneratedFunction(function_expression((data_names..., PARAMETER_NAME, BATCH_INDEX), body))
+    @RuntimeGeneratedFunction(function_expression(
+        (
+            data_names..., PARAMETER_NAME, BATCH_INDEX), body))
 end
 
 @doc raw"""
@@ -139,14 +142,16 @@ plus a `Base.reduce` fold, but the result is produced by mutation and can theref
 differentiated by `Zygote`. See [`build_kernel`](@ref) for the keyword arguments.
 """
 function build_kernel!(equation, sparams::NetworkParameters, svariables...;
-                       reduction, cse::Bool = true)
+        reduction, cse::Bool = true)
     paths, arrays = parameter_arguments(sparams)
-    expression = generated_expression(equation, svariables, arrays; inplace = true, cse = cse)
+    expression = generated_expression(
+        equation, svariables, arrays; inplace = true, cse = cse)
     isnothing(expression) && return nothing
     data_names = _data_names(svariables)
     body = _rewrite_body(expression, data_names, paths, OUTPUT_NAME)
     body = accumulate_into_output(body, OUTPUT_NAME, reduction, length(equation))
-    @RuntimeGeneratedFunction(function_expression((OUTPUT_NAME, data_names..., PARAMETER_NAME, BATCH_INDEX), body))
+    @RuntimeGeneratedFunction(function_expression(
+        (OUTPUT_NAME, data_names..., PARAMETER_NAME, BATCH_INDEX), body))
 end
 
 """
@@ -158,8 +163,10 @@ It returns an `(out_of_place, in_place)` pair for an array-valued equation and a
 for a scalar-valued one; `nothing` is returned when the in-place half is asked for and there is
 none.
 """
-function generated_expression(equation, svariables::Tuple, sarrays::Tuple; inplace::Bool, cse::Bool)
-    code = Symbolics.build_function(equation, svariables..., sarrays...; expression = Val{true}, cse = cse)
+function generated_expression(
+        equation, svariables::Tuple, sarrays::Tuple; inplace::Bool, cse::Bool)
+    code = Symbolics.build_function(
+        equation, svariables..., sarrays...; expression = Val{true}, cse = cse)
     inplace ? _in_place_half(code) : _out_of_place_half(code)
 end
 
@@ -234,12 +241,13 @@ rules can recognise the data arguments, the array constructor is fixed before th
 added so that the `typeof(…)` it contains is not mistaken for a use of a data argument.
 """
 function _rewrite_body(expression::Expr, data_names::Tuple, parameter_paths::Tuple,
-                       output_name::Union{Symbol, Nothing})
+        output_name::Union{Symbol, Nothing})
     generated_names, body = function_arguments_and_body(expression)
     _assert_no_name_clash(generated_names)
     _assert_no_reserved_names_in_body(body)
-    body = substitute_symbols(body, argument_substitutions(generated_names, data_names, parameter_paths;
-                                                           output_name = output_name))
+    body = substitute_symbols(body,
+        argument_substitutions(generated_names, data_names, parameter_paths;
+            output_name = output_name))
     body = use_generic_array_constructor(body)
     body = use_base_mapreduce(body)
     index_by_batch(body, data_names)

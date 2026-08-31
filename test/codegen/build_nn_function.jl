@@ -16,7 +16,8 @@ input = rand(2, 4)
 
 @testset "the network and the explicit form agree" begin
     eq = c(snn.input, params(snn))
-    @test build_nn_function(eq, snn)(input, ps) ≈ build_nn_function(eq, params(snn), snn.input)(input, ps)
+    @test build_nn_function(eq, snn)(input, ps) ≈
+          build_nn_function(eq, params(snn), snn.input)(input, ps)
 
     soutput = Symbolics.variables(:y, 1:2)
     two_input_eq = (c(snn.input, params(snn)) - soutput) .^ 2
@@ -67,5 +68,7 @@ end
     single_nn = NeuralNetwork(single.model)
     @test keys(params(single)) == (:L1,)
     f = build_nn_function(single.model(single.input, params(single)), single)
-    @test f(input, params(single_nn)) ≈ reduce(hcat, [single.model(input[:, k], params(single_nn)) for k in axes(input, 2)])
+    @test f(input, params(single_nn)) ≈
+          reduce(hcat, [single.model(input[:, k], params(single_nn))
+                        for k in axes(input, 2)])
 end

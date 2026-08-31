@@ -13,7 +13,8 @@
 
 using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: Jacobian, derivative, promoted_eltype, allocate_batch_output,
-                              allocate_single_output, InPlaceBatchedFunction, OutOfPlaceBatchedFunction
+                              allocate_single_output, InPlaceBatchedFunction,
+                              OutOfPlaceBatchedFunction
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
 using NeuralNetworkParameters: NetworkParameters
 using Symbolics
@@ -35,7 +36,7 @@ soutput = Symbolics.variables(:y, 1:OUTPUT_DIM)
 const EQUATIONS = [
     ("vector-valued", c(snn.input, params(snn)), (x, p) -> c(x, p)),
     ("matrix-valued", derivative(Jacobian(snn)), (x, p) -> _jacobian(x, p)),
-    ("scalar-valued", sum(c(snn.input, params(snn))), (x, p) -> sum(c(x, p))),
+    ("scalar-valued", sum(c(snn.input, params(snn))), (x, p) -> sum(c(x, p)))
 ]
 
 # finite-difference-free reference for the Jacobian of a two-layer tanh network
@@ -51,8 +52,8 @@ function reference(evaluate, ps, input::AbstractMatrix, reduction)
     Base.reduce(reduction, samples)
 end
 
-@testset "$name, one data argument, reduce = $reduction, inplace = $inplace" for
-        (name, eq, evaluate) in EQUATIONS, reduction in (hcat, +), inplace in (true, false)
+@testset "$name, one data argument, reduce = $reduction, inplace = $inplace" for (name, eq, evaluate) in EQUATIONS,
+    reduction in (hcat, +), inplace in (true, false)
 
     f = build_nn_function(eq, snn; reduce = reduction, inplace = inplace)
     input = rand(INPUT_DIM, 5)
@@ -63,15 +64,17 @@ end
     @test f(input[:, 1], ps) ≈ evaluate(input[:, 1], ps)
 end
 
-@testset "two data arguments, reduce = $reduction, inplace = $inplace" for
-        reduction in (hcat, +), inplace in (true, false)
+@testset "two data arguments, reduce = $reduction, inplace = $inplace" for reduction in (hcat, +),
+    inplace in (true, false)
 
     eq = (c(snn.input, params(snn)) - soutput) .^ 2
     evaluate(x, y, p) = (c(x, p) - y) .^ 2
     f = build_nn_function(eq, snn, soutput; reduce = reduction, inplace = inplace)
 
     input, output = rand(INPUT_DIM, 5), rand(OUTPUT_DIM, 5)
-    @test f(input, output, ps) ≈ Base.reduce(reduction, [evaluate(input[:, k], output[:, k], ps) for k in axes(input, 2)])
+    @test f(input, output, ps) ≈
+          Base.reduce(reduction, [evaluate(input[:, k], output[:, k], ps)
+                                  for k in axes(input, 2)])
     @test f(input[:, 1], output[:, 1], ps) ≈ evaluate(input[:, 1], output[:, 1], ps)
 
     # the two data arguments need not be of the same type
@@ -81,8 +84,8 @@ end
 
 # A scalar-valued equation used to throw `Cannot call tail on an empty tuple` here, because its
 # size is `()` and the reshape asked for the product of the tail of that.
-@testset "three-dimensional input, $name, reduce = $reduction, inplace = $inplace" for
-        (name, eq, evaluate) in EQUATIONS, reduction in (hcat, +), inplace in (true, false)
+@testset "three-dimensional input, $name, reduce = $reduction, inplace = $inplace" for (name, eq, evaluate) in EQUATIONS,
+    reduction in (hcat, +), inplace in (true, false)
 
     f = build_nn_function(eq, snn; reduce = reduction, inplace = inplace)
     input = rand(INPUT_DIM, 2, 3)
@@ -99,6 +102,7 @@ end
         # a scalar-valued equation counts as one of size m = 1
         @test size(result) == (name == "scalar-valued" ? 1 : OUTPUT_DIM, 2, 3)
         for i in 1:2, j in 1:3
+
             @test vec(result[:, i, j]) ≈ [evaluate(input[:, i, j], ps);]
         end
     end
@@ -118,8 +122,8 @@ end
 
 # `Base.reduce` has nothing to fold over an empty batch, so the out-of-place path used to throw
 # where the in-place one returned an empty result.
-@testset "an empty batch, $name, reduce = $reduction" for
-        (name, eq, evaluate) in EQUATIONS, reduction in (hcat, +)
+@testset "an empty batch, $name, reduce = $reduction" for (name, eq, evaluate) in EQUATIONS,
+    reduction in (hcat, +)
 
     f_iip = build_nn_function(eq, snn; reduce = reduction)
     f_oop = build_nn_function(eq, snn; reduce = reduction, inplace = false)
@@ -165,7 +169,7 @@ end
     f_iip = build_nn_function(c(snn.input, params(snn)), snn; reduce = reduction)
     f_oop = build_nn_function(c(snn.input, params(snn)), snn; reduce = reduction, inplace = false)
     int_ps = NetworkParameters((L1 = (W = ones(Int, 4, INPUT_DIM), b = zeros(Int, 4)),
-                                L2 = (W = ones(Int, OUTPUT_DIM, 4), b = zeros(Int, OUTPUT_DIM))))
+        L2 = (W = ones(Int, OUTPUT_DIM, 4), b = zeros(Int, OUTPUT_DIM))))
     int_input = [1 2; 3 4; 5 6]
     @test f_iip(int_input, int_ps) ≈ f_oop(int_input, int_ps)
     @test eltype(f_iip(int_input, int_ps)) == Float64
@@ -189,7 +193,8 @@ end
 @testset "the built functions describe themselves" begin
     @test occursin("InPlaceBatchedFunction", sprint(show, build_nn_function(c(snn.input, params(snn)), snn)))
     @test occursin("OutOfPlaceBatchedFunction",
-                   sprint(show, build_nn_function(c(snn.input, params(snn)), snn; inplace = false)))
+        sprint(show, build_nn_function(c(snn.input, params(snn)), snn; inplace = false)))
     @test build_nn_function(c(snn.input, params(snn)), snn) isa InPlaceBatchedFunction
-    @test build_nn_function(sum(c(snn.input, params(snn))), snn) isa OutOfPlaceBatchedFunction
+    @test build_nn_function(sum(c(snn.input, params(snn))), snn) isa
+          OutOfPlaceBatchedFunction
 end

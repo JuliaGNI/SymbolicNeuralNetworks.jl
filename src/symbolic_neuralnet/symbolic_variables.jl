@@ -50,7 +50,9 @@ The workhorse of [`symbolic_variables`](@ref). `counters` maps a name to the num
 that have been created under it so far and is updated in place, which is what makes the leaves of a
 nested parameter set distinguishable.
 """
-symbolic_variables!(counters::Dict{Symbol, Int}, ::Real, name::Symbol) = Symbolics.variable(next_name!(counters, name))
+function symbolic_variables!(counters::Dict{Symbol, Int}, ::Real, name::Symbol)
+    Symbolics.variable(next_name!(counters, name))
+end
 
 function symbolic_variables!(counters::Dict{Symbol, Int}, x::AbstractArray, name::Symbol)
     Symbolics.variables(next_name!(counters, name), axes(x)...)

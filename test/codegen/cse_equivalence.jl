@@ -32,19 +32,19 @@ end
 @testset "forward pass" begin
     eq = c(snn.input, params(snn))
     compare(build_nn_function(eq, snn)(input, ps),
-            build_nn_function(eq, snn; cse = false)(input, ps))
+        build_nn_function(eq, snn; cse = false)(input, ps))
 end
 
 @testset "Jacobian (derivative w.r.t. the input)" begin
     eq = derivative(Jacobian(snn))
     compare(build_nn_function(eq, snn)(input, ps),
-            build_nn_function(eq, snn; cse = false)(input, ps))
+        build_nn_function(eq, snn; cse = false)(input, ps))
 end
 
 @testset "Gradient (derivative w.r.t. the parameters)" begin
     eq = derivative(Gradient(snn))[1].L1.W
     compare(build_nn_function(eq, snn)(input, ps),
-            build_nn_function(eq, snn; cse = false)(input, ps))
+        build_nn_function(eq, snn; cse = false)(input, ps))
 end
 
 @testset "NamedTuple-valued equations" begin

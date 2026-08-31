@@ -73,13 +73,15 @@ function build_flat_function(eq, nn::AbstractSymbolicNeuralNetwork; kwargs...)
     build_flat_function(eq, params(nn), nn.input; kwargs...)
 end
 
-function build_flat_function(eq, nn::AbstractSymbolicNeuralNetwork, soutput::SymbolicVariables;
-                             kwargs...)
+function build_flat_function(
+        eq, nn::AbstractSymbolicNeuralNetwork, soutput::SymbolicVariables;
+        kwargs...)
     build_flat_function(eq, params(nn), nn.input, soutput; kwargs...)
 end
 
-function build_flat_function(eq, sparams::NetworkParameters, svariables::SymbolicVariables...;
-                             kwargs...)
+function build_flat_function(
+        eq, sparams::NetworkParameters, svariables::SymbolicVariables...;
+        kwargs...)
     f = build_nn_function(eq, sparams, svariables...; kwargs...)
     FlatParameterFunction{length(svariables)}(f, parameterlayout(sparams))
 end
@@ -95,11 +97,14 @@ struct FlatParameterFunction{NDATA, FT, LT} <: Function
     layout::LT
 end
 
-FlatParameterFunction{NDATA}(f::FT, layout::LT) where {NDATA, FT, LT} =
+function FlatParameterFunction{NDATA}(f::FT, layout::LT) where {NDATA, FT, LT}
     FlatParameterFunction{NDATA, FT, LT}(f, layout)
+end
 
 (f::FlatParameterFunction{1})(input, w) = f.f(input, structured_parameters(f, w))
-(f::FlatParameterFunction{2})(input, output, w) = f.f(input, output, structured_parameters(f, w))
+function (f::FlatParameterFunction{2})(input, output, w)
+    f.f(input, output, structured_parameters(f, w))
+end
 
 """
     structured_parameters(f, w)
@@ -112,7 +117,8 @@ structured_parameters(::FlatParameterFunction, w::FlatParameters) = unflatten(w)
 
 function Base.show(io::IO, f::FlatParameterFunction{NDATA}) where {NDATA}
     arguments = NDATA == 1 ? "(input, w)" : "(input, output, w)"
-    print(io, "FlatParameterFunction ", arguments, " over ", flatlength(f.layout), " parameters")
+    print(io, "FlatParameterFunction ", arguments,
+        " over ", flatlength(f.layout), " parameters")
 end
 
 # A method per shape rather than one signature over a union, as everywhere else in this release. The

@@ -115,24 +115,27 @@ struct SymbolicPullback{NNLT, FT} <: AbstractPullback{NNLT}
 end
 
 function SymbolicPullback(nn::SymbolicNeuralNetwork, loss::NetworkLoss;
-                          layerwise::Union{Bool, Symbol} = :auto, cse::Bool = true,
-                          inplace::Bool = true)
+        layerwise::Union{Bool, Symbol} = :auto, cse::Bool = true,
+        inplace::Bool = true)
     _check_layerwise(layerwise)
     if layerwise === true || (layerwise === :auto && composes_layerwise(nn))
         # `demanded`: with `layerwise = true` the construction raises where it would otherwise
         # decline, naming the reason — see `decline`
-        gradient_function = layerwise_gradient_function(nn, loss; demanded = layerwise === true,
-                                                        cse = cse, inplace = inplace)
+        gradient_function = layerwise_gradient_function(
+            nn, loss; demanded = layerwise === true,
+            cse = cse, inplace = inplace)
         isnothing(gradient_function) ||
             return SymbolicPullback(loss, ParameterGradient(gradient_function))
     end
-    SymbolicPullback(loss, ParameterGradient(monolithic_gradient_function(nn, loss; cse = cse,
-                                                                         inplace = inplace)))
+    SymbolicPullback(loss,
+        ParameterGradient(monolithic_gradient_function(nn, loss; cse = cse,
+            inplace = inplace)))
 end
 
 function _check_layerwise(layerwise)
-    layerwise isa Bool || layerwise === :auto || throw(ArgumentError(
-        "the keyword argument `layerwise` has to be `true`, `false` or `:auto`, got `$(layerwise)`."))
+    layerwise isa Bool || layerwise === :auto ||
+        throw(ArgumentError(
+            "the keyword argument `layerwise` has to be `true`, `false` or `:auto`, got `$(layerwise)`."))
     nothing
 end
 
@@ -151,18 +154,19 @@ Its cost is the reason for [`layerwise_gradient_function`](@ref): the expression
 per scalar parameter.
 """
 function monolithic_gradient_function(nn::SymbolicNeuralNetwork, loss::NetworkLoss;
-                                      cse::Bool = true, inplace::Bool = true)
+        cse::Bool = true, inplace::Bool = true)
     soutput = Symbolics.variables(:y, 1:output_dimension(nn.model))
     symbolic_loss = loss(nn.model, params(nn), nn.input, soutput)
     gradient = symbolic_parameter_gradient(symbolic_loss, nn)
     # `reduce = +`: the loss of a batch is the sum of the losses of its samples, so its gradient is
     # the sum of the per-sample gradients.
     build_nn_function(gradient, params(nn), nn.input, soutput;
-                      reduce = +, cse = cse, inplace = inplace)
+        reduce = +, cse = cse, inplace = inplace)
 end
 
-SymbolicPullback(nn::SymbolicNeuralNetwork; kwargs...) =
+function SymbolicPullback(nn::SymbolicNeuralNetwork; kwargs...)
     SymbolicPullback(nn, AbstractNeuralNetworks.FeedForwardLoss(); kwargs...)
+end
 
 """
     ParameterGradient(gradient_function)
@@ -174,7 +178,9 @@ struct ParameterGradient{FT} <: Function
     gradient_function::FT
 end
 
-(g::ParameterGradient)(input, output, parameters) = PullbackFunction(g.gradient_function, input, output, parameters)
+function (g::ParameterGradient)(input, output, parameters)
+    PullbackFunction(g.gradient_function, input, output, parameters)
+end
 
 """
     PullbackFunction(gradient_function, input, output, parameters)
@@ -206,11 +212,13 @@ end
 # it in its first argument and less specific in its third, which is an ambiguity rather than an
 # override.
 (pullback::SymbolicPullback)(ps, model,
-                            input_output::Tuple{<:ArrayOrNamedTuple, <:ArrayOrNamedTuple})::Tuple =
-    _loss_and_gradient(pullback, ps, model, input_output)
+    input_output::Tuple{<:ArrayOrNamedTuple, <:ArrayOrNamedTuple})::Tuple = _loss_and_gradient(
+    pullback, ps, model, input_output)
 
-(pullback::SymbolicPullback)(ps, model, input_output::Tuple{<:Tuple, <:ArrayOrNamedTuple})::Tuple =
-    _loss_and_gradient(pullback, ps, model, input_output)
+(pullback::SymbolicPullback)(ps, model,
+    input_output::Tuple{<:Tuple, <:ArrayOrNamedTuple})::Tuple = _loss_and_gradient(
+    pullback, ps, model, input_output)
 
-_loss_and_gradient(pullback::SymbolicPullback, ps, model, (input, output)) =
+function _loss_and_gradient(pullback::SymbolicPullback, ps, model, (input, output))
     (pullback.loss(model, ps, input, output), pullback.fun(input, output, ps))
+end

@@ -44,7 +44,9 @@ end
 _name_of(callee::Symbol) = callee
 _name_of(callee::Function) = nameof(callee)
 _name_of(callee::GlobalRef) = callee.name
-_name_of(callee::Expr) = callee.head === :. && callee.args[2] isa QuoteNode ? callee.args[2].value : nothing
+function _name_of(callee::Expr)
+    callee.head === :. && callee.args[2] isa QuoteNode ? callee.args[2].value : nothing
+end
 _name_of(::Any) = nothing
 
 """
@@ -70,7 +72,9 @@ end
 
 Assemble an anonymous function definition; the inverse of [`function_arguments_and_body`](@ref).
 """
-function_expression(argument_names, body) = Expr(:function, Expr(:tuple, argument_names...), body)
+function function_expression(argument_names, body)
+    Expr(:function, Expr(:tuple, argument_names...), body)
+end
 
 @doc raw"""
     argument_substitutions(generated_names, data_names, parameter_paths; output_name)
@@ -103,8 +107,9 @@ substitutions = argument_substitutions([:ˍ₋arg1, :ˍ₋arg2], (:x1,), (((:L1,
 ```
 """
 function argument_substitutions(generated_names::AbstractVector, data_names::Tuple,
-                                parameter_paths::Tuple; output_name::Union{Symbol, Nothing})
-    expected = length(data_names) + length(parameter_paths) + (isnothing(output_name) ? 0 : 1)
+        parameter_paths::Tuple; output_name::Union{Symbol, Nothing})
+    expected = length(data_names) + length(parameter_paths) +
+               (isnothing(output_name) ? 0 : 1)
     length(generated_names) == expected || throw(ArgumentError(
         "the generated function takes $(length(generated_names)) arguments, expected $(expected)."))
 
@@ -129,7 +134,9 @@ end
 
 The expression that reads `path` out of the object called `name`, e.g. `ps.L1.W` for `(:L1, :W)`.
 """
-access_expression(name::Symbol, path::Tuple) = foldl((e, key) -> Expr(:., e, QuoteNode(key)), path; init = name)
+function access_expression(name::Symbol, path::Tuple)
+    foldl((e, key) -> Expr(:., e, QuoteNode(key)), path; init = name)
+end
 
 """
     substitute_symbols(expr, substitutions)
@@ -167,7 +174,8 @@ use_generic_array_constructor(:((SymbolicUtils.Code.create_array)(typeof(ps), no
 """
 function use_generic_array_constructor(expr)
     postwalk(expr) do node
-        if callee_name(node) === :create_array && length(node.args) > 1 && callee_name(node.args[2]) === :typeof
+        if callee_name(node) === :create_array && length(node.args) > 1 &&
+           callee_name(node.args[2]) === :typeof
             Expr(:call, node.args[1], :Array, node.args[3:end]...)
         else
             node
@@ -203,7 +211,7 @@ function use_base_mapreduce(expr)
     postwalk(expr) do node
         if callee_name(node) === :_mapreduce && length(node.args) ≥ 4
             Expr(:call, :mapreduce, Expr(:parameters, Expr(:kw, :dims, :(Colon()))),
-                 node.args[2:(end - 2)]...)
+                node.args[2:(end - 2)]...)
         else
             node
         end
@@ -239,9 +247,11 @@ index_by_batch(:(x1[1] + getindex(x1, 2)), (:x1,))
 """
 function index_by_batch(expr, data_names::Tuple)
     postwalk(expr) do node
-        if node isa Expr && node.head === :ref && length(node.args) == 2 && node.args[1] ∈ data_names
+        if node isa Expr && node.head === :ref && length(node.args) == 2 &&
+           node.args[1] ∈ data_names
             Expr(:ref, node.args[1], node.args[2], BATCH_INDEX)
-        elseif callee_name(node) === :getindex && length(node.args) == 3 && node.args[2] ∈ data_names
+        elseif callee_name(node) === :getindex && length(node.args) == 3 &&
+               node.args[2] ∈ data_names
             Expr(:call, node.args[1], node.args[2], node.args[3], BATCH_INDEX)
         else
             _assert_indexed_only(node, data_names)
@@ -257,10 +267,11 @@ function _assert_indexed_only(node, data_names::Tuple)
     (node isa Expr && node.head ∈ (:call, :ref, :.)) || return
     arguments = node.head === :call ? node.args[2:end] : node.args
     for argument in arguments
-        argument isa Symbol && argument ∈ data_names && throw(ArgumentError(
-            "the generated code uses the data argument `$(argument)` other than by indexing a " *
-            "single sample from it (in `$(node)`), so it cannot be evaluated over a batch. This " *
-            "usually means the equation contains an operation on an un-scalarised symbolic array."))
+        argument isa Symbol && argument ∈ data_names &&
+            throw(ArgumentError(
+                "the generated code uses the data argument `$(argument)` other than by indexing a " *
+                "single sample from it (in `$(node)`), so it cannot be evaluated over a batch. This " *
+                "usually means the equation contains an operation on an un-scalarised symbolic array."))
     end
 end
 
@@ -325,7 +336,9 @@ function _is_output_write(node, output_name::Symbol)
         node.args[1].head === :ref && node.args[1].args[1] === output_name
 end
 
-_redirect_write(node::Expr, ::Symbol, ::typeof(+), ::Integer) = Expr(:+=, node.args[1], node.args[2])
+function _redirect_write(node::Expr, ::Symbol, ::typeof(+), ::Integer)
+    Expr(:+=, node.args[1], node.args[2])
+end
 
 function _redirect_write(node::Expr, output_name::Symbol, ::typeof(hcat), equation_length::Integer)
     index = node.args[1].args[2]

@@ -2,7 +2,8 @@
 # are the layer below `AbstractBatchedFunction`, which adds the batching itself.
 
 using SymbolicNeuralNetworks
-using SymbolicNeuralNetworks: build_kernel, build_kernel!, parameter_arguments, generated_expression,
+using SymbolicNeuralNetworks: build_kernel, build_kernel!, parameter_arguments,
+                              generated_expression,
                               _assert_no_name_clash, _assert_no_reserved_names_in_body,
                               is_reserved_name, data_name
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
@@ -21,7 +22,8 @@ eq = c(snn.input, params(snn))
 @testset "parameter_arguments flattens the parameter tree" begin
     paths, arrays = parameter_arguments(params(snn))
     @test paths == ((:L1, :W), (:L1, :b), (:L2, :W), (:L2, :b))
-    @test all(map(===, arrays, (params(snn).L1.W, params(snn).L1.b, params(snn).L2.W, params(snn).L2.b)))
+    @test all(map(===, arrays, (
+        params(snn).L1.W, params(snn).L1.b, params(snn).L2.W, params(snn).L2.b)))
     # every parameter array has to become an argument of its own: `Symbolics.build_function` only
     # recognises a symbolic array it is handed directly, and leaves the entries of anything else as
     # free variables in the generated code
@@ -66,8 +68,9 @@ end
 @testset "a scalar equation has no in-place kernel" begin
     scalar_eq = sum(c(snn.input, params(snn)))
     @test isnothing(build_kernel!(scalar_eq, params(snn), snn.input; reduction = hcat))
-    @test isnothing(generated_expression(scalar_eq, (snn.input,), last(parameter_arguments(params(snn)));
-                                         inplace = true, cse = true))
+    @test isnothing(generated_expression(
+        scalar_eq, (snn.input,), last(parameter_arguments(params(snn)));
+        inplace = true, cse = true))
     kernel = build_kernel(scalar_eq, params(snn), snn.input)
     input = rand(3, 4)
     @test all(k -> kernel(input, ps, k) ≈ sum(c(input[:, k], ps)), axes(input, 2))
@@ -121,7 +124,8 @@ end
     @test f(x, y, z, ps) ≈ c(x, ps) .+ y .+ z
     # ... and over a batch, where every data argument is indexed by the same column
     xs, ys, zs = rand(3, 4), rand(2, 4), rand(2, 4)
-    @test f(xs, ys, zs, ps) ≈ reduce(hcat, [c(xs[:, i], ps) .+ ys[:, i] .+ zs[:, i] for i in 1:4])
+    @test f(xs, ys, zs, ps) ≈
+          reduce(hcat, [c(xs[:, i], ps) .+ ys[:, i] .+ zs[:, i] for i in 1:4])
 end
 
 # The whole `x1`, `x2`, … family is reserved, not only the arities an equation happens to use: a free

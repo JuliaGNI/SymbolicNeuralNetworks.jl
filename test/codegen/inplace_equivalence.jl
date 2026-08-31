@@ -39,14 +39,15 @@ function compare_or_both_fail(f_iip, f_oop, args...)
     @test size(iip_result) == size(oop_result)
 end
 
-@testset "single input, $name, reduce = $reduction" for
-        (name, eq) in ("vector-valued" => c(snn.input, params(snn)),
-                       "matrix-valued (Jacobian)" => derivative(Jacobian(snn)),
-                       "matrix-valued (Gradient)" => derivative(Gradient(snn))[1].L1.W),
-        reduction in (hcat, +)
+@testset "single input, $name, reduce = $reduction" for (name, eq) in ("vector-valued" =>
+        c(snn.input, params(snn)),
+        "matrix-valued (Jacobian)" => derivative(Jacobian(snn)),
+        "matrix-valued (Gradient)" => derivative(Gradient(snn))[1].L1.W),
+    reduction in (hcat, +)
 
     f_iip = build_nn_function(eq, params(snn), snn.input; reduce = reduction)
-    f_oop = build_nn_function(eq, params(snn), snn.input; reduce = reduction, inplace = false)
+    f_oop = build_nn_function(
+        eq, params(snn), snn.input; reduce = reduction, inplace = false)
 
     compare_or_both_fail(f_iip, f_oop, rand(3, 6), ps)       # batch
     compare_or_both_fail(f_iip, f_oop, rand(3, 1), ps)       # batch of one
@@ -55,13 +56,15 @@ end
     compare_or_both_fail(f_iip, f_oop, rand(3, 2, 3), ps)    # two batch dimensions
 end
 
-@testset "two inputs, $name, reduce = $reduction" for
-        (name, eq) in ("vector-valued" => (c(snn.input, params(snn)) - soutput) .^ 2,
-                       "matrix-valued" => derivative(Gradient((c(snn.input, params(snn)) - soutput) .^ 2, snn))[1].L1.W),
-        reduction in (hcat, +)
+@testset "two inputs, $name, reduce = $reduction" for (name, eq) in ("vector-valued" =>
+        (c(snn.input, params(snn)) - soutput) .^ 2,
+        "matrix-valued" =>
+        derivative(Gradient((c(snn.input, params(snn)) - soutput) .^ 2, snn))[1].L1.W),
+    reduction in (hcat, +)
 
     f_iip = build_nn_function(eq, params(snn), snn.input, soutput; reduce = reduction)
-    f_oop = build_nn_function(eq, params(snn), snn.input, soutput; reduce = reduction, inplace = false)
+    f_oop = build_nn_function(
+        eq, params(snn), snn.input, soutput; reduce = reduction, inplace = false)
 
     compare_or_both_fail(f_iip, f_oop, rand(3, 6), rand(2, 6), ps)
     compare_or_both_fail(f_iip, f_oop, rand(3, 1), rand(2, 1), ps)

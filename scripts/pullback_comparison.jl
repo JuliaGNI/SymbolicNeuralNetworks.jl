@@ -17,7 +17,7 @@ batch_size = 10000
 input = rand(2, batch_size)
 output = rand(1, batch_size)
 # output sensitivities
-_do = 1.
+_do = 1.0
 
 # spb(params(nn_cpu), nn.model, (input, output))[2](_do)
 # zpb(params(nn_cpu), nn.model, (input, output))[2](_do)
@@ -25,7 +25,7 @@ _do = 1.
 # @time zpb_evaluated = zpb(params(nn_cpu), nn.model, (input, output))[2](_do)[1].params
 # @assert values(spb_evaluated) .≈ values(zpb_evaluated)
 
-function timenn(pb, _params, model, input, output, _do = 1.)
+function timenn(pb, _params, model, input, output, _do = 1.0)
     pb(_params, model, (input, output))[2](_do)
     @time pb(_params, model, (input, output))[2](_do)
 end

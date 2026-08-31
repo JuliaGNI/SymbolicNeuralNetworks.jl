@@ -5,18 +5,18 @@ using Latexify: LaTeXString
 # taken from https://github.com/korsbo/Latexify.jl/blob/master/docs/make.jl
 Base.show(io::IO, ::MIME"text/html", l::LaTeXString) = l.s
 
-DocMeta.setdocmeta!(SymbolicNeuralNetworks, :DocTestSetup, :(using SymbolicNeuralNetworks); recursive=true)
+DocMeta.setdocmeta!(SymbolicNeuralNetworks, :DocTestSetup, :(using SymbolicNeuralNetworks); recursive = true)
 
 makedocs(;
-    modules=[SymbolicNeuralNetworks],
-    authors="Michael Kraus",
-    repo="https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/blob/{commit}{path}#{line}",
-    sitename="SymbolicNeuralNetworks.jl",
-    format=Documenter.HTML(;
-        prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://JuliaGNI.github.io/SymbolicNeuralNetworks.jl",
-        edit_link="main",
-        assets=String[],
+    modules = [SymbolicNeuralNetworks],
+    authors = "Michael Kraus",
+    repo = "https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/blob/{commit}{path}#{line}",
+    sitename = "SymbolicNeuralNetworks.jl",
+    format = Documenter.HTML(;
+        prettyurls = get(ENV, "CI", "false") == "true",
+        canonical = "https://JuliaGNI.github.io/SymbolicNeuralNetworks.jl",
+        edit_link = "main",
+        assets = String[],
         mathengine = MathJax3(),
         # `api.md` is one `@autodocs` block over the whole package, so it grows with every docstring
         # and sits at 198 KiB against Documenter's 200 KiB default — which is a hard error, not a
@@ -24,7 +24,7 @@ makedocs(;
         # `size_threshold_warn` default of 100 KiB is left alone, so the page still says it is large.
         size_threshold = 512 * 1024
     ),
-    pages=[
+    pages = [
         "Home" => "index.md",
         "Guide" => [
             "Symbolic Neural Networks" => "guide/symbolic_neural_networks.md",
@@ -32,7 +32,7 @@ makedocs(;
             "Derivatives" => "guide/derivatives.md",
             "Equation Sets" => "guide/equation_sets.md",
             "Flat Parameters" => "guide/flat_parameters.md",
-            "Training" => "guide/training.md",
+            "Training" => "guide/training.md"
         ],
         "Tutorials" => [
             "Double Derivatives" => "tutorials/double_derivative.md",
@@ -41,12 +41,12 @@ makedocs(;
         "Internals" => [
             "Code Generation" => "internals/code_generation.md",
         ],
-        "API" => "api.md",
-    ],
+        "API" => "api.md"
+    ]
 )
 
 deploydocs(;
-    repo   = "github.com/JuliaGNI/SymbolicNeuralNetworks.jl",
+    repo = "github.com/JuliaGNI/SymbolicNeuralNetworks.jl",
     devurl = "latest",
-    devbranch = "main",
+    devbranch = "main"
 )

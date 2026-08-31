@@ -18,10 +18,12 @@ function test_jacobian(n::Integer, T = Float32)
     ps = params(NeuralNetwork(c, T))
     input = rand(T, n)
     @test build_nn_function(j.f, snn)(input, ps) ≈ c(input, ps)
-    @test build_nn_function(derivative(j), snn)(input, ps) ≈ ForwardDiff.jacobian(x -> c(x, ps), input)
+    @test build_nn_function(derivative(j), snn)(input, ps) ≈
+          ForwardDiff.jacobian(x -> c(x, ps), input)
 end
 
 @testset "single-layer Jacobian, n = $n, $T" for n in 1:10, T in (Float32, Float64)
+
     test_jacobian(n, T)
 end
 
@@ -47,7 +49,8 @@ end
 
     j = derivative(Jacobian(f, snn))
     @test size(j) == (1, 3)
-    @test build_nn_function(j, snn)(input, ps) ≈ ForwardDiff.gradient(x -> sum(c(x, ps)), input)'
+    @test build_nn_function(j, snn)(input, ps) ≈
+          ForwardDiff.gradient(x -> sum(c(x, ps)), input)'
 end
 
 @testset "an explicitly supplied expression" begin
