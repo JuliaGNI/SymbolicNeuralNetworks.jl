@@ -92,8 +92,9 @@ end
     @test from_pullback == by_hand
 end
 
-# The gradient comes back as a `NetworkParameters`, the shape a Zygote pullback of a loss over a
-# `NetworkParameters` returns, whichever way the pullback was constructed.
+# The gradient comes back as a `NetworkParameters` whichever way the pullback was constructed: the
+# type a Zygote pullback of a loss over a `NetworkParameters` returns, less the one-element tuple
+# Zygote wraps it in.
 @testset "the gradient is a NetworkParameters, layerwise = $layerwise" for layerwise in (
     true, false)
     c = Chain(Dense(2, 3, tanh), Dense(3, 1, tanh))

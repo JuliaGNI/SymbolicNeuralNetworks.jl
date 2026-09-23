@@ -4,13 +4,13 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased] — targeting 0.9.0
 
-### Changed
+### Breaking
 
 - **`SymbolicPullback`'s pullback function returns the gradient as a `NetworkParameters` instead of
-  unwrapping it to a `NamedTuple`.** (Breaking) Both the layerwise and monolithic constructions
-  return a `NetworkParameters`. This is the same shape a Zygote pullback of a loss over a
+  unwrapping it to a `NamedTuple`.** Both the layerwise and monolithic constructions return a
+  `NetworkParameters`. It is the sole element of the tuple a Zygote pullback of a loss over a
   `NetworkParameters` returns, so the two pullbacks are interchangeable for a caller
   (`GeometricMachineLearning`'s `ZygotePullback`), and the caller can drop its own unwrapping step.
 
