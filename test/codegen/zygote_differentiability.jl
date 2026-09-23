@@ -48,7 +48,7 @@ end
     pb = SymbolicPullback(snn, FeedForwardLoss(); inplace = false)
     # differentiating the *loss* still works; what is exercised here is that the pullback itself can
     # be built and evaluated in out-of-place mode
-    @test pb(ps, c, (input, output))[2](1.0) isa NamedTuple
+    @test pb(ps, c, (input, output))[2](1.0) isa NetworkParameters
 end
 
 # Pin the current limitation. If this starts failing the in-place path became differentiable and the

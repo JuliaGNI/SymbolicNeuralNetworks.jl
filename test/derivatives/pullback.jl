@@ -2,6 +2,7 @@ using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: symbolic_parameter_gradient, PullbackFunction
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params, FeedForwardLoss,
                               output_dimension
+using NeuralNetworkParameters: NetworkParameters
 using Symbolics
 using Test
 import Zygote, Random
@@ -17,6 +18,7 @@ function zygote_pullback(loss, ps, model, input_output::Tuple)
 end
 
 compare_values(arr1::Array, arr2::Array) = @test arr1 ≈ arr2
+compare_values(ps::NetworkParameters, nt::NamedTuple) = compare_values(params(ps), nt)
 function compare_values(nt1::NamedTuple, nt2::NamedTuple)
     @test keys(nt1) == keys(nt2)
     for key in keys(nt1)
@@ -87,5 +89,19 @@ end
     by_hand = build_nn_function(gradient, params(snn), snn.input, soutput; reduce = +)(
         input_output..., params(nn))
 
-    @test from_pullback == params(by_hand)
+    @test from_pullback == by_hand
+end
+
+# The gradient comes back as a `NetworkParameters`, the shape a Zygote pullback of a loss over a
+# `NetworkParameters` returns, whichever way the pullback was constructed.
+@testset "the gradient is a NetworkParameters, layerwise = $layerwise" for layerwise in (
+    true, false)
+    c = Chain(Dense(2, 3, tanh), Dense(3, 1, tanh))
+    nn = NeuralNetwork(c)
+    snn = SymbolicNeuralNetwork(nn)
+    pb = SymbolicPullback(snn, FeedForwardLoss(); layerwise = layerwise)
+
+    gradient = pb(params(nn), nn.model, (rand(2, 3), rand(1, 3)))[2](1)
+    @test gradient isa NetworkParameters
+    @test keys(gradient) == keys(params(nn))
 end
