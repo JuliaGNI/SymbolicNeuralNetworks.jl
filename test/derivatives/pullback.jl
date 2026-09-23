@@ -9,8 +9,8 @@ import Zygote, Random
 
 Random.seed!(123)
 
-# This used to be `GeometricMachineLearning.ZygotePullback`, which is the one line below. It is
-# inlined here so that the test suite does not depend on `GeometricMachineLearning`: that package has
+# The Zygote reference pullback: the one line of `GeometricMachineLearning.ZygotePullback`, inlined
+# here so that the test suite does not depend on `GeometricMachineLearning`: that package has
 # a compat bound on `SymbolicNeuralNetworks`, so depending on it in the other direction means neither
 # can be released without the other having been released first.
 function zygote_pullback(loss, ps, model, input_output::Tuple)
@@ -18,7 +18,9 @@ function zygote_pullback(loss, ps, model, input_output::Tuple)
 end
 
 compare_values(arr1::Array, arr2::Array) = @test arr1 ≈ arr2
-compare_values(ps::NetworkParameters, nt::NamedTuple) = compare_values(params(ps), nt)
+function compare_values(a::NetworkParameters, b::NetworkParameters)
+    compare_values(params(a), params(b))
+end
 function compare_values(nt1::NamedTuple, nt2::NamedTuple)
     @test keys(nt1) == keys(nt2)
     for key in keys(nt1)
@@ -38,7 +40,8 @@ end
     input_output = (rand(input_dim, 1), rand(output_dim, 1))
     symbolic = pb(params(nn), nn.model, input_output)[2](1)
     zygote = zygote_pullback(loss, params(nn), nn.model, input_output)[2](1)[1]
-    compare_values(symbolic, params(zygote))
+    @test typeof(symbolic) == typeof(zygote)
+    compare_values(symbolic, zygote)
 end
 
 # `SymbolicPullback` differentiates the loss of a *single* sample and sums the results over the batch
@@ -57,7 +60,7 @@ end
     per_sample = Zygote.gradient(params(nn)) do p
         sum(loss(nn.model, p, input[:, k:k], output[:, k:k]) for k in axes(input, 2))
     end[1]
-    compare_values(symbolic, params(per_sample))
+    compare_values(symbolic, per_sample)
 end
 
 @testset "the loss value is returned alongside the pullback" begin
@@ -100,9 +103,13 @@ end
     c = Chain(Dense(2, 3, tanh), Dense(3, 1, tanh))
     nn = NeuralNetwork(c)
     snn = SymbolicNeuralNetwork(nn)
-    pb = SymbolicPullback(snn, FeedForwardLoss(); layerwise = layerwise)
+    loss = FeedForwardLoss()
+    pb = SymbolicPullback(snn, loss; layerwise = layerwise)
+    input_output = (rand(2, 3), rand(1, 3))
 
-    gradient = pb(params(nn), nn.model, (rand(2, 3), rand(1, 3)))[2](1)
+    gradient = pb(params(nn), nn.model, input_output)[2](1)
     @test gradient isa NetworkParameters
     @test keys(gradient) == keys(params(nn))
+    zygote = zygote_pullback(loss, params(nn), nn.model, input_output)[2](1)[1]
+    @test typeof(gradient) == typeof(zygote)
 end

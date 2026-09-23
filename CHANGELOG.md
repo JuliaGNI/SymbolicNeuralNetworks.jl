@@ -10,14 +10,27 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
 
 - **`SymbolicPullback`'s pullback function returns the gradient as a `NetworkParameters` instead of
   unwrapping it to a `NamedTuple`.** Both the layerwise and monolithic constructions return a
-  `NetworkParameters`. It is the sole element of the tuple a Zygote pullback of a loss over a
-  `NetworkParameters` returns, so the two pullbacks are interchangeable for a caller
-  (`GeometricMachineLearning`'s `ZygotePullback`), and the caller can drop its own unwrapping step.
+  `NetworkParameters`. It is the sole element of the tuple a Zygote pullback returns; the
+  symbolic result equals `Zygote.pullback(...)[2](1)[1]`. A caller handling both
+  pullbacks still strips the tuple from the Zygote one, and only the `params` step
+  (GML's `_get_params`) becomes unnecessary.
 
   The change is breaking for code that relies on the result being a `NamedTuple` — specifically
-  dispatching on `NamedTuple`, `isa NamedTuple`, or comparing `==` against a `NamedTuple`. A
-  `NetworkParameters` forwards `getproperty`, `getindex` and `keys`, so a caller reading `g.L1.W` or
-  `g[:L1]` does not notice the change. The old `NamedTuple` form is recovered with `params(g)`.
+  dispatching on `NamedTuple`, `isa NamedTuple`, or comparing `==` against a `NamedTuple`,
+  calling `haskey(g, :L1)` (which now throws a `MethodError`, previously returning `true` on the
+  `NamedTuple`), or using `map(f, g)` (which now returns a `Vector`, previously returning a
+  `NamedTuple`). A `NetworkParameters` forwards `getproperty`, `getindex` and `keys`, so a caller
+  reading `g.L1.W` or `g[:L1]` does not notice the change. `params(g)` recovers the old
+  `NamedTuple` form and addresses all these cases.
+
+### Changed
+
+- **The training guide (`docs/src/guide/training.md`) no longer uses `GeometricMachineLearning`.** It
+  trains with a plain gradient-descent loop over the `SymbolicPullback` and repeats the loop with a
+  `Zygote.pullback` of the same loss, still pointing to `GeometricMachineLearning` for full training.
+  Every registered `GeometricMachineLearning` release from 0.7.0 on requires
+  `SymbolicNeuralNetworks = "0.8"`, so a docs environment that depends on it cannot resolve
+  alongside 0.9.0. `GeometricMachineLearning` is removed from `docs/Project.toml`.
 
 ## [0.8.1]
 
@@ -628,21 +641,6 @@ Things that came up during the 0.5/0.6 refactor and are **not** fixed.
 
 ### Upstream
 
-- **`docs/Project.toml` does not resolve.** `Project.toml` requires `NeuralNetworkParameters` 0.2.1,
-  because that is the release whose `unflatten` the ceilings in `test/codegen/allocations.jl` are
-  reachable against; the released `GeometricMachineLearning` 0.6.0, which the docs build the training
-  guide against, pins `NeuralNetworkParameters = "0.1"`:
-
-  ```
-  ERROR: Unsatisfiable requirements detected for package GeometricMachineLearning [194d25b2]:
-   ├─restricted to versions 0.6 by project, leaving only versions: 0.6.0
-   └─restricted by compatibility requirements with NeuralNetworkParameters [67f4d93a] to versions:
-     0.1.0 - 0.5.0 or uninstalled — no versions left
-  ```
-
-  The Documentation job stays red until a `GeometricMachineLearning` release tracks the 0.2
-  container. It is blocked at the 0.7.0 version bump regardless — GML 0.6.0 also pins
-  `SymbolicNeuralNetworks = "0.6"` — so the two unblock together.
 - [#40](https://github.com/JuliaGNI/SymbolicNeuralNetworks.jl/issues/40) —
   `test_symbolic_gradient2` remains disabled. The blocker is `AbstractNeuralNetworks.Dense`
   computing `ps.W * x`, which has no method for a three-dimensional `x`; that is the *reference*

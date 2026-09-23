@@ -146,9 +146,8 @@ end
 Build the gradient of `loss` as *one* generated function, from one symbolic expression for the loss of
 the whole network.
 
-This is what [`SymbolicPullback`](@ref) used to do unconditionally, and what it still does for a
-network the layerwise construction does not apply to, or is not worth applying to — see
-[`composes_layerwise`](@ref).
+[`SymbolicPullback`](@ref) uses it with `layerwise = false`, and for a network the layerwise
+construction does not apply to, or is not worth applying to — see [`composes_layerwise`](@ref).
 
 Its cost is the reason for [`layerwise_gradient_function`](@ref): the expression is
 `O(width^depth)` before anything is differentiated, and differentiating it walks the whole of it once
