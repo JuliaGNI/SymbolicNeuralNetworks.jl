@@ -18,6 +18,7 @@ Build the pullback of `loss` (an `AbstractNeuralNetworks.NetworkLoss`, by defaul
 using SymbolicNeuralNetworks
 using AbstractNeuralNetworks
 using AbstractNeuralNetworks: params
+using NeuralNetworkParameters: NetworkParameters
 import Random
 Random.seed!(123)
 
@@ -26,11 +27,11 @@ nn = NeuralNetwork(c)
 snn = SymbolicNeuralNetwork(nn)
 pb = SymbolicPullback(snn, FeedForwardLoss())
 ps = params(nn)
-typeof(pb(ps, nn.model, (rand(2), rand(1)))[2](1))
+pb(ps, nn.model, (rand(2), rand(1)))[2](1) isa NetworkParameters
 
 # output
 
-@NamedTuple{L1::@NamedTuple{W::Matrix{Float64}, b::Vector{Float64}}}
+true
 ```
 
 # Keyword Arguments
@@ -102,7 +103,7 @@ soutput = Symbolics.variables(:y, 1:output_dimension(nn.model))
 gradient = symbolic_parameter_gradient(loss(nn.model, params(snn), snn.input, soutput), snn)
 pb_values2 = build_nn_function(gradient, params(snn), snn.input, soutput; reduce = +)(input_output..., params(nn))
 
-pb_values == params(pb_values2)
+pb_values == pb_values2
 
 # output
 
@@ -145,9 +146,8 @@ end
 Build the gradient of `loss` as *one* generated function, from one symbolic expression for the loss of
 the whole network.
 
-This is what [`SymbolicPullback`](@ref) used to do unconditionally, and what it still does for a
-network the layerwise construction does not apply to, or is not worth applying to — see
-[`composes_layerwise`](@ref).
+[`SymbolicPullback`](@ref) uses it with `layerwise = false`, and for a network the layerwise
+construction does not apply to, or is not worth applying to — see [`composes_layerwise`](@ref).
 
 Its cost is the reason for [`layerwise_gradient_function`](@ref): the expression is
 `O(width^depth)` before anything is differentiated, and differentiating it walks the whole of it once
@@ -188,7 +188,7 @@ end
 The function a [`SymbolicPullback`](@ref) returns as the second entry of its result. It takes the
 *output sensitivities* — which it ignores, as the loss is scalar-valued, see the extended help of
 [`SymbolicPullback`](@ref) — and returns the derivative of the loss with respect to the network
-parameters, as a `NamedTuple`.
+parameters, as a `NetworkParameters`.
 """
 struct PullbackFunction{FT, IT, OT, PT} <: Function
     gradient_function::FT
@@ -198,7 +198,7 @@ struct PullbackFunction{FT, IT, OT, PT} <: Function
 end
 
 function (pb::PullbackFunction)(::Union{Real, AbstractArray{<:Real}})
-    params(pb.gradient_function(pb.input, pb.output, pb.parameters))
+    pb.gradient_function(pb.input, pb.output, pb.parameters)
 end
 
 # The input half of the `(input, output)` pair may be a `Tuple`, so that a model whose layers carry

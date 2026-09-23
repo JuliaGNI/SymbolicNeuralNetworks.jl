@@ -7,7 +7,8 @@ CurrentModule = SymbolicNeuralNetworks
 [`SymbolicPullback`](@ref) is a drop-in replacement for a `Zygote`-based pullback, so a
 [`SymbolicNeuralNetwork`](@ref) can be trained with the optimizers of
 [`GeometricMachineLearning`](https://github.com/JuliaGNI/GeometricMachineLearning.jl) without any
-further ceremony.
+further ceremony. This guide trains one with a plain gradient-descent loop instead, so that its code
+needs no training package.
 
 We approximate a Gaussian on ``[-1, 1]\times[-1, 1]`` with a small feed-forward network.
 
@@ -136,15 +137,11 @@ See [`loss_expression`](@ref).
 ## The data
 
 ```@example training
-using GeometricMachineLearning
-
 x_vec = -1.0:0.1:1.0
 y_vec = -1.0:0.1:1.0
 xy_data = hcat([[x, y] for x in x_vec, y in y_vec]...)
 f(x::Vector) = exp.(-sum(x .^ 2))
 z_data = mapreduce(i -> f(xy_data[:, i]), hcat, axes(xy_data, 2))
-
-dl = DataLoader(xy_data, z_data)
 nothing # hide
 ```
 
@@ -159,36 +156,67 @@ fig
 
 ## Training
 
+Each step takes one sample, evaluates the pullback on it and moves every parameter against its
+gradient. The gradient is a `NetworkParameters` with the layout of the parameters, so the update
+walks the two side by side.
+
 ```@example training
+using AbstractNeuralNetworks: NeuralNetwork
+
+function descend!(ps, gradient, η)
+    for (layer, grad) in zip(values(ps), values(gradient)), key in keys(layer)
+        layer[key] .-= η .* grad[key]
+    end
+end
+
+function train!(ps, gradient, n_epochs; η = 0.003)
+    for _ in 1:n_epochs, k in axes(xy_data, 2)
+        descend!(ps, gradient(ps, (xy_data[:, k], z_data[:, k])), η)
+    end
+    ps
+end
+
+symbolic_gradient(ps, input_output) = pb(ps, c, input_output)[2](1)
+
 import Random # hide
 Random.seed!(123) # hide
-nn_cpu = NeuralNetwork(c, CPU())
-o = Optimizer(AdamOptimizer(), nn_cpu)
-n_epochs = 1000
-batch = Batch(10)
-o(nn_cpu, dl, batch, n_epochs, pb.loss, pb; show_progress = false); # hide
-@time o(nn_cpu, dl, batch, n_epochs, pb.loss, pb; show_progress = false);
+ps₀ = params(NeuralNetwork(c))
+n_epochs = 200
+train!(deepcopy(ps₀), symbolic_gradient, 1) # hide
+ps = deepcopy(ps₀)
+@time train!(ps, symbolic_gradient, n_epochs)
 nothing # hide
 ```
 
 ```@example training
 fig = Figure()
 ax = Axis3(fig[1, 1])
-surface!(x_vec, y_vec, [c([x, y], params(nn_cpu))[1] for x in x_vec, y in y_vec];
+surface!(x_vec, y_vec, [c([x, y], ps)[1] for x in x_vec, y in y_vec];
          alpha = .8, colormap = :darkterrain, transparency = true)
 fig
 ```
 
 ## Comparison with a `Zygote`-based pullback
 
-The same training run with `GeometricMachineLearning.ZygotePullback`:
+The same training loop, with the gradient from `Zygote`. Its pullback returns a one-element tuple of
+the same `NetworkParameters` type, so the trailing `[1]` is the only difference between the two
+gradient functions:
 
 ```@example training
-pb2 = GeometricMachineLearning.ZygotePullback(FeedForwardLoss())
-o(nn_cpu, dl, batch, n_epochs, pb2.loss, pb2; show_progress = false); # hide
-@time o(nn_cpu, dl, batch, n_epochs, pb2.loss, pb2; show_progress = false);
+import Zygote
+
+zygote_gradient(ps, input_output) =
+    Zygote.pullback(p -> pb.loss(c, p, input_output...), ps)[2](1)[1]
+
+train!(deepcopy(ps₀), zygote_gradient, 1) # hide
+ps_zygote = deepcopy(ps₀)
+@time train!(ps_zygote, zygote_gradient, n_epochs)
 nothing # hide
 ```
+
+For training beyond this loop — optimizers such as Adam, batching, data loaders — use
+[`GeometricMachineLearning`](https://github.com/JuliaGNI/GeometricMachineLearning.jl), whose
+optimizers take a [`SymbolicPullback`](@ref) in place of their `Zygote`-based one.
 
 !!! info
     For a plain feed-forward loss like this one there is no speed-up to be had — `Zygote` handles it

@@ -29,9 +29,9 @@ import ForwardDiff, Random, Zygote
 
 Random.seed!(123)
 
-# This used to be `GeometricMachineLearning.ZygotePullback`; inlined for the same reason
-# `test/derivatives/pullback.jl` inlines it — so the suite does not depend on a package that depends
-# on this one.
+# The Zygote reference gradient, as `GeometricMachineLearning.ZygotePullback` computes it. It is
+# inlined for the same reason `test/derivatives/pullback.jl` inlines it — so the suite does not
+# depend on a package that depends on this one.
 function zygote_gradient(loss, ps, model, input, output)
     params(Zygote.gradient(p -> loss(model, p, input, output), ps)[1])
 end

@@ -95,7 +95,7 @@ pullback(1).L1.b
 - [Equation Sets](@ref) — building several equations at once.
 - [Flat Parameters](@ref) — functions of a flat parameter vector, and the derivative with respect to
   it, for a solver that wants the network's degrees of freedom as a vector.
-- [Training a Symbolic Neural Network](@ref) — a worked example with `GeometricMachineLearning`, and
-  how the pullback is built.
+- [Training a Symbolic Neural Network](@ref) — a worked example with a plain gradient-descent loop,
+  compared with `Zygote`, and how the pullback is built.
 - [Limitations](@ref) — the assumptions and rough edges, collected in one place.
 - [Code Generation](@ref) — how the generated code is put together, for maintainers.
