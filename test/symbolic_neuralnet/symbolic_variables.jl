@@ -3,6 +3,9 @@ using SymbolicNeuralNetworks: symbolic_variables, symbolic_variables!, next_name
 using NeuralNetworkParameters: NetworkParameters
 using Symbolics
 using Test
+import Random
+
+Random.seed!(123)
 
 @testset "next_name! counts per name" begin
     counters = Dict{Symbol, Int}()

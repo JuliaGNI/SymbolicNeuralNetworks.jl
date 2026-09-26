@@ -32,6 +32,14 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
   `SymbolicNeuralNetworks = "0.8"`, so a docs environment that depends on it cannot resolve
   alongside 0.9.0. `GeometricMachineLearning` is removed from `docs/Project.toml`.
 
+- **`Pkg.test()` runs the doctests, and the test dependencies move to `test/Project.toml`.** The
+  `SYMBOLICNEURALNETWORKS_DOCTESTS` environment variable is removed; the doctests run in the `slow`
+  test group. The test suite uses `core` and `slow` groups, and empty `ARGS` runs both. A new Aqua
+  test file marks the type piracies broken (issue #66) and the five ambiguities of
+  `evaluate_batch` broken (issue #67). The main `Project.toml` drops
+  compat entries for test-only packages (Documenter, ForwardDiff, Test, Zygote) and adds
+  `LinearAlgebra = "1"`.
+
 ## [0.8.1]
 
 ### Fixed
