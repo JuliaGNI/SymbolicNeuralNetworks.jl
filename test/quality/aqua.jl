@@ -5,5 +5,5 @@ using SymbolicNeuralNetworks
 using Test
 
 Aqua.test_all(SymbolicNeuralNetworks;
-    ambiguities = (broken = true,),     # issue: 5 ambiguities of `evaluate_batch`, not yet filed
+    ambiguities = (broken = true,),     # issue #67
     piracies = (broken = true,))        # issue #66
