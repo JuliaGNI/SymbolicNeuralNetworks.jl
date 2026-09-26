@@ -134,3 +134,12 @@ when its fix merges, and the CHANGELOG entry of the fix names its ID.
 - evidence: —
 - kind: defect
 - found: 2026-08-23
+
+### K15 · `GMLPLAN.md` step 7 names a CHANGELOG section that no longer exists.
+
+- location: `GMLPLAN.md:174`
+- evidence: The step reads "Update `CHANGELOG.md`: the Open Issues → Upstream entry about waiting
+  for a GML release is replaced by one about waiting for a GO 0.6.0 registration." The Open Issues
+  section is now this file, and its Upstream group holds no such entry.
+- kind: found late
+- found: 2026-09-26
