@@ -1,65 +1,28 @@
 using SafeTestsets
 
-@safetestset "Symbolic variables                                                                     " begin
-    include("symbolic_neuralnet/symbolic_variables.jl")
-end
-@safetestset "SymbolicNeuralNetwork                                                                  " begin
-    include("symbolic_neuralnet/symbolic_neuralnet.jl")
-end
-@safetestset "Rewrite rules for the generated code                                                   " begin
-    include("codegen/expression_rewriting.jl")
-end
-@safetestset "Kernels                                                                                " begin
-    include("codegen/kernels.jl")
-end
-@safetestset "build_nn_function                                                                      " begin
-    include("codegen/build_nn_function.jl")
-end
-@safetestset "Batching, allocation and result shapes                                                 " begin
-    include("codegen/batched_function.jl")
-end
-@safetestset "Equation sets                                                                          " begin
-    include("codegen/equation_sets.jl")
-end
-@safetestset "Flat parameters                                                                        " begin
-    include("codegen/flat_parameters.jl")
-end
-@safetestset "Codegen-drift guard                                                                    " begin
-    include("codegen/codegen_drift.jl")
-end
-@safetestset "CSE does not change the computed values                                                " begin
-    include("codegen/cse_equivalence.jl")
-end
-@safetestset "In-place kernels agree with the out-of-place ones                                      " begin
-    include("codegen/inplace_equivalence.jl")
-end
-@safetestset "Generated functions are differentiable                                                 " begin
-    include("codegen/zygote_differentiability.jl")
-end
-@safetestset "Generated functions are type stable                                                    " begin
-    include("codegen/type_stability.jl")
-end
-@safetestset "Generated functions do not allocate more than they must                                " begin
-    include("codegen/allocations.jl")
-end
-@safetestset "Jacobian                                                                               " begin
-    include("derivatives/jacobian.jl")
-end
-@safetestset "Gradient                                                                               " begin
-    include("derivatives/gradient.jl")
-end
-@safetestset "SymbolicPullback                                                                       " begin
-    include("derivatives/pullback.jl")
-end
-@safetestset "Layerwise SymbolicPullback                                                             " begin
-    include("derivatives/layerwise_pullback.jl")
-end
+const GROUPS = isempty(ARGS) ? ["core", "slow"] : ARGS
 
-# Doctests are version-sensitive, so they are opt-in here (and run authoritatively in the
-# documentation build, see .github/workflows/Documenter.yml). Enable locally with
-# `SYMBOLICNEURALNETWORKS_DOCTESTS=true`.
-if get(ENV, "SYMBOLICNEURALNETWORKS_DOCTESTS", "false") == "true"
-    @safetestset "Doctests                                                                               " begin
-        include("doctest.jl")
-    end
+if "core" in GROUPS
+    @safetestset "Aqua" include("quality/aqua.jl")
+    @safetestset "Symbolic variables" include("symbolic_neuralnet/symbolic_variables.jl")
+    @safetestset "SymbolicNeuralNetwork" include("symbolic_neuralnet/symbolic_neuralnet.jl")
+    @safetestset "Rewrite rules for the generated code" include("codegen/expression_rewriting.jl")
+    @safetestset "Kernels" include("codegen/kernels.jl")
+    @safetestset "build_nn_function" include("codegen/build_nn_function.jl")
+    @safetestset "Batching, allocation and result shapes" include("codegen/batched_function.jl")
+    @safetestset "Equation sets" include("codegen/equation_sets.jl")
+    @safetestset "Flat parameters" include("codegen/flat_parameters.jl")
+    @safetestset "Codegen-drift guard" include("codegen/codegen_drift.jl")
+    @safetestset "CSE does not change the computed values" include("codegen/cse_equivalence.jl")
+    @safetestset "In-place kernels agree with the out-of-place ones" include("codegen/inplace_equivalence.jl")
+    @safetestset "Generated functions are differentiable" include("codegen/zygote_differentiability.jl")
+    @safetestset "Generated functions are type stable" include("codegen/type_stability.jl")
+    @safetestset "Generated functions do not allocate more than they must" include("codegen/allocations.jl")
+    @safetestset "Jacobian" include("derivatives/jacobian.jl")
+    @safetestset "Gradient" include("derivatives/gradient.jl")
+    @safetestset "SymbolicPullback" include("derivatives/pullback.jl")
+    @safetestset "Layerwise SymbolicPullback" include("derivatives/layerwise_pullback.jl")
+end
+if "slow" in GROUPS
+    @safetestset "Doctests" include("quality/doctests.jl")
 end
