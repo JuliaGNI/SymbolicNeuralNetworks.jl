@@ -122,7 +122,7 @@ when its fix merges, and the CHANGELOG entry of the fix names its ID.
 
 ### K13 · The generated `api.md` is 106 KiB, above Documenter's 100 KiB warning threshold.
 
-- location: `api.md`
+- location: `docs/src/api.md`
 - evidence: Splitting the
   `@autodocs` block per source directory would fix it.
 - kind: docs
@@ -135,11 +135,11 @@ when its fix merges, and the CHANGELOG entry of the fix names its ID.
 - kind: defect
 - found: 2026-08-23
 
-### K15 · `GMLPLAN.md` step 7 names a CHANGELOG section that no longer exists.
+### K15 · `GMLPLAN.md` step 7 names a CHANGELOG section that `CHANGELOG.md` does not have.
 
 - location: `GMLPLAN.md:174`
 - evidence: The step reads "Update `CHANGELOG.md`: the Open Issues → Upstream entry about waiting
   for a GML release is replaced by one about waiting for a GO 0.6.0 registration." The Open Issues
-  section is now this file, and its Upstream group holds no such entry.
+  entries are in this file, and its Upstream group holds no such entry.
 - kind: found late
 - found: 2026-09-26
