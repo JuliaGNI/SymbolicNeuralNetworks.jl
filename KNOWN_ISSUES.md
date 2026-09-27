@@ -110,6 +110,22 @@ when its fix merges, and the CHANGELOG entry of the fix names its ID.
 - kind: upstream
 - found: 2026-08-14
 
+### K16 · `fatou lint` reports false `parse-error` findings on `(@allocated for … end) ÷ n`.
+
+- location: `scripts/allocation_comparison.jl:73`
+- evidence: `fatou lint --output json .` (fatou 0.20.0) reports 12 `parse-error` findings, severity
+  `error`: 6 in `scripts/allocation_comparison.jl` (lines 73–76) and 6 in
+  `test/codegen/allocations.jl` (lines 75–78). fatou reads `(` followed by a macro call with a `for`
+  body, e.g. `(@allocated for _ in 1:n … end) ÷ n`, as an unclosed generator; the first site then
+  cascades into "unclosed comprehension", "trailing tokens after statement" (×3) and "unexpected
+  block keyword" (×2). `Meta.parseall(read(file, String))` on Julia 1.13 returns no `:error` or
+  `:incomplete` node for either file, and the test suite runs `test/codegen/allocations.jl` without
+  incident. A `# fatou-ignore` comment does not suppress the finding, so the pre-commit hook
+  re-flags it on every commit that stages one of these files. The code is correct; do not rewrite it
+  to satisfy the linter.
+- kind: upstream
+- found: 2026-09-13
+
 ## Housekeeping
 
 ### K12 · `scripts/pullback_comparison.jl` and the untracked `scripts/pullback_comparison_static.jl` depend on `GeometricMachineLearning`, which is in no project environment, so neither runs out of the box.
