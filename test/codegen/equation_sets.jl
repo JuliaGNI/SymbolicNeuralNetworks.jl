@@ -5,7 +5,8 @@
 #
 # The split has to reproduce, entry by entry, exactly what building each entry on its own produces —
 # values, shapes and concrete types — for both `reduce` modes and for every input rank. Scalar
-# entries are included: they used to make the whole set fall back to a separate per-entry code path.
+# entries are included, because a scalar entry must not send the whole set to a separate per-entry
+# code path.
 
 using SymbolicNeuralNetworks
 using SymbolicNeuralNetworks: flatten_equations, split_result, unflatten_batch,
@@ -97,7 +98,7 @@ end
     @test size(split_result(vector_only, two_dimensional).vector) == (2, 2, 3)
     @test size(split_result(vector_only, two_dimensional).scalar) == (1, 2, 3)
     # a matrix-valued entry has no room for a second batch dimension, exactly as when it is built on
-    # its own — the joint path used to return an (m·n, N₁, N₂) array instead
+    # its own — the joint path throws, and does not return an (m·n, N₁, N₂) array
     @test_throws ArgumentError split_result(layout, two_dimensional)
 end
 
@@ -151,8 +152,8 @@ end
     @test result.b == before
 end
 
-# Scalar entries are folded into the joint path; they used to force the whole set onto a separate
-# per-entry code path, which meant losing the shared forward pass.
+# Scalar entries are folded into the joint path, so a set with a scalar entry keeps the shared
+# forward pass and does not fall back to a separate per-entry code path.
 @testset "equation sets containing a scalar entry, reduce = $reduction" for reduction in (hcat, +)
     eqs = (a = c(snn.input, params(snn)), s = sum(c(snn.input, params(snn))))
     joint = build_nn_function(eqs, params(snn), snn.input; reduce = reduction)
@@ -178,8 +179,6 @@ end
 # what a symbolic *gradient* is: it has the shape of the parameters it was taken with respect to. The
 # two share a body and are written out separately because they answer different questions, so the
 # second needs exercising on its own or the split is only half tested.
-#
-# This is the capability `ParameterSet` used to provide by admitting both shapes in one signature.
 @testset "build_nn_function takes a parameter-shaped set of expressions" begin
     c = Chain(Dense(2, 1, tanh))
     snn = SymbolicNeuralNetwork(c)
