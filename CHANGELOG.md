@@ -40,6 +40,11 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
   compat entries for test-only packages (Documenter, ForwardDiff, Test, Zygote) and adds
   `LinearAlgebra = "1"`.
 
+- **The source and tests are clean under fatou 0.22.0.** A false positive of
+  `invalid-docstring-code` on the `...` placeholder in the `loss_expression` docstring is
+  suppressed, and an unused binding in a test of `test/codegen/equation_sets.jl` is deleted. The
+  comments of that file are in the present tense. No behaviour changes.
+
 ## [0.8.1]
 
 ### Fixed

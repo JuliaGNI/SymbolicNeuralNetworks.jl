@@ -41,6 +41,7 @@ struct PassThroughLayer{N} <: AbstractExplicitLayer{N, N} end
 # This note goes *above* the docstring rather than between it and the definition: Julia does not
 # attach a docstring across an intervening comment, so a comment placed there leaves the function
 # undocumented, and every `@ref` to it in the manual then fails to resolve.
+# fatou-ignore invalid-docstring-code
 @doc raw"""
     loss_expression(loss, ŷ, y)
 
