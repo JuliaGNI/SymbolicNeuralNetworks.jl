@@ -184,7 +184,6 @@ end
     c = Chain(Dense(2, 1, tanh))
     snn = SymbolicNeuralNetwork(c)
     ps = params(snn)
-    x = [0.5, -0.25]
     input = rand(2)
 
     # a scalar expression differentiates to one parameter-shaped set ...
