@@ -126,6 +126,18 @@ when its fix merges, and the CHANGELOG entry of the fix names its ID.
 - kind: upstream
 - found: 2026-09-13
 
+### K17 · Revise prints EMFILE errors in the test log
+
+- location: `test/quality/jet.jl:1`
+- evidence: JET 0.12 loads Revise, and Revise's file watcher runs out of file handles. On Julia
+  1.13.1 with JET 0.12.2, `grep -c 'UNHANDLED TASK ERROR'` counts 7 blocks in the log of
+  `run-tests.jl <repository> full` on the branch that adds `test/quality/jet.jl`, each an
+  `IOError: FolderMonitor: too many open files (EMFILE)` stack trace, and 0 in the same run on the
+  test files of `origin/main`. These blocks are not test failures, and the totals of the other test
+  files do not change.
+- kind: upstream
+- found: 2026-10-02
+
 ## Housekeeping
 
 ### K12 · `scripts/pullback_comparison.jl` and the untracked `scripts/pullback_comparison_static.jl` depend on `GeometricMachineLearning`, which is in no project environment, so neither runs out of the box.
