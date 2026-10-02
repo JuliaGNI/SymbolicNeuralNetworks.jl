@@ -14,7 +14,7 @@ import ForwardDiff
 # single sample and on a batch. Each further element type that a test outside `test/quality/`
 # passes directly to the same method gets one line too, also from inside a closure that the test
 # gives to `ForwardDiff.gradient`. An element type that reaches it only through another function
-# gets none: the `ForwardDiff.Dual` parameters of `test/codegen/flat_parameters.jl:91` reach the
+# gets none: the `ForwardDiff.Dual` parameters of `test/codegen/flat_parameters.jl` reach the
 # call of an `InPlaceBatchedFunction` through a `FlatParameterFunction`.
 
 if isdefined(JET, :JET_AVAILABLE) ? JET.JET_AVAILABLE : JET.JET_LOADABLE
