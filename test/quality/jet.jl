@@ -5,16 +5,17 @@ using SymbolicNeuralNetworks: Jacobian, derivative, symbolic_parameter_gradient,
 using AbstractNeuralNetworks: Chain, Dense, NeuralNetwork, params
 using NeuralNetworkParameters: NetworkParameters
 using Test
+import ForwardDiff
 
 # Static optimisation analysis of the hot paths: every function of `src/` that
 # `test/codegen/allocations.jl` asserts with `@allocated`, at the concrete argument types that file
 # passes. Those are `promoted_eltype` (through `eltype_folds`), the call of an
 # `InPlaceBatchedFunction`, the call of an `EquationSetFunction` and `split_result`, each on a
 # single sample and on a batch. Each further element type that a test outside `test/quality/`
-# passes directly to the same method gets one line too. An element type that reaches it only
-# through another function gets none: the `ForwardDiff.Dual` parameters of
-# `test/codegen/zygote_differentiability.jl` reach the call of an `InPlaceBatchedFunction` through
-# `ForwardDiff.gradient`.
+# passes directly to the same method gets one line too, also from inside a closure that the test
+# gives to `ForwardDiff.gradient`. An element type that reaches it only through another function
+# gets none: the `ForwardDiff.Dual` parameters of `test/codegen/flat_parameters.jl:91` reach the
+# call of an `InPlaceBatchedFunction` through a `FlatParameterFunction`.
 
 if isdefined(JET, :JET_AVAILABLE) ? JET.JET_AVAILABLE : JET.JET_LOADABLE
     m = (SymbolicNeuralNetworks,)
@@ -59,6 +60,16 @@ if isdefined(JET, :JET_AVAILABLE) ? JET.JET_AVAILABLE : JET.JET_LOADABLE
     # test/codegen/batched_function.jl:161 and :174: a `Float32` batch and an `Int` batch
     @test isempty(JET.get_reports(JET.report_opt(fb, (Matrix{Float32}, Pb32); target_modules = m)))
     @test isempty(JET.get_reports(JET.report_opt(fb, (Matrix{Int}, Pint); target_modules = m)))
+
+    # test/codegen/zygote_differentiability.jl:69: a `Float64` batch and parameters whose first
+    # weight matrix holds the `ForwardDiff.Dual` numbers of `ForwardDiff.gradient`; the tag of the
+    # test is its closure, so this line takes another tag of the same form
+    fz = build_nn_function(cb(snnb.input, params(snnb)), params(snnb), snnb.input)
+    D = ForwardDiff.Dual{ForwardDiff.Tag{typeof(sum), Float64}, Float64, 12}
+    Pdual = typeof(NetworkParameters((L1 = (W = zeros(D, 4, 3), b = zeros(4)),
+        L2 = (W = zeros(2, 4), b = zeros(2)))))
+    @test isempty(JET.get_reports(JET.report_opt(fz, (Matrix{Float64}, Pdual);
+        target_modules = m)))
 
     # test/derivatives/jacobian.jl:21: the Jacobian of a `Float32` network on a `Float32` sample
     cj = Chain(Dense(2, 1, tanh))
