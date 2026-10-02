@@ -4,6 +4,7 @@ const GROUPS = isempty(ARGS) ? ["core", "slow"] : ARGS
 
 if "core" in GROUPS
     @safetestset "Aqua" include("quality/aqua.jl")
+    @safetestset "JET" include("quality/jet.jl")
     @safetestset "Symbolic variables" include("symbolic_neuralnet/symbolic_variables.jl")
     @safetestset "SymbolicNeuralNetwork" include("symbolic_neuralnet/symbolic_neuralnet.jl")
     @safetestset "Rewrite rules for the generated code" include("codegen/expression_rewriting.jl")

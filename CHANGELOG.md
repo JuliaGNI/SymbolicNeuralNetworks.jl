@@ -45,6 +45,18 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
   suppressed, and an unused binding in a test of `test/codegen/equation_sets.jl` is deleted. The
   comments of that file are in the present tense. No behaviour changes.
 
+- **A JET test checks the hot paths for runtime dispatch.** `test/quality/jet.jl` runs in the
+  `core` group after Aqua. It applies `JET.report_opt` to each function that
+  `test/codegen/allocations.jl` measures with `@allocated`: `promoted_eltype`, the call of an
+  `InPlaceBatchedFunction`, the call of an `EquationSetFunction` and `split_result`. Each function
+  is analysed at the argument types of those tests, and at the `Float32`, `Int` and
+  `ForwardDiff.Dual` element types that other tests pass to it. Where JET does not work on the
+  running Julia, the file records one skipped test. JET is a new test dependency with no
+  `[compat]` bound. `test/Project.toml` drops its `[compat]` entries for `AbstractNeuralNetworks`,
+  `LinearAlgebra`, `NeuralNetworkParameters` and `Symbolics`, which the package's own
+  `Project.toml` bounds. JET loads Revise, which prints file-watcher errors in the test log
+  (`KNOWN_ISSUES.md` K17). No behaviour changes.
+
 ## [0.8.1]
 
 ### Fixed
