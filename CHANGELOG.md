@@ -25,6 +25,12 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
 
 ### Changed
 
+- **Requires `AbstractNeuralNetworks` 0.9 and `NeuralNetworkParameters` 0.4.2** (compat only; no
+  code changes). `GeometricOptimizers` 0.9 requires both, so `GeometricMachineLearning` cannot move
+  to it while this package holds `AbstractNeuralNetworks` at 0.8 and the registered 0.8 releases
+  hold `NeuralNetworkParameters` below 0.4. The whole test suite, the doctests included, passes
+  unchanged on `AbstractNeuralNetworks` 0.9.0 and `NeuralNetworkParameters` 0.4.2.
+
 - **The training guide (`docs/src/guide/training.md`) no longer uses `GeometricMachineLearning`.** It
   trains with a plain gradient-descent loop over the `SymbolicPullback` and repeats the loop with a
   `Zygote.pullback` of the same loss, still pointing to `GeometricMachineLearning` for full training.
