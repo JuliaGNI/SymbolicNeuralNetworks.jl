@@ -25,6 +25,10 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
 
 ### Changed
 
+- **CI uploads coverage from the `Julia 1 - ubuntu-latest` job instead of `Julia min`.** A test job
+  saves the Julia cache only when it succeeds, so a cancelled or failed job does not leave a
+  partial cache for the next run to restore.
+
 - **The training guide (`docs/src/guide/training.md`) no longer uses `GeometricMachineLearning`.** It
   trains with a plain gradient-descent loop over the `SymbolicPullback` and repeats the loop with a
   `Zygote.pullback` of the same loss, still pointing to `GeometricMachineLearning` for full training.
