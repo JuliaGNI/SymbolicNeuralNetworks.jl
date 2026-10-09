@@ -24,6 +24,6 @@ if "core" in GROUPS
     @safetestset "SymbolicPullback" include("derivatives/pullback.jl")
     @safetestset "Layerwise SymbolicPullback" include("derivatives/layerwise_pullback.jl")
 end
-if "slow" in GROUPS
+if "doctests" in GROUPS
     @safetestset "Doctests" include("quality/doctests.jl")
 end
