@@ -4,7 +4,7 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — targeting 0.9.0
+## [0.9.0] — 2026-10-11
 
 ### Breaking
 
@@ -22,8 +22,6 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
   `NamedTuple`). A `NetworkParameters` forwards `getproperty`, `getindex` and `keys`, so a caller
   reading `g.L1.W` or `g[:L1]` does not notice the change. `params(g)` recovers the old
   `NamedTuple` form and addresses all these cases.
-
-### Changed
 
 - **Requires `AbstractNeuralNetworks` 0.9.1 and `NeuralNetworkParameters` 0.5** (with the
   `AbstractNeuralNetworks` 0.9 bound of #80). `GeometricOptimizers` 0.9 requires
@@ -47,6 +45,8 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
   `test/codegen/zygote_differentiability.jl` ("ForwardDiff works either way") and
   `test/symbolic_neuralnet/symbolic_variables.jl` (the nested fixture). The whole test suite passes
   on `AbstractNeuralNetworks` 0.9.1 and `NeuralNetworkParameters` 0.5.0.
+
+### Changed
 
 - `Pkg.test()` no longer runs the doctests. `test/quality/doctests.jl` is now the group
   `doctests`, which an empty `ARGS` does not run; `Pkg.test(test_args = ["doctests"])` runs it. In
