@@ -180,7 +180,7 @@ are written. See [`unflatten_batch`](@ref) for the one thing that has to be adde
 
 Each entry is normalised by [`scalar_expressions`](@ref) on the way in, which is what turns a
 `Symbolics.Arr` leaf into the `Array{Num}` the layout expects. The element type of the flat vector is
-fixed to `Num` rather than left to `NeuralNetworkParameters.parameter_eltype` to promote, so that it
+fixed to `Num` rather than taken from `NeuralNetworkParameters.parameter_eltype`, so that it
 is the same type for every equation set — the code generation downstream dispatches on it.
 """
 flatten_equations(eqs::EquationSet) = _flatten_equations(eqs)

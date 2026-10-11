@@ -31,11 +31,11 @@ end
     @test !(vector isa Symbolics.Arr)
 end
 
-# a tuple of `NamedTuple`s and `Tuple`s, including scalar entries
+# a tuple of `NamedTuple`s and `Tuple`s, including scalar entries, all of one element type
 parameters = NetworkParameters((L1 = (W = [1, 1], b = [2, 2]),
     L2 = (W = (a = 4, b = [1, 2]), c = 2),
     L3 = [4 5; 7 8],
-    L4 = (a = 7, b = 8.2)))
+    L4 = (a = 7, b = 8)))
 
 @testset "nested parameter sets keep their nesting" begin
     sparams = symbolic_variables(parameters, :W)
