@@ -239,9 +239,12 @@ This is needed because the in-place kernels write into an array that has to be a
 they are called, so the element type cannot be taken from a result. Promoting over the inputs keeps
 `Float32` parameters, symbolic (`Num`) inputs and `ForwardDiff.Dual` numbers working.
 
-The walk over a nested parameter set is `NeuralNetworkParameters.parameter_eltype`, which promotes
-over the leaves and reaches the storage of a structured one — so a parameter that keeps fewer numbers
-than its interface shows contributes the element type of the numbers it actually keeps.
+The walk over a nested parameter set is `NeuralNetworkParameters.parameter_eltype`, which returns the
+one element type of its leaves and reaches the storage of a structured one — so a parameter that keeps
+fewer numbers than its interface shows contributes the element type of the numbers it actually keeps.
+Leaves of two element types make it raise an `ArgumentError`. A `NetworkParameters` cannot hold such
+leaves, but a bare `NamedTuple` can, and the in-place path then raises where the out-of-place one
+evaluates.
 
 Note that this derives the element type from the *inputs*, not from the expression, which the
 out-of-place path does instead. The two can differ: an equation over integer inputs and integer

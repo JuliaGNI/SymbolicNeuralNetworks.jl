@@ -60,10 +60,13 @@ end
 
 # Forward-mode AD does not care about mutation, so it must work on *both* paths: the array the
 # in-place kernel writes into is allocated with the promoted element type, which is the `Dual`.
+# The leaves of a parameter set have one element type, so `rewrap` converts the leaves it does not
+# differentiate to the `Dual` type of `w`; their partials are zero.
 @testset "ForwardDiff works either way" begin
     W = ps.L1.W
     rewrap(w) = NetworkParameters((
-        L1 = (W = reshape(w, size(W)...), b = ps.L1.b), L2 = ps.L2))
+        L1 = (W = reshape(w, size(W)...), b = eltype(w).(ps.L1.b)),
+        L2 = (W = eltype(w).(ps.L2.W), b = eltype(w).(ps.L2.b))))
     grads = map((true, false)) do inplace
         f = build_nn_function(eq, params(snn), snn.input; inplace = inplace)
         ForwardDiff.gradient(w -> sum(f(input, rewrap(w))), vec(W))

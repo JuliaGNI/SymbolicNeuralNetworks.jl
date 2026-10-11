@@ -25,11 +25,28 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
 
 ### Changed
 
-- **Requires `AbstractNeuralNetworks` 0.9 and `NeuralNetworkParameters` 0.4.2** (compat only; no
-  code changes). `GeometricOptimizers` 0.9 requires both, so `GeometricMachineLearning` cannot move
-  to it while this package holds `AbstractNeuralNetworks` at 0.8 and the registered 0.8 releases
-  hold `NeuralNetworkParameters` below 0.4. The whole test suite, the doctests included, passes
-  unchanged on `AbstractNeuralNetworks` 0.9.0 and `NeuralNetworkParameters` 0.4.2.
+- **Requires `AbstractNeuralNetworks` 0.9.1 and `NeuralNetworkParameters` 0.5** (with the
+  `AbstractNeuralNetworks` 0.9 bound of #80). `GeometricOptimizers` 0.9 requires
+  `AbstractNeuralNetworks` 0.9, so `GeometricMachineLearning` cannot move to it while this package
+  holds `AbstractNeuralNetworks` at 0.8. The floor is 0.9.1 because `AbstractNeuralNetworks` 0.9.0
+  requires `NeuralNetworkParameters` 0.4. No code changes; the docstrings of `promoted_eltype` and
+  `flatten_equations` no longer say that `parameter_eltype` promotes over the leaves. For a caller,
+  `NeuralNetworkParameters` 0.5 changes two things:
+
+  - Every numeric leaf of a `NetworkParameters` has one element type. A set with leaves of two
+    element types, such as a `Float64` set with one `ForwardDiff.Dual` weight matrix or an `Int` set
+    with one `Float64` entry, raises an `ArgumentError` at construction. Convert the leaves to one
+    element type first. A bare `NamedTuple` of parameters with leaves of two element types still
+    evaluates on the out-of-place path of `build_nn_function`, but the in-place path raises the same
+    `ArgumentError`. `promoted_eltype` still promotes over its arguments.
+  - The gradient of a leaf that the loss does not read is a zero of the gradient's element type,
+    not `nothing`.
+
+  Three tests built such a set and now use one element type per set:
+  `test/quality/jet.jl` (the `ForwardDiff.Dual` parameter set),
+  `test/codegen/zygote_differentiability.jl` ("ForwardDiff works either way") and
+  `test/symbolic_neuralnet/symbolic_variables.jl` (the nested fixture). The whole test suite passes
+  on `AbstractNeuralNetworks` 0.9.1 and `NeuralNetworkParameters` 0.5.0.
 
 - `Pkg.test()` no longer runs the doctests. `test/quality/doctests.jl` is now the group
   `doctests`, which an empty `ARGS` does not run; `Pkg.test(test_args = ["doctests"])` runs it. In

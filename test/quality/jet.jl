@@ -61,13 +61,13 @@ if isdefined(JET, :JET_AVAILABLE) ? JET.JET_AVAILABLE : JET.JET_LOADABLE
     @test isempty(JET.get_reports(JET.report_opt(fb, (Matrix{Float32}, Pb32); target_modules = m)))
     @test isempty(JET.get_reports(JET.report_opt(fb, (Matrix{Int}, Pint); target_modules = m)))
 
-    # test/codegen/zygote_differentiability.jl:69: a `Float64` batch and parameters whose first
-    # weight matrix holds the `ForwardDiff.Dual` numbers of `ForwardDiff.gradient`; the tag of the
-    # test is its closure, so this line takes another tag of the same form
+    # test/codegen/zygote_differentiability.jl, "ForwardDiff works either way": a `Float64` batch
+    # and parameters whose leaves hold the `ForwardDiff.Dual` numbers of `ForwardDiff.gradient`; the
+    # tag of the test is its closure, so this line takes another tag of the same form
     fz = build_nn_function(cb(snnb.input, params(snnb)), params(snnb), snnb.input)
     D = ForwardDiff.Dual{ForwardDiff.Tag{typeof(sum), Float64}, Float64, 12}
-    Pdual = typeof(NetworkParameters((L1 = (W = zeros(D, 4, 3), b = zeros(4)),
-        L2 = (W = zeros(2, 4), b = zeros(2)))))
+    Pdual = typeof(NetworkParameters((L1 = (W = zeros(D, 4, 3), b = zeros(D, 4)),
+        L2 = (W = zeros(D, 2, 4), b = zeros(D, 2)))))
     @test isempty(JET.get_reports(JET.report_opt(fz, (Matrix{Float64}, Pdual);
         target_modules = m)))
 
