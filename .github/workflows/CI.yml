@@ -1,11 +1,11 @@
 # Canonical CI workflow. Copied verbatim into every repository under Packages/ and Experiments/
-# by install-workflows.sh — edit this file and re-run the installer, never a copy in a repository.
+# by harness workflows — edit this file and re-run the installer, never a copy in a repository.
 #
 # THIS FILE IS BYTE-IDENTICAL IN EVERY REPOSITORY. That is the whole point, and it is what
 # verify-workflows.jl asserts. Nothing here is parameterised by the package: the jobs read the
 # package name from Project.toml at run time, exactly as the git hooks do. A repository that needs
-# an extra job gets its own extra workflow file (see QuadratureRules/Symbolic.yml) rather than a
-# local edit here.
+# an extra job gets its own extra workflow file, such as Symbolic.yml, rather than a local edit
+# here.
 #
 # WHY THE VERSION MATRIX IS ALIASES AND NOT VERSION NUMBERS.
 #
@@ -16,8 +16,8 @@
 #
 # `min` resolves the lower bound of *this* package's `[compat] julia` entry and `1` the current
 # stable release, so one identical matrix still tests the right versions in a tree whose compat
-# floors are 1.10 and 1.11. The check names therefore never change — not when a package raises its
-# floor, and not when Julia releases. That is what lets ci-protection.sh use one static list.
+# floors are 1.10, 1.11 and 1.12. The check names therefore never change — not when a package raises its
+# floor, and not when Julia releases. That is what lets harness ci-protection use one static list.
 #
 # `pre` and `nightly` are advisory (`experimental: true` + `continue-on-error`): a failure in an
 # unreleased Julia is information, not a broken build. They are deliberately NOT required checks.
@@ -57,8 +57,10 @@ jobs:
         env:
             # Instrument and upload coverage in a single matrix entry only. Uploading from all six
             # makes Codecov merge six reports of the same scope per run, and the merged percentage
-            # then moves for reasons that are not code changes.
-            COVERAGE: ${{ matrix.version == 'min' && matrix.os == 'ubuntu-latest' }}
+            # then moves for reasons that are not code changes. The entry is `1`, not `min`:
+            # instrumentation makes the job that carries the coverage the slowest of the matrix,
+            # and `min` is already the slowest Julia.
+            COVERAGE: ${{ matrix.version == '1' && matrix.os == 'ubuntu-latest' }}
             # Two threads, everywhere: a runner has more than one core, and a suite with a threading
             # test is otherwise silently single-threaded.
             JULIA_NUM_THREADS: 2
@@ -94,6 +96,11 @@ jobs:
                   version: ${{ matrix.version }}
                   arch: ${{ matrix.arch }}
             - uses: julia-actions/cache@v3
+              with:
+                  # Save only from a job that succeeds. A cancelled or failed job saves a partial
+                  # cache, the next run of the branch restores it, and that job then precompiles
+                  # some 300 packages again.
+                  save-always: false
             - uses: julia-actions/julia-buildpkg@v1
             - uses: julia-actions/julia-runtest@v1
               with:
@@ -203,8 +210,8 @@ jobs:
                     m = getfield(Main, name)
                     # A package whose doctests need more than its own exports in scope declares
                     # that in docs/doctestsetup.jl, which its docs/make.jl includes too - one
-                    # definition, two callers. CompactBasisFunctions needs QuadratureRules and two
-                    # unexported names; PoincareInvariants sets a submodule up separately.
+                    # definition, two callers: another package and two unexported names, say, or
+                    # a submodule set up separately.
                     setup = joinpath("docs", "doctestsetup.jl")
                     if isfile(setup)
                         include(abspath(setup))

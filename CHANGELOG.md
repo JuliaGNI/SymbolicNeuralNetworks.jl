@@ -31,6 +31,14 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
   hold `NeuralNetworkParameters` below 0.4. The whole test suite, the doctests included, passes
   unchanged on `AbstractNeuralNetworks` 0.9.0 and `NeuralNetworkParameters` 0.4.2.
 
+- `Pkg.test()` no longer runs the doctests. `test/quality/doctests.jl` is now the group
+  `doctests`, which an empty `ARGS` does not run; `Pkg.test(test_args = ["doctests"])` runs it. In
+  CI the Doctests job stays their runner, so the test matrix no longer runs them a second time.
+
+- **CI uploads coverage from the `Julia 1 - ubuntu-latest` job instead of `Julia min`.** A test job
+  saves the Julia cache only when it succeeds, so a cancelled or failed job does not leave a
+  partial cache for the next run to restore.
+
 - **The training guide (`docs/src/guide/training.md`) no longer uses `GeometricMachineLearning`.** It
   trains with a plain gradient-descent loop over the `SymbolicPullback` and repeats the loop with a
   `Zygote.pullback` of the same loss, still pointing to `GeometricMachineLearning` for full training.

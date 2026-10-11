@@ -34,7 +34,7 @@ struct Entry
     line::Int
 end
 
-const GROUP_NAMES = ("core", "slow", "metal", "cuda", "broken")
+const GROUP_NAMES = ("core", "slow", "doctests", "metal", "cuda", "broken")
 const GATE = r"\b(ARGS|ENV)\b"
 const ISSUE = r"#\d+|issues/\d+"
 # the top-level directories of test/ that mirror no directory of src/
@@ -118,7 +118,7 @@ end
 """
 The top-level directories of `test/` that are a separate suite: one with a `Project.toml` in its
 tree, and no file that `runtests.jl` lists. Such a suite has its own environment and its own
-runner, such as the device tests of GeometricSolvers in `test/gpu/`, one environment per vendor,
+runner, such as device tests in `test/gpu/`, one environment per vendor,
 and the rules of the convention do not apply to its files. A directory with a listed file is part
 of the suite of `runtests.jl`, whatever environment it holds.
 """
@@ -373,17 +373,27 @@ function violations(repo)
         v("D9", "the package has doctests and test/quality/doctests.jl does not exist")
     end
     for e in filter(e -> e.path == q("doctests.jl"), L.entries)
-        e.group == "slow" ||
-            v("D9", "test/quality/doctests.jl is in group \"$(something(e.group, "none"))\", not \"slow\"")
+        e.group == "doctests" ||
+            v("D9",
+                "test/quality/doctests.jl is in group \"$(something(e.group, "none"))\", not \"doctests\"")
+    end
+    for e in filter(e -> e.group == "doctests" && e.path != q("doctests.jl"), L.entries)
+        v("D9", "$(rel(e.path)) is in group \"doctests\", which holds only test/quality/doctests.jl")
     end
 
-    # D3: test/<path>.jl sits where src/<path>.jl does
+    # D3: test/<path>.jl sits where src/<path>.jl does; a top-level test/<name>.jl has a
+    # src/<name>.jl of that exact name (`readdir`: `isfile` ignores case on macOS)
     for f in L.files
+        isdir(src) || break
         r = rel(f)
         first(splitpath(r)) in OWN_DIRS && continue
         d = dirname(r)
-        isempty(d) || !isdir(src) || isdir(joinpath(src, d)) ||
-            v("D3", "$r has no directory src/$d to mirror")
+        if isempty(d)
+            r in readdir(src) && isfile(joinpath(src, r)) ||
+                v("D3", "$r is at the top level of test/ and mirrors no src/$r")
+        else
+            isdir(joinpath(src, d)) || v("D3", "$r has no directory src/$d to mirror")
+        end
     end
 
     # D5, D7, using, seed: what each test file does
