@@ -4,6 +4,17 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — targeting 0.10.0
+
+### Changed
+
+- **Julia 1.12 is the floor** (`[compat] julia = "1.12"`, from 1.11). A breaking change under this
+  package's pre-1.0 convention: a caller on Julia 1.11 can no longer install this version. No code
+  changes. The `@generated` walk in `unflatten_batch` stays, because the reason for its shape is the
+  inference cost of a `Base.tail` chain, which is not particular to Julia 1.11; the comment
+  beside it no longer compares against Julia 1.10. The ceilings in `test/codegen/allocations.jl`
+  are unchanged, and every one of them still holds on Julia 1.12.7.
+
 ## [0.9.0] — 2026-10-11
 
 ### Breaking
