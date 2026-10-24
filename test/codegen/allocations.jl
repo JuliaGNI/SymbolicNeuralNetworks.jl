@@ -26,7 +26,7 @@
 #
 #     That bound is a range and not a pin, so what has to hold is that *every* version it admits
 #     delivers these figures, not that one does. Both of the versions it currently admits were
-#     measured, and they agree: 0.2.2 and 0.2.3 give the same four numbers on all three Julias below.
+#     measured, and they agree: 0.2.2 and 0.2.3 give the same four numbers on both Julias below.
 #     0.2.3 removes `LeafLayout`'s unread `prototype` field, which halves the node count of a
 #     layout's type and so moves what building one costs to *compile*; no `LeafLayout` is built per
 #     call, and nothing here moves. Re-measure when the range admits a version nobody has run.
