@@ -232,29 +232,19 @@ Each entry is *copied* out of `out` rather than viewed into it, so that the entr
     layout.children, out)
 @inline unflatten_batch(layout::WrappedLayout, out::AbstractArray) = unflatten_batch(layout.inner, out)
 
-# Written out as a `@generated` flat body, in the shape `NeuralNetworkParameters._unflatten_children`
-# states as the house rule for walking a layout. Neither of the two obvious alternatives will do, and
-# this walk has met both.
+# Written out as a `@generated` flat body at literal indices, in the shape
+# `NeuralNetworkParameters._unflatten_children` states as the house rule for walking a layout.
 #
-# `map` over a closure leaves the closure over `out` to be elided, and not every version elides it.
-# What that cost was a property of the *shape* of the layout rather than of its depth or its size: on
-# Julia 1.10 — the compat floor until 0.7.1 — three leaves in two unequal groups, the shape a `Chain`
-# of two `Dense` layers has, cost 640 bytes a call through `map` against 368 without it, while the
-# same three leaves laid out flat cost 368 either way. That is issue #55, and it is why this stopped
-# being a `map`.
+# The alternative that suggests itself, a `Base.tail` chain, yields a new tuple type at every level, so
+# a branch of `k` children costs `k` specialisations over argument types each `O(k)` long and
+# inference grows as `k³`. That is `NeuralNetworkParameters`' D12, and this walk is exposed to it for
+# the same reason that one was: an equation set is as wide as the parameter set it was differentiated
+# from, and a flat set of a few hundred entries is a shape a consumer actually has. Emitting the body
+# at literal indices costs one specialisation per branch shape and creates no new tuple types.
+# `scripts/batched_walk_cost.jl` is the harness for the first-call cost at widths up to 369 children.
 #
-# A `Base.tail` chain, which is what it became, fixes that and buys a different problem: `Base.tail`
-# yields a new tuple type at every level, so a branch of `k` children costs `k` specialisations over
-# argument types each `O(k)` long and inference grows as `k³`. That is `NeuralNetworkParameters`'
-# D12, and this walk is exposed to it for the same reason that one was — an equation set is as wide as
-# the parameter set it was differentiated from, and a flat set of a few hundred entries is a shape a
-# consumer actually has. `NeuralNetworkParameters` 0.2.2 answered it by emitting the body at literal
-# indices, and this follows: at 369 children a first call goes from 11.06 s to 1.36 s, for which
-# `scripts/batched_walk_cost.jl` is the harness.
-#
-# One specialisation per branch shape, no closure to elide, no new tuple types, and no `Any32`: `map`
-# drops to that fallback past 32 children and it returns a tuple with no concrete type. See
-# `test/codegen/allocations.jl`.
+# A `map` over the children is no alternative either: past 32 children it drops to `Base`'s `Any32`
+# fallback, which returns a tuple with no concrete type. See `test/codegen/allocations.jl`.
 @generated function _unflatten_batch_children(layouts, out)
     calls = [:(unflatten_batch(getfield(layouts, $i), out)) for i in 1:fieldcount(layouts)]
     :(($(calls...),))

@@ -4,13 +4,15 @@
 # issue #55 is what that gap cost. Laying equation sets out over
 # `NeuralNetworkParameters.ParameterLayout` in 0.6 — in place of the local `FlatSlice` of 0.5 — put a
 # `map` over a closure on the per-call path, in two places: `unflatten_batch` here, and the
-# `unflatten` the un-batched case delegates to upstream. Julia 1.10 does not always elide that
+# `unflatten` the un-batched case delegates to upstream. Julia 1.10 did not always elide that
 # closure, so the suite was green on every version while a dependent package measured 1.85x the
-# allocations on 1.10 and had to ship a version-conditional ceiling to stay green itself. Neither walk
-# is a `map` now: both are written out as `@generated` flat bodies at literal indices, which have no
-# closure to elide and so cannot depend on whether a version elides one. Each passed through a
-# `Base.tail` chain on the way — the upstream one until `NeuralNetworkParameters` 0.2.2, this one
-# until 0.7.1 — and left it for the reason `src/codegen/equation_sets.jl` records beside this walk.
+# allocations on 1.10 and had to ship a version-conditional ceiling to stay green itself. 1.10 is
+# below the floor now; the record stays because the rows below quote what each call cost "with #55
+# open" and are bounded against it. Neither walk is a `map` now: both are written out as `@generated`
+# flat bodies at literal indices, which have no closure to elide and so what they cost cannot depend
+# on whether a Julia elides one. Each passed through a `Base.tail` chain on the way — the upstream
+# one until `NeuralNetworkParameters` 0.2.2, this one until 0.7.1 — and left it for the reason
+# `src/codegen/equation_sets.jl` records beside this walk.
 #
 # The two halves are separable, and the rows below say which is which:
 #
@@ -35,9 +37,9 @@
 #
 # The ceilings are the same on every Julia version, deliberately. A `VERSION`-conditional ceiling is
 # the accommodation issue #55 exists to remove, and one here would hide exactly the class of
-# regression that issue was. Measured on 1.11.9, 1.12.7 and 1.13.0-rc3, the only spread left is 96
-# bytes on the two batched rows, where 1.11 is the cheaper (1952 and 1088 against 2048 and 1184); the
-# four single-sample figures are identical on all three. Each ceiling is set from the largest figure
+# regression that issue was. Measured on 1.12.7: 128 and 144 bytes for the bare function on a sample
+# and on a batch, 560 and 2048 for the equation set, 352 and 1184 for `split_result`. 1.13.0-rc3 gave
+# the same six figures when they were last recorded. Each ceiling is set from the largest figure
 # measured rather than from a rule about which version is dearest.
 #
 # Each ceiling sits between two measured figures: above the largest this call costs on any supported
@@ -101,8 +103,8 @@ end
 @testset "a single equation" begin
     f = build_nn_function(derivative(Jacobian(snn)), snn)
     # not a path #55 touched; these are floor checks, so the margin is the loose one
-    @test bytes_per_call(f, sample, ps) <= 220      # measured 128 on 1.11, 1.12 and 1.13
-    @test bytes_per_call(f, batch, ps) <= 220       # measured 144 on 1.11, 1.12 and 1.13
+    @test bytes_per_call(f, sample, ps) <= 220      # measured 128 on 1.12
+    @test bytes_per_call(f, batch, ps) <= 220       # measured 144 on 1.12
 end
 
 # An `EquationSetFunction`: the same, plus `split_result` putting the flat result back into the
