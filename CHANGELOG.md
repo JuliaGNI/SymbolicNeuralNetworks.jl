@@ -4,6 +4,24 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Raised `[compat]` lower bounds to versions that resolve and pass the test suite on Julia 1.12.**
+  The CI Downgrade job resolves `Project.toml` and `test/Project.toml` together at their lower
+  bounds and runs the tests there.
+  - `Symbolics` 7 → 7.0.2: in 7.0.0 and 7.0.1, `Symbolics.scalarize` of a `Num` returns the
+    unwrapped `BasicSymbolic`, so `flatten_equations` fails on an equation set with a scalar entry.
+    7.0.2 is the first release that returns a `Num`.
+  - `SymbolicUtils` 4 → 4.4: `Symbolics` 7.0.2 requires `SymbolicUtils` 4.4.
+  - `RuntimeGeneratedFunctions` 0.5 → 0.5.12: the lowest version that resolves with the other
+    floors.
+  - Test dependencies: `Aqua` 0.8 → 0.8.14, the first release whose piracy check runs on Julia 1.12
+    (0.8.0 raises a `FieldError` on `Core.TypeName.mt`); `Zygote` 0.6.73 → 0.6.76, the lowest
+    version that resolves with the other floors; and a new `JET = "0.10, 0.11, 0.12, 0.13"` entry,
+    as 0.10.0 is the first release that installs on Julia 1.12.
+
 ## [0.9.1] — 2026-10-24
 
 ### Changed

@@ -17,10 +17,11 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 SymbolicNeuralNetworks = {path = ".."}
 
 [compat]
-Aqua = "0.8"
+Aqua = "0.8.14"
 Documenter = "1.8.0"
 ForwardDiff = "1"
+JET = "0.10, 0.11, 0.12, 0.13"
 Random = "1"
 SafeTestsets = "0.1"
 Test = "1"
-Zygote = "0.6.73, 0.7"
+Zygote = "0.6.76, 0.7"
