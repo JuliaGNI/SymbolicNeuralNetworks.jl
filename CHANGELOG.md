@@ -21,6 +21,11 @@ All notable changes to `SymbolicNeuralNetworks.jl` are documented here. The form
     (0.8.0 raises a `FieldError` on `Core.TypeName.mt`); `Zygote` 0.6.73 → 0.6.76, the lowest
     version that resolves with the other floors; and a new `JET = "0.10, 0.11, 0.12, 0.13"` entry,
     as 0.10.0 is the first release that installs on Julia 1.12.
+- **`AbstractNeuralNetworks` 0.9.1 → 0.10** in `[compat]`, which moves the package to
+  `KernelAbstractions` 0.10. A compat-only change: no code changes. The package and its tests,
+  scripts, docs and README never use `GPU`, which `AbstractNeuralNetworks` 0.10 no longer exports.
+  They construct networks only on `CPU()`, which still defaults to `Float64`, and
+  `SymbolicNeuralNetwork` passes `Float64` explicitly.
 
 ## [0.9.1] — 2026-10-24
 
